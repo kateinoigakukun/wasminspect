@@ -27,13 +27,13 @@ impl Module {
         &self,
         env: &Environment,
         name: String,
-        sig_index: Index,
+        func_type: FunctionType,
     ) -> Option<&Export> {
         let module = &self.get_base_module();
         for export in &module.exports {
             if export.name == name && export.kind == ExternalKind::Func {
                 let func = env.get_func(export.index);
-                if env.is_func_sigs_equal(func.sig_index(), sig_index) {
+                if func.func_type() == func_type {
                     Some(export);
                 }
             }
@@ -69,6 +69,7 @@ impl DefinedModule {
 struct ModuleReader<'a, 'b> {
     env: &'a mut Environment<'b>,
 
+    // legacy
     sig_index_mapping: IndexVector,
     func_index_mapping: IndexVector,
     table_index_mapping: IndexVector,
@@ -94,9 +95,9 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
 
 impl<'a, 'b> ModuleReader<'a, 'b> {
     fn walk(&mut self, module: &'b PModule) {
-        self.walk_types(module);
-        self.walk_imports(module);
-        self.walk_functions(module);
+        let types = self.walk_types(module);
+        self.walk_imports(module, &types);
+        self.walk_functions(module, &types);
         self.walk_tables(module);
         self.walk_memory(module);
         self.walk_global(module);
@@ -107,10 +108,10 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
         self.walk_data(module);
     }
 
-    fn walk_types(&mut self, module: &'b PModule) {
+    fn walk_types(&mut self, module: &'b PModule) -> Vec<FunctionType> {
         let type_sec = match module.type_section() {
             Some(type_sec) => type_sec,
-            None => return,
+            None => return vec![],
         };
 
         let sig_count = self.env.get_func_signature_count();
@@ -124,16 +125,26 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
                 }
             }
         }
+        return type_sec
+            .types()
+            .into_iter()
+            .map(|t| match t {
+                Type::Function(func_type) => func_type.clone(),
+            })
+            .collect();
     }
 
-    fn walk_imports(&mut self, module: &PModule) {
+    fn walk_imports(&mut self, module: &PModule, types: &[FunctionType]) {
         let import_sec: &ImportSection = match module.import_section() {
             Some(import_sec) => import_sec,
             None => return,
         };
         for entry in import_sec.entries() {
             match entry.external() {
-                External::Function(sig_index) => self.walk_import_fun(entry, Index(*sig_index)),
+                External::Function(sig_index) => {
+                    let func_type = types[sig_index.clone() as usize];
+                    self.walk_import_fun(entry, func_type);
+                }
                 External::Table(table) => self.walk_import_table(entry, table),
                 External::Memory(memory) => self.walk_import_memory(entry, memory),
                 External::Global(global) => self.walk_import_global(entry, global),
@@ -142,17 +153,13 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
         panic!();
     }
 
-    fn walk_import_fun(&mut self, entry: &ImportEntry, sig_index: Index) {
-        let env_sig_index = self.translate_sig_index_to_env(sig_index);
+    fn walk_import_fun(&mut self, entry: &ImportEntry, func_type: FunctionType) {
         let imported_module = &self.env.find_registered_module(entry.module());
-        let export = match imported_module.get_func_export(
-            self.env,
-            entry.field().to_string(),
-            env_sig_index,
-        ) {
-            Some(e) => e,
-            None => panic!("Imported func {} not found", entry.field()),
-        };
+        let export =
+            match imported_module.get_func_export(self.env, entry.field().to_string(), func_type) {
+                Some(e) => e,
+                None => panic!("Imported func {} not found", entry.field()),
+            };
         let func = self.env.get_func(export.index);
         self.func_index_mapping.push(export.index);
     }
@@ -176,16 +183,27 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
         panic!()
     }
 
-    fn walk_functions(&mut self, module: &PModule) {
+    fn walk_functions(&mut self, module: &PModule, types: &[FunctionType]) {
         let function_sec = match module.function_section() {
             Some(function_sec) => function_sec,
             None => return,
         };
+        let code_sec = match module.code_section() {
+            Some(code_sec) => code_sec,
+            None => return,
+        };
         let func_count = self.env.get_func_count();
-        for (i, entry) in function_sec.entries().into_iter().enumerate() {
+        for ((i, entry), body) in function_sec
+            .entries()
+            .into_iter()
+            .enumerate()
+            .zip(code_sec.bodies())
+        {
             let env_func_index = Index::try_from(func_count + i).unwrap();
             self.func_index_mapping.push(env_func_index);
-            let fun = DefinedFunc::new(env_func_index);
+            let func_type = types[entry.type_ref() as usize].clone();
+            let instructions = body.code().elements().to_vec();
+            let fun = DefinedFunc::new("TODO".to_string(), func_type, instructions);
             self.env.push_back_func(Func::Defined(fun));
         }
     }
@@ -213,41 +231,42 @@ impl Func {
             Func::Defined(defined) => &defined.base,
         }
     }
-    pub fn sig_index(&self) -> Index {
-        self.base().sig_index
-    }
 
     pub fn is_host(&self) -> bool {
         match self {
             Func::Defined(_) => true,
         }
     }
+
+    pub fn func_type(&self) -> FunctionType {
+        self.base().func_type
+    }
 }
 
 pub struct FuncBase {
-    sig_index: Index,
+    name: String,
+    func_type: FunctionType,
     is_host: bool,
 }
 pub struct DefinedFunc {
     base: FuncBase,
-    pub offset: u32,
-    pub local_decl_count: Index,
-    pub local_count: Index,
-    pub param_and_loca_types: TypeVector,
+    pub instructions: Vec<Instruction>,
 }
 
 impl DefinedFunc {
-    fn new(sig_index: Index) -> Self {
+    fn new(name: String, func_type: FunctionType, instructions: Vec<Instruction>) -> Self {
         Self {
             base: FuncBase {
-                sig_index,
+                name,
+                func_type,
                 is_host: false,
             },
-            offset: 0, // Invalid offset
-            local_decl_count: Index(0),
-            local_count: Index(0),
-            param_and_loca_types: vec![],
+            instructions: instructions,
         }
+    }
+
+    pub fn inst(&self, index: Index) -> Instruction {
+        self.instructions[index.0 as usize]
     }
 }
 

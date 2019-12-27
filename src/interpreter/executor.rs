@@ -1,15 +1,29 @@
 use super::environment::{Environment};
 use super::module::*;
+use parity_wasm::elements::{Instruction, BrTableData};
+
+struct ProgramCounter {
+    func_index: Index,
+    inst_index: Index,
+}
+
 pub struct Executor<'a, 'b> {
     env: &'a Environment<'b>,
+    module: &'a DefinedModule,
     thread: Thread<'a, 'b>,
+    pc: ProgramCounter,
 }
 
 impl<'a, 'b> Executor<'a, 'b> {
-    pub fn new(module: &DefinedModule, env: &'a Environment<'b>) -> Self {
+    pub fn new(module: &'a DefinedModule, env: &'a Environment<'b>) -> Self {
         Self {
             env,
+            module,
             thread: Thread::new(env),
+            pc: ProgramCounter {
+                func_index: panic!(),
+                inst_index: panic!(),
+            },
         }
     }
 
@@ -43,15 +57,75 @@ impl<'a, 'b> Executor<'a, 'b> {
     }
 
     pub fn run_function(&mut self, func_index: Index) {
-        let func = &self.env.get_func(func_index);
-        let sig = self.env.get_func_signature(func.sig_index());
-        match func {
-            Func::Defined(defined_func) => self.run_defined_function(defined_func),
-        }
+        // let func = &self.env.get_func(func_index);
+        // let sig = self.env.get_func_signature(func.sig_index());
+        // match func {
+        //     Func::Defined(defined_func) => self.run_defined_function(defined_func),
+        // }
     }
 
     fn run_defined_function(&mut self, func: &DefinedFunc) {
-        self.thread.set_pc(InstOffset(func.offset));
+    }
+
+    fn execute_step(&mut self) {
+        let func = self.env.get_func(self.pc.func_index);
+        match func {
+            Func::Defined(defined) => {
+                self.execute_defined_func_step(defined)
+            }
+        }
+    }
+
+    fn execute_defined_func_step(&mut self, func: &DefinedFunc) {
+        let inst = func.inst(self.pc.inst_index);
+        self.execute_inst(inst);
+    }
+
+    fn execute_inst(&mut self, inst: Instruction) {
+        match inst {
+	        Instruction::Unreachable => panic!(),
+	        Instruction::Block(blockType) => {
+            }
+	        Instruction::Loop(blockType) => {}
+	        Instruction::If(blockType) => {}
+	        Instruction::BrTable(brTableData) => {}
+	        Instruction::CallIndirect(u32, u8) => {}
+	        Instruction::GetLocal(u32) => {}
+	        Instruction::SetLocal(u32) => {}
+	        Instruction::TeeLocal(u32) => {}
+	        Instruction::GetGlobal(u32) => {}
+	        Instruction::SetGlobal(u32) => {}
+	        Instruction::I32Load(_, _) => {}
+	        Instruction::I64Load(_, _) => {}
+	        Instruction::F32Load(_, _) => {}
+	        Instruction::F64Load(_, _) => {}
+	        Instruction::I32Load8S(_, _) => {}
+	        Instruction::I32Load8U(_, _) => {}
+	        Instruction::I32Load16S(_, _) => {}
+	        Instruction::I32Load16U(_, _) => {}
+	        Instruction::I64Load8S(_, _) => {}
+	        Instruction::I64Load8U(_, _) => {}
+	        Instruction::I64Load16S(_, _) => {}
+	        Instruction::I64Load16U(_, _) => {}
+	        Instruction::I64Load32S(_, _) => {}
+	        Instruction::I64Load32U(_, _) => {}
+	        Instruction::I32Store(_, _) => {}
+	        Instruction::I64Store(_, _) => {}
+	        Instruction::F32Store(_, _) => {}
+	        Instruction::F64Store(_, _) => {}
+	        Instruction::I32Store8(_, _) => {}
+	        Instruction::I32Store16(_, _) => {}
+	        Instruction::I64Store8(_, _) => {}
+	        Instruction::I64Store16(_, _) => {}
+	        Instruction::I64Store32(_, _) => {}
+	        Instruction::CurrentMemory(_) => {}
+	        Instruction::GrowMemory(_) => {}
+	        Instruction::I32Const(_) => {}
+	        Instruction::I64Const(_) => {}
+	        Instruction::F32Const(_) => {}
+            Instruction::F64Const(_) => {}
+            _ => panic!("{} not supported yet", inst),
+        }
     }
 }
 
@@ -81,4 +155,9 @@ impl<'a, 'b> Thread<'a, 'b> {
     fn set_pc(&mut self, offset: InstOffset) {
         self.pc = offset;
     }
+
+
+    fn run(num_instructions: usize) {
+    }
+
 }
