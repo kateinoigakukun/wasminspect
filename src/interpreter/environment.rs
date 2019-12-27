@@ -36,6 +36,9 @@ impl<'a> Environment<'a> {
     pub fn get_func_signature_count(&self) -> usize {
         self.sigs.len()
     }
+    pub fn get_func_count(&self) -> usize {
+        self.funcs.len()
+    }
 
     pub fn get_func(&self, index: Index) -> &Func {
         let index: usize = index.try_into().unwrap();
@@ -49,6 +52,9 @@ impl<'a> Environment<'a> {
 
     pub fn push_back_func_signature(&mut self, sig: &'a FunctionType) {
         self.sigs.push(sig)
+    }
+
+    pub fn push_back_func(&mut self, func: Func) {
     }
 
     pub fn is_func_sigs_equal(&self, lhs: Index, rhs: Index) -> bool {

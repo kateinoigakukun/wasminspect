@@ -33,7 +33,7 @@ impl Module {
         for export in &module.exports {
             if export.name == name && export.kind == ExternalKind::Func {
                 let func = env.get_func(export.index);
-                if env.is_func_sigs_equal(func.sig_index, sig_index) {
+                if env.is_func_sigs_equal(func.sig_index(), sig_index) {
                     Some(export);
                 }
             }
@@ -56,7 +56,10 @@ pub struct DefinedModule {
 }
 
 impl DefinedModule {
-    pub fn read_from_parity_wasm<'a, 'b>(module: &'b PModule, env: &'a mut Environment<'b>) -> DefinedModule {
+    pub fn read_from_parity_wasm<'a, 'b>(
+        module: &'b PModule,
+        env: &'a mut Environment<'b>,
+    ) -> DefinedModule {
         let reader = &mut ModuleReader::new(env);
         reader.walk(module);
         panic!();
@@ -93,7 +96,17 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
     fn walk(&mut self, module: &'b PModule) {
         self.walk_types(module);
         self.walk_imports(module);
+        self.walk_functions(module);
+        self.walk_tables(module);
+        self.walk_memory(module);
+        self.walk_global(module);
+        self.walk_export(module);
+        self.walk_start(module);
+        self.walk_elem(module);
+        self.walk_code(module);
+        self.walk_data(module);
     }
+
     fn walk_types(&mut self, module: &'b PModule) {
         let type_sec = match module.type_section() {
             Some(type_sec) => type_sec,
@@ -162,14 +175,74 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
     fn walk_import_global(&mut self, entry: &ImportEntry, memory: &GlobalType) {
         panic!()
     }
+
+    fn walk_functions(&mut self, module: &PModule) {
+        let function_sec = match module.function_section() {
+            Some(function_sec) => function_sec,
+            None => return,
+        };
+        let func_count = self.env.get_func_count();
+        for (i, entry) in function_sec.entries().into_iter().enumerate() {
+            let env_func_index = Index::try_from(func_count + i).unwrap();
+            self.func_index_mapping.push(env_func_index);
+            let fun = DefinedFunc::new(env_func_index);
+            self.env.push_back_func(Func::Defined(fun));
+        }
+    }
+
+    fn walk_tables(&mut self, module: &PModule) {}
+    fn walk_memory(&mut self, module: &PModule) {}
+    fn walk_global(&mut self, module: &PModule) {}
+    fn walk_export(&mut self, module: &PModule) {}
+    fn walk_start(&mut self, module: &PModule) {}
+    fn walk_elem(&mut self, module: &PModule) {}
+    fn walk_code(&mut self, module: &PModule) {}
+    fn walk_data(&mut self, module: &PModule) {}
 }
 
 pub type TypeVector = Vec<Type>;
 pub type IndexVector = Vec<Index>;
 
-pub struct Func {
+pub enum Func {
+    Defined(DefinedFunc),
+}
+
+impl Func {
+    fn base(&self) -> &FuncBase {
+        match self {
+            Func::Defined(defined) => &defined.base,
+        }
+    }
+    fn sig_index(&self) -> Index {
+        self.base().sig_index
+    }
+}
+
+pub struct FuncBase {
     sig_index: Index,
     is_host: bool,
+}
+pub struct DefinedFunc {
+    base: FuncBase,
+    offset: u32,
+    local_decl_count: Index,
+    local_count: Index,
+    param_and_loca_types: TypeVector,
+}
+
+impl DefinedFunc {
+    fn new(sig_index: Index) -> Self {
+        Self {
+            base: FuncBase {
+                sig_index,
+                is_host: false,
+            },
+            offset: 0, // Invalid offset
+            local_decl_count: Index(0),
+            local_count: Index(0),
+            param_and_loca_types: vec![],
+        }
+    }
 }
 
 #[derive(PartialEq)]
