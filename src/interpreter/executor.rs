@@ -17,8 +17,17 @@ pub struct CallFrame {
     pub locals: Vec<Value>,
 }
 
+impl CallFrame {
+    pub fn new(func: &Func) -> Self {
+        Self {
+            locals: Vec::with_capacity(func.locals().len() + func.func_type().params().len())
+        }
+    }
+}
+
 pub enum Error {
-    Panic(String)
+    Panic(String),
+    End
 }
 
 pub type ExecResult = Result<(), Error>;
@@ -32,8 +41,8 @@ pub struct Executor<'a> {
 }
 
 impl<'a> Executor<'a> {
-    pub fn new(pc: ProgramCounter, env: &'a Environment) -> Self {
-        let initial_call_frame = Self::init_call_frame(&pc, env);
+    pub fn new(initial_args: Vec<Value>, pc: ProgramCounter, env: &'a Environment) -> Self {
+        let initial_call_frame = Self::init_initial_call_frame(&initial_args, &pc, env);
         Self {
             env,
             pc: pc,
@@ -57,12 +66,15 @@ impl<'a> Executor<'a> {
         globals
     }
 
-    pub fn init_call_frame(pc: &ProgramCounter, env: &Environment) -> CallFrame {
+    pub fn init_initial_call_frame(args: &Vec<Value>, pc: &ProgramCounter, env: &Environment) -> CallFrame {
         let func = env.get_func(pc.func_index);
-        CallFrame {
-            locals: Vec::with_capacity(func.locals().len())
+        let mut frame = CallFrame::new(func);
+        for arg in args.iter() {
+            frame.locals.push(*arg);
         }
+        frame
     }
+
 
     pub fn execute_step(&mut self) -> ExecResult {
         let func = self.env.get_func(self.pc.func_index);
@@ -92,6 +104,23 @@ impl<'a> Executor<'a> {
                 self.locals_mut()[index as usize] = value;
                 Ok(())
             }
+            Instruction::GetLocal(index) => {
+                let value = self.locals_mut()[index as usize];
+                self.push(value);
+                Ok(())
+            }
+            Instruction::I32Add => {
+                let lhs = self.pop();
+                let rhs = self.pop();
+                if let (Value::I32(lhs), Value::I32(rhs)) = (lhs, rhs) {
+                    self.push(Value::I32(lhs + rhs));
+                    Ok(())
+                } else {
+                    debug_assert!(false, format!("Invalid inst"));
+                    Err(Error::Panic(format!("Invalid inst")))
+                }
+            }
+            Instruction::End => Err(Error::End),
             _ => {
                 debug_assert!(false, format!("{} not supported yet", inst));
                 Err(Error::Panic(format!("{} not supported yet", inst)))

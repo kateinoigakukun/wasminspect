@@ -4,7 +4,7 @@ mod module;
 
 use self::environment::Environment;
 use self::executor::{Executor, ProgramCounter};
-use self::module::{DefinedModule, Index, Module};
+use self::module::{DefinedModule, Index, Module, Value};
 
 pub fn read_and_run_module(module_filename: String) {
     let env = &mut Environment::new();
@@ -16,7 +16,7 @@ pub fn read_and_run_module(module_filename: String) {
         ProgramCounter::new(Index::zero(), Index::zero())
     };
     env.load_module(Module::Defined(module));
-    let mut executor = Executor::new(pc, env);
+    let mut executor = Executor::new(vec![Value::I32(1), Value::I32(2)], pc, env);
     let mut result = Ok(());
     while let Ok(_) = result {
         result = executor.execute_step();

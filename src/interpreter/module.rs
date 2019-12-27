@@ -233,7 +233,6 @@ impl<'a> ModuleReader<'a> {
                 .iter()
                 .flat_map(|locals| iter::repeat(locals.value_type()).take(locals.count() as usize))
                 .collect();
-            println!("len of locals {}", locals.len());
             let instructions = body.code().elements().to_vec();
             let fun = DefinedFunc::new("TODO".to_string(), func_type, locals, instructions);
             self.env.push_back_func(Func::Defined(fun));
