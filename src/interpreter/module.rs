@@ -113,10 +113,6 @@ impl<'a> ModuleReader<'a> {
             has_table: false,
         }
     }
-    fn translate_sig_index_to_env(&self, index: Index) -> Index {
-        let index: usize = index.try_into().unwrap();
-        self.sig_index_mapping[index]
-    }
 }
 
 impl<'a> ModuleReader<'a> {
@@ -186,7 +182,6 @@ impl<'a> ModuleReader<'a> {
                 Some(e) => e,
                 None => panic!("Imported func {} not found", entry.field()),
             };
-        let func = self.env.get_func(export.index);
         self.func_index_mapping.push(export.index);
     }
 
@@ -197,7 +192,8 @@ impl<'a> ModuleReader<'a> {
             .get_export(&entry.field().to_string())
             .expect("Imported table not found");
         let exported_table = self.env.get_table(export.index);
-        // assert_eq!(table.elem_type, exported_table.elem_type)
+        let _ = table;
+        let _ = exported_table;
         self.table_index_mapping.push(export.index);
     }
 
@@ -382,17 +378,5 @@ pub struct Table {
 
 struct Memory {
     page_limits: Limits,
-    data: Vec<u8>,
-}
-
-struct ElemSegmentInfo {
-    table: Table,
-    destination: Index,
-    source: Vec<Ref>,
-}
-
-struct DataSegmentInfo {
-    memory: Memory,
-    destination: Address,
     data: Vec<u8>,
 }
