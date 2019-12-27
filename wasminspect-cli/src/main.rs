@@ -1,5 +1,4 @@
-mod interpreter;
-use interpreter::{WasmInstance, WasmValue};
+use wasminspect_core::interpreter::{WasmInstance, WasmValue};
 
 fn main() {
     let instance = WasmInstance::new("example/calc.wasm".to_string());
