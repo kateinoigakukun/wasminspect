@@ -44,7 +44,7 @@ impl<'a, 'b> Executor<'a, 'b> {
 
     fn execute_inst(&mut self, inst: &Instruction) {
         match inst {
-	        Instruction::Unreachable => panic!(),
+            Instruction::Unreachable => panic!(),
             _ => panic!("{} not supported yet", inst),
         }
     }

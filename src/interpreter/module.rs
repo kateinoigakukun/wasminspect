@@ -56,9 +56,6 @@ impl Module {
 pub struct DefinedModule {
     base_module: BaseModule,
     start_func: Option<u32>,
-
-    active_elem_segments: Vec<ElemSegmentInfo>,
-    active_data_segments: Vec<DataSegmentInfo>,
 }
 
 impl DefinedModule {
@@ -80,8 +77,6 @@ impl DefinedModule {
                 export_bindings: HashMap::new(),
             },
             start_func: module.start_section(),
-            active_elem_segments: vec![],
-            active_data_segments: vec![],
         }
     }
 
