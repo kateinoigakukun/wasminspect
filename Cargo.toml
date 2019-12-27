@@ -5,4 +5,7 @@ authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-wasmtime = "0.8.0"
+parity-wasm = "0.41"
+
+[features]
+# wasminspect = ["option_flattening"]
