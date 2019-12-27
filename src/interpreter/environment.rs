@@ -1,8 +1,7 @@
-use std::collections::HashMap;
-use std::convert::{TryInto};
-use parity_wasm::elements::{FunctionType};
 use super::module::*;
-
+use parity_wasm::elements::FunctionType;
+use std::collections::HashMap;
+use std::convert::TryInto;
 
 pub struct Environment<'a> {
     modules: HashMap<String, Module>,

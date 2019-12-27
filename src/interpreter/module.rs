@@ -1,4 +1,5 @@
 use super::Environment;
+use super::ProgramCounter;
 use parity_wasm::elements::Module as PModule;
 use parity_wasm::elements::*;
 use std::collections::HashMap;
@@ -54,6 +55,8 @@ impl Module {
 
 pub struct DefinedModule {
     base_module: BaseModule,
+    start_func: Option<u32>,
+
     active_elem_segments: Vec<ElemSegmentInfo>,
     active_data_segments: Vec<DataSegmentInfo>,
 }
@@ -63,10 +66,11 @@ impl DefinedModule {
         module: &'b PModule,
         env: &'a mut Environment<'b>,
     ) -> Self {
-        let module_name = module.names_section()
-                                  .map(|sec| { sec.module().unwrap() })
-                                  .map(|module| { module.name() })
-                                  .unwrap();
+        let module_name = module
+            .names_section()
+            .and_then(|sec| sec.module())
+            .map(|module| module.name())
+            .unwrap_or("wasminspect_main");
         let reader = &mut ModuleReader::new(env);
         reader.walk(&module);
         Self {
@@ -75,9 +79,14 @@ impl DefinedModule {
                 exports: vec![],
                 export_bindings: HashMap::new(),
             },
+            start_func: module.start_section(),
             active_elem_segments: vec![],
             active_data_segments: vec![],
         }
+    }
+
+    pub fn start_func_index(&self) -> Option<Index> {
+        self.start_func.map(Index)
     }
 }
 
@@ -301,6 +310,12 @@ pub struct Export {
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct Index(u32);
+
+impl Index {
+    pub fn zero() -> Index {
+        Index(0)
+    }
+}
 
 impl TryFrom<usize> for Index {
     type Error = Box<dyn Error>;

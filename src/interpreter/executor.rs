@@ -8,23 +8,21 @@ pub struct ProgramCounter {
 }
 
 impl ProgramCounter {
-    fn new(func_index: Index, inst_index: Index) -> Self {
+    pub fn new(func_index: Index, inst_index: Index) -> Self {
         Self { func_index, inst_index }
     }
 }
 
 pub struct Executor<'a, 'b> {
     env: &'a Environment<'b>,
-    module: &'a DefinedModule,
     thread: Thread<'a, 'b>,
     pc: ProgramCounter,
 }
 
 impl<'a, 'b> Executor<'a, 'b> {
-    pub fn new(module: &'a DefinedModule, pc: ProgramCounter, env: &'a Environment<'b>) -> Self {
+    pub fn new(pc: ProgramCounter, env: &'a Environment<'b>) -> Self {
         Self {
             env,
-            module,
             thread: Thread::new(env),
             pc: pc,
         }
