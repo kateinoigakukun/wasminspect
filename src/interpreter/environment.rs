@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::{TryInto};
 use parity_wasm::elements::{FunctionType};
 use super::module::*;
 
@@ -66,6 +66,7 @@ impl<'a> Environment<'a> {
     }
 
     pub fn push_back_func(&mut self, func: Func) {
+        self.funcs.push(func)
     }
 
     pub fn is_func_sigs_equal(&self, lhs: Index, rhs: Index) -> bool {
