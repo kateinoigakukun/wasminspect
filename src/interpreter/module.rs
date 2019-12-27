@@ -1,6 +1,7 @@
 use super::Environment;
 use parity_wasm::elements::Module as PModule;
-use parity_wasm::elements::{External, ImportSection, Type, ImportEntry};
+use parity_wasm::elements::*;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::error::Error;
@@ -8,7 +9,7 @@ use std::error::Error;
 struct BaseModule {
     name: String,
     exports: Vec<Export>,
-    // export_bindings: Vec<BindingHash>,
+    export_bindings: HashMap<String, Index>,
     // memory_index: Index,
 }
 
@@ -22,18 +23,29 @@ impl Module {
             Module::Defined(defined_module) => &defined_module.base_module,
         }
     }
-    fn get_func_export(&self, env: &Environment, name: String, sig_index: Index) -> Option<Export> {
+    fn get_func_export(
+        &self,
+        env: &Environment,
+        name: String,
+        sig_index: Index,
+    ) -> Option<&Export> {
         let module = &self.get_base_module();
         for export in &module.exports {
             if export.name == name && export.kind == ExternalKind::Func {
                 let func = env.get_func(export.index);
                 if env.is_func_sigs_equal(func.sig_index, sig_index) {
-                    export;
+                    Some(export);
                 }
             }
         }
         // TODO: unknown
         None
+    }
+
+    fn get_export(&self, name: &String) -> Option<&Export> {
+        let module = self.get_base_module();
+        let index = module.export_bindings[name];
+        Some(&module.exports[index.0 as usize])
     }
 }
 
@@ -51,11 +63,21 @@ impl DefinedModule {
 }
 
 struct ModuleReader<'a> {
-    env: &'a mut Environment,
+    env: &'a mut Environment<'a>,
     module: &'a mut DefinedModule,
 
-    types: Vec<&'a Type>,
+    sig_index_mapping: IndexVector,
     func_index_mapping: IndexVector,
+    table_index_mapping: IndexVector,
+
+    has_table: bool,
+}
+
+impl<'a> ModuleReader<'a> {
+    fn translate_sig_index_to_env(&self, index: Index) -> Index {
+        let index: usize = index.try_into().unwrap();
+        self.sig_index_mapping[index]
+    }
 }
 
 impl<'a> ModuleReader<'a> {
@@ -64,11 +86,22 @@ impl<'a> ModuleReader<'a> {
         self.walk_imports(module);
     }
     fn walk_types(&mut self, module: &'a PModule) {
-        self.types = if let Some(type_sec) = module.type_section() {
-            type_sec.types().iter().collect()
-        } else {
-            vec![]
+        let type_sec = match module.type_section() {
+            Some(type_sec) => type_sec,
+            None => return,
         };
+
+        let sig_count = self.env.get_func_signature_count();
+        for (i, type_) in type_sec.types().into_iter().enumerate() {
+            let env_sig_index = Index::try_from(sig_count + i).unwrap();
+            self.sig_index_mapping.push(env_sig_index);
+
+            match type_ {
+                Type::Function(func_type) => {
+                    self.env.push_back_func_signature(func_type);
+                }
+            }
+        }
     }
 
     fn walk_imports(&mut self, module: &PModule) {
@@ -78,37 +111,52 @@ impl<'a> ModuleReader<'a> {
         };
         for entry in import_sec.entries() {
             match entry.external() {
-                External::Function(type_ref) => self.walk_import_fun(module, entry, *type_ref),
-                _ => panic!(),
+                External::Function(sig_index) => self.walk_import_fun(entry, Index(*sig_index)),
+                External::Table(table) => self.walk_import_table(entry, table),
+                External::Memory(memory) => self.walk_import_memory(entry, memory),
+                External::Global(global) => self.walk_import_global(entry, global),
             }
         }
         panic!();
     }
 
-    fn walk_import_fun(&mut self, module: &PModule, entry: &ImportEntry, type_ref: u32) {
-        let imported_module = &self.env.get_module_by_name(entry.module());
-        let type_ = &self.types[type_ref as usize];
-        // imported_module.
+    fn walk_import_fun(&mut self, entry: &ImportEntry, sig_index: Index) {
+        let env_sig_index = self.translate_sig_index_to_env(sig_index);
+        let imported_module = &self.env.find_registered_module(entry.module());
+        let export = match imported_module.get_func_export(
+            self.env,
+            entry.field().to_string(),
+            env_sig_index,
+        ) {
+            Some(e) => e,
+            None => panic!("Imported func {} not found", entry.field()),
+        };
+        let func = self.env.get_func(export.index);
+        self.func_index_mapping.push(export.index);
+    }
+
+    fn walk_import_table(&mut self, entry: &ImportEntry, table: &TableType) {
+        self.has_table = true;
+        let module = self.env.find_registered_module(entry.module());
+        let export = module
+            .get_export(&entry.field().to_string())
+            .expect("Imported table not found");
+        let exported_table = self.env.get_table(export.index);
+        // assert_eq!(table.elem_type, exported_table.elem_type)
+        self.table_index_mapping.push(export.index);
+    }
+
+    fn walk_import_memory(&mut self, entry: &ImportEntry, memory: &MemoryType) {
+        panic!()
+    }
+
+    fn walk_import_global(&mut self, entry: &ImportEntry, memory: &GlobalType) {
+        panic!()
     }
 }
 
 pub type TypeVector = Vec<Type>;
 pub type IndexVector = Vec<Index>;
-
-#[derive(PartialEq)]
-pub struct FuncSignature {
-    param_types: TypeVector,
-    result_types: TypeVector,
-}
-
-impl FuncSignature {
-    fn new(param_types: TypeVector, result_types: TypeVector) -> Self {
-        Self {
-            param_types,
-            result_types,
-        }
-    }
-}
 
 pub struct Func {
     sig_index: Index,
@@ -161,7 +209,7 @@ struct Limits {
     is_shared: bool,
 }
 
-struct Table {
+pub struct Table {
     elem_type: Type,
     limits: Limits,
     entries: Vec<Ref>,

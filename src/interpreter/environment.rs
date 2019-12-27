@@ -1,21 +1,23 @@
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::hash::Hash;
+use parity_wasm::elements::{FunctionType};
 use super::module::*;
 
 
-pub struct Environment {
+pub struct Environment<'a> {
     modules: HashMap<String, Module>,
-    sigs: Vec<FuncSignature>,
+    sigs: Vec<&'a FunctionType>,
     funcs: Vec<Func>,
+    tables: Vec<Table>,
 }
 
-impl Environment {
+impl<'a> Environment<'a> {
     pub fn new() -> Self {
         Self {
             modules: HashMap::new(),
             sigs: vec![],
             funcs: vec![],
+            tables: vec![],
         }
     }
     pub fn load_module(&mut self, pmodule: parity_wasm::elements::Module) {
@@ -27,13 +29,26 @@ impl Environment {
         self.modules.insert(module_name.to_string(), Module::Defined(module));
     }
 
-    pub fn get_module_by_name<T: Into<String>>(&self, name: T) -> &Module {
+    pub fn find_registered_module<T: Into<String>>(&self, name: T) -> &Module {
         &self.modules[&name.into()]
+    }
+
+    pub fn get_func_signature_count(&self) -> usize {
+        self.sigs.len()
     }
 
     pub fn get_func(&self, index: Index) -> &Func {
         let index: usize = index.try_into().unwrap();
         &self.funcs[index]
+    }
+
+    pub fn get_table(&self, index: Index) -> &Table {
+        let index: usize = index.try_into().unwrap();
+        &self.tables[index]
+    }
+
+    pub fn push_back_func_signature(&mut self, sig: &'a FunctionType) {
+        self.sigs.push(sig)
     }
 
     pub fn is_func_sigs_equal(&self, lhs: Index, rhs: Index) -> bool {
