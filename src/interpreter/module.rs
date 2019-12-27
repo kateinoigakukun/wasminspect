@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::error::Error;
+use std::iter;
 
 struct BaseModule {
     name: String,
@@ -227,8 +228,14 @@ impl<'a> ModuleReader<'a> {
             let env_func_index = Index::try_from(func_count + i).unwrap();
             self.func_index_mapping.push(env_func_index);
             let func_type = types[entry.type_ref() as usize].clone();
+            let locals: Vec<ValueType> = body
+                .locals()
+                .iter()
+                .flat_map(|locals| iter::repeat(locals.value_type()).take(locals.count() as usize))
+                .collect();
+            println!("len of locals {}", locals.len());
             let instructions = body.code().elements().to_vec();
-            let fun = DefinedFunc::new("TODO".to_string(), func_type, instructions);
+            let fun = DefinedFunc::new("TODO".to_string(), func_type, locals, instructions);
             self.env.push_back_func(Func::Defined(fun));
         }
     }
@@ -272,11 +279,16 @@ impl Func {
     pub fn func_type(&self) -> &FunctionType {
         &self.base().func_type
     }
+
+    pub fn locals(&self) -> &Vec<ValueType> {
+        &self.base().locals
+    }
 }
 
 pub struct FuncBase {
     name: String,
     func_type: FunctionType,
+    locals: Vec<ValueType>,
     is_host: bool,
 }
 pub struct DefinedFunc {
@@ -285,11 +297,17 @@ pub struct DefinedFunc {
 }
 
 impl DefinedFunc {
-    fn new(name: String, func_type: FunctionType, instructions: Vec<Instruction>) -> Self {
+    fn new(
+        name: String,
+        func_type: FunctionType,
+        locals: Vec<ValueType>,
+        instructions: Vec<Instruction>,
+    ) -> Self {
         Self {
             base: FuncBase {
                 name,
                 func_type,
+                locals: locals,
                 is_host: false,
             },
             instructions: instructions,

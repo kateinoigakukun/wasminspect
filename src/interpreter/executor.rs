@@ -13,6 +13,10 @@ impl ProgramCounter {
     }
 }
 
+pub struct CallFrame {
+    pub locals: Vec<Value>,
+}
+
 pub enum Error {
     Panic(String)
 }
@@ -24,20 +28,22 @@ pub struct Executor<'a> {
     pc: ProgramCounter,
     globals: Vec<Value>,
     stack: Vec<Value>,
+    call_stack: Vec<CallFrame>,
 }
 
 impl<'a> Executor<'a> {
     pub fn new(pc: ProgramCounter, env: &'a Environment) -> Self {
+        let initial_call_frame = Self::init_call_frame(&pc, env);
         Self {
             env,
             pc: pc,
             globals: Self::init_global(env),
             stack: vec![],
+            call_stack: vec![initial_call_frame],
         }
     }
 
-
-    pub fn init_global(env: &'a Environment) -> Vec<Value> {
+    pub fn init_global(env: &Environment) -> Vec<Value> {
         let mut globals = Vec::with_capacity(env.modules().len());
         for module in env.modules() {
             match module {
@@ -49,6 +55,13 @@ impl<'a> Executor<'a> {
             }
         }
         globals
+    }
+
+    pub fn init_call_frame(pc: &ProgramCounter, env: &Environment) -> CallFrame {
+        let func = env.get_func(pc.func_index);
+        CallFrame {
+            locals: Vec::with_capacity(func.locals().len())
+        }
     }
 
     pub fn execute_step(&mut self) -> ExecResult {
@@ -74,6 +87,11 @@ impl<'a> Executor<'a> {
                 self.push(value);
                 Ok(())
             }
+            Instruction::SetLocal(index) => {
+                let value = self.pop();
+                self.locals_mut()[index as usize] = value;
+                Ok(())
+            }
             _ => {
                 debug_assert!(false, format!("{} not supported yet", inst));
                 Err(Error::Panic(format!("{} not supported yet", inst)))
@@ -81,8 +99,19 @@ impl<'a> Executor<'a> {
         }
     }
 
+    fn locals_mut(&mut self) -> &mut Vec<Value> {
+        if let Some(frame) = self.call_stack.last_mut() {
+            return &mut frame.locals;
+        }
+        panic!("No func frame");
+    }
+
     fn push(&mut self, value: Value) {
         self.stack.push(value)
+    }
+    
+    fn pop(&mut self) -> Value {
+        self.stack.pop().unwrap()
     }
 }
 
