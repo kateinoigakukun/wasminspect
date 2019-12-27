@@ -56,8 +56,9 @@ pub struct DefinedModule {
 }
 
 impl DefinedModule {
-    pub fn read_from_parity_wasm<'a, 'b>(module: &PModule, env: &'a mut Environment<'b>) -> DefinedModule {
-        let reader = ModuleReader::new(env);
+    pub fn read_from_parity_wasm<'a, 'b>(module: &'b PModule, env: &'a mut Environment<'b>) -> DefinedModule {
+        let reader = &mut ModuleReader::new(env);
+        reader.walk(module);
         panic!();
     }
 }
