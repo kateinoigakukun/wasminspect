@@ -10,7 +10,6 @@ struct BaseModule {
     name: String,
     exports: Vec<Export>,
     export_bindings: HashMap<String, Index>,
-    // memory_index: Index,
 }
 
 pub enum Module {
@@ -27,7 +26,7 @@ impl Module {
         &self,
         env: &Environment,
         name: String,
-        func_type: FunctionType,
+        func_type: &FunctionType,
     ) -> Option<&Export> {
         let module = &self.get_base_module();
         for export in &module.exports {
@@ -47,6 +46,10 @@ impl Module {
         let index = module.export_bindings[name];
         Some(&module.exports[index.0 as usize])
     }
+
+    pub fn name(&self) -> &String {
+        &self.get_base_module().name
+    }
 }
 
 pub struct DefinedModule {
@@ -59,10 +62,22 @@ impl DefinedModule {
     pub fn read_from_parity_wasm<'a, 'b>(
         module: &'b PModule,
         env: &'a mut Environment<'b>,
-    ) -> DefinedModule {
+    ) -> Self {
+        let module_name = module.names_section()
+                                  .map(|sec| { sec.module().unwrap() })
+                                  .map(|module| { module.name() })
+                                  .unwrap();
         let reader = &mut ModuleReader::new(env);
         reader.walk(&module);
-        panic!();
+        Self {
+            base_module: BaseModule {
+                name: module_name.to_string(),
+                exports: vec![],
+                export_bindings: HashMap::new(),
+            },
+            active_elem_segments: vec![],
+            active_data_segments: vec![],
+        }
     }
 }
 
@@ -142,7 +157,7 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
         for entry in import_sec.entries() {
             match entry.external() {
                 External::Function(sig_index) => {
-                    let func_type = types[sig_index.clone() as usize];
+                    let func_type = &types[sig_index.clone() as usize];
                     self.walk_import_fun(entry, func_type);
                 }
                 External::Table(table) => self.walk_import_table(entry, table),
@@ -153,7 +168,7 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
         panic!();
     }
 
-    fn walk_import_fun(&mut self, entry: &ImportEntry, func_type: FunctionType) {
+    fn walk_import_fun(&mut self, entry: &ImportEntry, func_type: &FunctionType) {
         let imported_module = &self.env.find_registered_module(entry.module());
         let export =
             match imported_module.get_func_export(self.env, entry.field().to_string(), func_type) {
@@ -238,8 +253,8 @@ impl Func {
         }
     }
 
-    pub fn func_type(&self) -> FunctionType {
-        self.base().func_type
+    pub fn func_type(&self) -> &FunctionType {
+        &self.base().func_type
     }
 }
 
@@ -265,8 +280,8 @@ impl DefinedFunc {
         }
     }
 
-    pub fn inst(&self, index: Index) -> Instruction {
-        self.instructions[index.0 as usize]
+    pub fn inst(&self, index: Index) -> &Instruction {
+        &self.instructions[index.0 as usize]
     }
 }
 

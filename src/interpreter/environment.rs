@@ -20,19 +20,8 @@ impl<'a> Environment<'a> {
             tables: vec![],
         }
     }
-    pub fn load_module(&mut self, pmodule: &'a parity_wasm::elements::Module) {
-        let module = DefinedModule::read_from_parity_wasm(pmodule, self);
-        let module_name = pmodule.names_section()
-                                  .map(|sec| { sec.module().unwrap() })
-                                  .map(|module| { module.name() })
-                                  .unwrap();
-        self.modules.insert(module_name.to_string(), Module::Defined(module));
-    }
-
-    pub fn main_module(&self) -> &DefinedModule {
-        match &self.modules["main"] {
-            Module::Defined(defined) => defined,
-        }
+    pub fn load_module(&mut self, module: Module) {
+        self.modules.insert(module.name().clone(), module);
     }
 
     pub fn find_registered_module<T: Into<String>>(&self, name: T) -> &Module {
