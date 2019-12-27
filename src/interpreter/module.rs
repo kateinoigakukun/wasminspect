@@ -55,8 +55,9 @@ impl Module {
 
 pub struct DefinedModule {
     base_module: BaseModule,
-    pmodule: PModule,
+    pmodule: parity_wasm::elements::Module,
     start_func: Option<u32>,
+    funcs: Vec<Func>,
 }
 
 impl DefinedModule {
@@ -77,6 +78,7 @@ impl DefinedModule {
             },
             pmodule: module,
             start_func: start_func,
+            funcs: vec![],
         }
     }
 
@@ -89,6 +91,27 @@ impl DefinedModule {
             .global_section()
             .map(|sec| sec.entries())
             .unwrap_or(&[])
+    }
+
+    pub fn exported_func_by_name(&self, name: String) -> Option<Index> {
+        let export_sec: &ExportSection = match self.pmodule.export_section() {
+            Some(export_sec) => export_sec,
+            None => return None,
+        };
+        export_sec
+            .entries()
+            .iter()
+            .filter_map(|entry| match entry.internal() {
+                Internal::Function(func_index) => {
+                    if entry.field().to_string() == name {
+                        Some(Index(func_index.clone()))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            })
+            .next()
     }
 }
 
