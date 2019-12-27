@@ -21,7 +21,7 @@ impl<'a> Environment<'a> {
         }
     }
     pub fn load_module(&mut self, pmodule: parity_wasm::elements::Module) {
-        let module = DefinedModule::read_from_parity_wasm(&pmodule);
+        let module = DefinedModule::read_from_parity_wasm(&pmodule, self);
         let module_name = &pmodule.names_section()
                                   .map(|sec| { sec.module().unwrap() })
                                   .map(|module| { module.name() })

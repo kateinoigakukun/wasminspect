@@ -56,15 +56,14 @@ pub struct DefinedModule {
 }
 
 impl DefinedModule {
-    pub fn read_from_parity_wasm(module: &PModule) -> DefinedModule {
-        module.type_section();
+    pub fn read_from_parity_wasm<'a, 'b>(module: &PModule, env: &'a mut Environment<'b>) -> DefinedModule {
+        let reader = ModuleReader::new(env);
         panic!();
     }
 }
 
-struct ModuleReader<'a> {
-    env: &'a mut Environment<'a>,
-    module: &'a mut DefinedModule,
+struct ModuleReader<'a, 'b> {
+    env: &'a mut Environment<'b>,
 
     sig_index_mapping: IndexVector,
     func_index_mapping: IndexVector,
@@ -73,19 +72,28 @@ struct ModuleReader<'a> {
     has_table: bool,
 }
 
-impl<'a> ModuleReader<'a> {
+impl<'a, 'b> ModuleReader<'a, 'b> {
+    fn new(env: &'a mut Environment<'b>) -> Self {
+        Self {
+            env: env,
+            sig_index_mapping: vec![],
+            func_index_mapping: vec![],
+            table_index_mapping: vec![],
+            has_table: false,
+        }
+    }
     fn translate_sig_index_to_env(&self, index: Index) -> Index {
         let index: usize = index.try_into().unwrap();
         self.sig_index_mapping[index]
     }
 }
 
-impl<'a> ModuleReader<'a> {
-    fn walk(&mut self, module: &'a PModule) {
+impl<'a, 'b> ModuleReader<'a, 'b> {
+    fn walk(&mut self, module: &'b PModule) {
         self.walk_types(module);
         self.walk_imports(module);
     }
-    fn walk_types(&mut self, module: &'a PModule) {
+    fn walk_types(&mut self, module: &'b PModule) {
         let type_sec = match module.type_section() {
             Some(type_sec) => type_sec,
             None => return,
