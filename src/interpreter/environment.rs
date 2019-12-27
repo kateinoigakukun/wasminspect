@@ -3,14 +3,14 @@ use parity_wasm::elements::FunctionType;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
-pub struct Environment<'a> {
+pub struct Environment {
     modules: HashMap<String, Module>,
-    sigs: Vec<&'a FunctionType>,
+    sigs: Vec<FunctionType>,
     funcs: Vec<Func>,
     tables: Vec<Table>,
 }
 
-impl<'a> Environment<'a> {
+impl Environment {
     pub fn new() -> Self {
         Self {
             modules: HashMap::new(),
@@ -49,8 +49,8 @@ impl<'a> Environment<'a> {
         &self.tables[index]
     }
 
-    pub fn push_back_func_signature(&mut self, sig: &'a FunctionType) {
-        self.sigs.push(sig)
+    pub fn push_back_func_signature(&mut self, sig: &FunctionType) {
+        self.sigs.push(sig.clone())
     }
 
     pub fn push_back_func(&mut self, func: Func) {
@@ -67,5 +67,9 @@ impl<'a> Environment<'a> {
             let rhs_sig = &self.sigs[rhs_index];
             lhs_sig == rhs_sig
         }
+    }
+
+    pub fn modules(&self) -> Vec<&Module> {
+        self.modules.values().collect()
     }
 }

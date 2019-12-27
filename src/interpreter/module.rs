@@ -1,5 +1,4 @@
 use super::Environment;
-use super::ProgramCounter;
 use parity_wasm::elements::Module as PModule;
 use parity_wasm::elements::*;
 use std::collections::HashMap;
@@ -55,14 +54,12 @@ impl Module {
 
 pub struct DefinedModule {
     base_module: BaseModule,
+    pmodule: PModule,
     start_func: Option<u32>,
 }
 
 impl DefinedModule {
-    pub fn read_from_parity_wasm<'a, 'b>(
-        module: &'b PModule,
-        env: &'a mut Environment<'b>,
-    ) -> Self {
+    pub fn read_from_parity_wasm<'a, 'b>(module: PModule, env: &'a mut Environment) -> Self {
         let module_name = module
             .names_section()
             .and_then(|sec| sec.module())
@@ -70,23 +67,32 @@ impl DefinedModule {
             .unwrap_or("wasminspect_main");
         let reader = &mut ModuleReader::new(env);
         reader.walk(&module);
+        let start_func = module.start_section();
         Self {
             base_module: BaseModule {
                 name: module_name.to_string(),
                 exports: vec![],
                 export_bindings: HashMap::new(),
             },
-            start_func: module.start_section(),
+            pmodule: module,
+            start_func: start_func,
         }
     }
 
     pub fn start_func_index(&self) -> Option<Index> {
         self.start_func.map(Index)
     }
+
+    pub fn globals(&self) -> &[GlobalEntry] {
+        self.pmodule
+            .global_section()
+            .map(|sec| sec.entries())
+            .unwrap_or(&[])
+    }
 }
 
-struct ModuleReader<'a, 'b> {
-    env: &'a mut Environment<'b>,
+struct ModuleReader<'a> {
+    env: &'a mut Environment,
 
     // legacy
     sig_index_mapping: IndexVector,
@@ -96,8 +102,8 @@ struct ModuleReader<'a, 'b> {
     has_table: bool,
 }
 
-impl<'a, 'b> ModuleReader<'a, 'b> {
-    fn new(env: &'a mut Environment<'b>) -> Self {
+impl<'a> ModuleReader<'a> {
+    fn new(env: &'a mut Environment) -> Self {
         Self {
             env: env,
             sig_index_mapping: vec![],
@@ -112,8 +118,8 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ModuleReader<'a, 'b> {
-    fn walk(&mut self, module: &'b PModule) {
+impl<'a> ModuleReader<'a> {
+    fn walk(&mut self, module: &PModule) {
         let types = self.walk_types(module);
         self.walk_imports(module, &types);
         self.walk_functions(module, &types);
@@ -127,7 +133,7 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
         self.walk_data(module);
     }
 
-    fn walk_types(&mut self, module: &'b PModule) -> Vec<FunctionType> {
+    fn walk_types(&mut self, module: &PModule) -> Vec<FunctionType> {
         let type_sec = match module.type_section() {
             Some(type_sec) => type_sec,
             None => return vec![],
@@ -235,6 +241,12 @@ impl<'a, 'b> ModuleReader<'a, 'b> {
     fn walk_elem(&mut self, module: &PModule) {}
     fn walk_code(&mut self, module: &PModule) {}
     fn walk_data(&mut self, module: &PModule) {}
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Value {
+    I32(i32),
+    I64(i64),
 }
 
 pub type TypeVector = Vec<Type>;
