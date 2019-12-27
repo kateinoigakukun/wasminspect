@@ -180,6 +180,19 @@ impl<'a> ModuleReader<'a> {
 pub enum Value {
     I32(i32),
     I64(i64),
+	F32(f32),
+	F64(f64),
+}
+
+impl Value {
+    pub fn value_type(&self) -> ValueType {
+        match self {
+            Value::I32(_) => ValueType::I32,
+            Value::I64(_) => ValueType::I64,
+            Value::F32(_) => ValueType::F32,
+            Value::F64(_) => ValueType::F64,
+        }
+    }
 }
 
 pub type TypeVector = Vec<Type>;

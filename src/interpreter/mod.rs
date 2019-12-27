@@ -3,7 +3,7 @@ mod executor;
 mod module;
 
 use self::environment::Environment;
-use self::executor::{Executor, ProgramCounter};
+use self::executor::{Executor, ExecResult, ProgramCounter};
 pub use self::module::Value as WasmValue;
 use self::module::{DefinedModule, Index, Module};
 
@@ -35,26 +35,31 @@ impl WasmInstance {
         };
         env.load_module(Module::Defined(module));
         let mut executor = Executor::new(arguments, pc, env);
-        let mut result = Ok(());
-        while let Ok(_) = result {
+        let mut result = ExecResult::Ok;
+        while let ExecResult::Ok = result {
             result = executor.execute_step();
         }
-        return match result.err().unwrap() {
-            executor::Error::End => Ok(()),
-            executor::Error::Panic(err) => Err(WasmError::ExecutionError(err))
+        return match result {
+            executor::ExecResult::End => Ok(()),
+            executor::ExecResult::Err(err) => {
+                Err(WasmError::ExecutionError(err))
+            },
+            executor::ExecResult::Ok => unreachable!(),
         };
     }
 }
 
 pub enum WasmError {
-    ExecutionError(String),
+    ExecutionError(executor::ExecError),
     EntryFunctionNotFound(String)
 }
 
 impl WasmError {
     pub fn message(&self) -> String {
         match self {
-            WasmError::ExecutionError(msg) => format!("Failed to execute: {}", msg),
+            WasmError::ExecutionError(err) => {
+                format!("Failed to execute: {}", err.message())
+            },
             WasmError::EntryFunctionNotFound(func_name) => {
                 format!("Entry function \"{}\" not found", func_name)
             }
