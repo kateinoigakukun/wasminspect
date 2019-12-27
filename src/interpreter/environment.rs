@@ -29,6 +29,12 @@ impl<'a> Environment<'a> {
         self.modules.insert(module_name.to_string(), Module::Defined(module));
     }
 
+    pub fn main_module(&self) -> &DefinedModule {
+        match &self.modules["main"] {
+            Module::Defined(defined) => defined,
+        }
+    }
+
     pub fn find_registered_module<T: Into<String>>(&self, name: T) -> &Module {
         &self.modules[&name.into()]
     }
@@ -38,6 +44,11 @@ impl<'a> Environment<'a> {
     }
     pub fn get_func_count(&self) -> usize {
         self.funcs.len()
+    }
+
+    pub fn get_func_signature(&self, index: Index) -> &FunctionType {
+        let index: usize = index.try_into().unwrap();
+        &self.sigs[index]
     }
 
     pub fn get_func(&self, index: Index) -> &Func {

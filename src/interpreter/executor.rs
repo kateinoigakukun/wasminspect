@@ -1,13 +1,19 @@
 use super::environment::{Environment};
-use super::module::{DefinedModule};
-struct Executor {
+use super::module::*;
+pub struct Executor<'a, 'b> {
+    env: &'a Environment<'b>,
+    thread: Thread<'a, 'b>,
 }
 
-impl Executor {
-    fn new(module: &DefinedModule, env: &Environment) {
+impl<'a, 'b> Executor<'a, 'b> {
+    pub fn new(module: &DefinedModule, env: &'a Environment<'b>) -> Self {
+        Self {
+            env,
+            thread: Thread::new(env),
+        }
     }
 
-    fn init_segments(module: &DefinedModule, env: &Environment) {
+    pub fn init_segments(module: &DefinedModule, env: &Environment) {
         #[derive(PartialOrd, PartialEq, Debug)]
         enum Pass { Check, Init, }
         impl Iterator for Pass {
@@ -34,5 +40,45 @@ impl Executor {
         //         }
         //     }
         // }
+    }
+
+    pub fn run_function(&mut self, func_index: Index) {
+        let func = &self.env.get_func(func_index);
+        let sig = self.env.get_func_signature(func.sig_index());
+        match func {
+            Func::Defined(defined_func) => self.run_defined_function(defined_func),
+        }
+    }
+
+    fn run_defined_function(&mut self, func: &DefinedFunc) {
+        self.thread.set_pc(InstOffset(func.offset));
+    }
+}
+
+enum Value {
+    I32(i32), I64(i64)
+}
+
+struct InstOffset(u32);
+
+struct Thread<'a, 'b> {
+    env: &'a Environment<'b>,
+    value_stack: Vec<Value>,
+    call_stack: Vec<InstOffset>,
+    pc: InstOffset,
+}
+
+impl<'a, 'b> Thread<'a, 'b> {
+    fn new(env: &'a Environment<'b>) -> Self {
+        Self {
+            env: env,
+            value_stack: vec![],
+            call_stack: vec![],
+            pc: InstOffset(0),
+        }
+    }
+
+    fn set_pc(&mut self, offset: InstOffset) {
+        self.pc = offset;
     }
 }

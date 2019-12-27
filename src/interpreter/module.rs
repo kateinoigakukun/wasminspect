@@ -61,7 +61,7 @@ impl DefinedModule {
         env: &'a mut Environment<'b>,
     ) -> DefinedModule {
         let reader = &mut ModuleReader::new(env);
-        reader.walk(module);
+        reader.walk(&module);
         panic!();
     }
 }
@@ -213,8 +213,14 @@ impl Func {
             Func::Defined(defined) => &defined.base,
         }
     }
-    fn sig_index(&self) -> Index {
+    pub fn sig_index(&self) -> Index {
         self.base().sig_index
+    }
+
+    pub fn is_host(&self) -> bool {
+        match self {
+            Func::Defined(_) => true,
+        }
     }
 }
 
@@ -224,10 +230,10 @@ pub struct FuncBase {
 }
 pub struct DefinedFunc {
     base: FuncBase,
-    offset: u32,
-    local_decl_count: Index,
-    local_count: Index,
-    param_and_loca_types: TypeVector,
+    pub offset: u32,
+    pub local_decl_count: Index,
+    pub local_count: Index,
+    pub param_and_loca_types: TypeVector,
 }
 
 impl DefinedFunc {
