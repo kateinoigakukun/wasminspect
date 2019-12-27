@@ -1,5 +1,17 @@
+[package]
+name = "wasminspect"
+version = "0.1.0"
+authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "wasminspect"
+path = "src/main.rs"
+
+[dependencies]
+wasminspect-core = { path = "wasminspect-core" }
+
 [workspace]
 members = [
     "wasminspect-core",
-    "wasminspect-cli",
 ]
