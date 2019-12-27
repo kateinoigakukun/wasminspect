@@ -7,5 +7,5 @@ hello.o: hello.c
 hello.wasm: hello.o
 	"$(WASM_LD)" $< -o $@ --no-entry --export=answer
 
-fizzbuzz.wasm:
+fizzbuzz.wasm: fizzbuzz.rs
 	rustc +nightly --target wasm32-unknown-unknown -g $< -o $@

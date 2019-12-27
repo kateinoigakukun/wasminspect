@@ -12,8 +12,8 @@ fn fizzbuzz(i: i32) -> Cow<'static, str> {
 
     match (by3, by5) {
         (true,  true ) => "FizzBuzz".into(),
-        (true,  flase) => "Fizz".into(),
+        (true,  false) => "Fizz".into(),
         (false, true ) => "Buzz".into(),
-        (fasle, false) => i.to_string().into()
+        (false, false) => i.to_string().into()
     }
 }
