@@ -30,28 +30,23 @@ impl<'a> CallFrame<'a> {
     }
 }
 
+#[derive(Debug)]
 pub enum ExecError {
     Panic(String),
-}
-
-impl ExecError {
-    pub fn message(&self) -> String {
-        match self {
-            ExecError::Panic(msg) => msg.clone(),
-        }
-    }
 }
 
 pub enum ExecResult {
     Ok, End, Err(ExecError)
 }
 
+#[derive(Debug)]
 pub enum ReturnValError {
     TypeMismatchReturnValue(Value, ValueType),
+    NoValue(ValueType),
     NoCallFrame,
 }
 
-pub type ReturnValResult = Result<Option<Value>, ReturnValError>;
+pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
 pub struct Executor<'a> {
     env: &'a Environment,
@@ -110,13 +105,13 @@ impl<'a> Executor<'a> {
         match (self.stack.last(), return_ty) {
             (Some(val), Some(ty)) => {
                 if val.value_type() == ty {
-                    return Ok(Some(val.clone()));
+                    return Ok(vec![val.clone()]);
                 } else {
                     return Err(ReturnValError::TypeMismatchReturnValue(val.clone(), ty));
                 }
             }
-            (_, None) => return Ok(None),
-            (None, Some(ty)) => panic!(),
+            (_, None) => return Ok(vec![]),
+            (None, Some(ty)) => Err(ReturnValError::NoValue(ty)),
         }
     }
 

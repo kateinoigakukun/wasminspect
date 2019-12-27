@@ -3,7 +3,7 @@ mod executor;
 mod module;
 
 use self::environment::Environment;
-use self::executor::{Executor, ExecResult, ProgramCounter};
+use self::executor::{ExecResult, Executor, ProgramCounter};
 pub use self::module::Value as WasmValue;
 use self::module::{DefinedModule, Index, Module};
 
@@ -18,7 +18,11 @@ impl WasmInstance {
         }
     }
 
-    pub fn run(&self, func_name: Option<String>, arguments: Vec<WasmValue>) -> Result<(), WasmError> {
+    pub fn run(
+        &self,
+        func_name: Option<String>,
+        arguments: Vec<WasmValue>,
+    ) -> Result<Vec<WasmValue>, WasmError> {
         let env = &mut Environment::new();
         let module = parity_wasm::deserialize_file(self.filename.clone()).unwrap();
         let module = DefinedModule::read_from_parity_wasm(module, env);
@@ -40,10 +44,11 @@ impl WasmInstance {
             result = executor.execute_step();
         }
         return match result {
-            executor::ExecResult::End => Ok(()),
-            executor::ExecResult::Err(err) => {
-                Err(WasmError::ExecutionError(err))
+            executor::ExecResult::End => match executor.peek_result() {
+                Ok(values) => Ok(values),
+                Err(err) => Err(WasmError::ReturnValueError(err)),
             },
+            executor::ExecResult::Err(err) => Err(WasmError::ExecutionError(err)),
             executor::ExecResult::Ok => unreachable!(),
         };
     }
@@ -51,18 +56,18 @@ impl WasmInstance {
 
 pub enum WasmError {
     ExecutionError(executor::ExecError),
-    EntryFunctionNotFound(String)
+    EntryFunctionNotFound(String),
+    ReturnValueError(executor::ReturnValError),
 }
 
 impl WasmError {
     pub fn message(&self) -> String {
         match self {
-            WasmError::ExecutionError(err) => {
-                format!("Failed to execute: {}", err.message())
-            },
+            WasmError::ExecutionError(err) => format!("Failed to execute: {:?}", err),
             WasmError::EntryFunctionNotFound(func_name) => {
                 format!("Entry function \"{}\" not found", func_name)
             }
+            WasmError::ReturnValueError(err) => format!("Failed to get returned value: {:?}", err),
         }
     }
 }
