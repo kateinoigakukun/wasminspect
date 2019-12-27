@@ -7,7 +7,7 @@ fn main() {
         Some("add".to_string()),
         vec![WasmValue::I32(1), WasmValue::I32(2)],
     ) {
-        Ok(_) => return,
+        Ok(result) => println!("1 + 2 = {:?}", result[0]),
         Err(err) => panic!(err.message()),
     }
 }
