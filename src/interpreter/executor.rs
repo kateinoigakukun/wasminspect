@@ -13,6 +13,12 @@ impl ProgramCounter {
     }
 }
 
+pub enum Error {
+    Panic(String)
+}
+
+pub type ExecResult = Result<(), Error>;
+
 pub struct Executor<'a> {
     env: &'a Environment,
     pc: ProgramCounter,
@@ -45,7 +51,7 @@ impl<'a> Executor<'a> {
         globals
     }
 
-    pub fn execute_step(&mut self) {
+    pub fn execute_step(&mut self) -> ExecResult {
         let func = self.env.get_func(self.pc.func_index);
         match func {
             Func::Defined(defined) => {
@@ -54,19 +60,24 @@ impl<'a> Executor<'a> {
         }
     }
 
-    fn execute_defined_func_step(&mut self, func: &DefinedFunc) {
+    fn execute_defined_func_step(&mut self, func: &DefinedFunc) -> ExecResult {
         let inst = func.inst(self.pc.inst_index);
-        self.execute_inst(inst);
+        return self.execute_inst(inst);
     }
 
-    fn execute_inst(&mut self, inst: &Instruction) {
+    fn execute_inst(&mut self, inst: &Instruction) -> ExecResult {
+        self.pc.inst_index.inc();
         match *inst {
             Instruction::Unreachable => panic!(),
             Instruction::GetGlobal(index) => {
                 let value = self.globals[index as usize];
                 self.push(value);
+                Ok(())
             }
-            _ => panic!("{} not supported yet", inst),
+            _ => {
+                debug_assert!(false, format!("{} not supported yet", inst));
+                Err(Error::Panic(format!("{} not supported yet", inst)))
+            }
         }
     }
 

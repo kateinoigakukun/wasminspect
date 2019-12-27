@@ -17,5 +17,8 @@ pub fn read_and_run_module(module_filename: String) {
     };
     env.load_module(Module::Defined(module));
     let mut executor = Executor::new(pc, env);
-    executor.execute_step();
+    let mut result = Ok(());
+    while let Ok(_) = result {
+        result = executor.execute_step();
+    }
 }

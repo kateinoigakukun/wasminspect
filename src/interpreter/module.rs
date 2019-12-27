@@ -322,6 +322,10 @@ impl Index {
     pub fn zero() -> Index {
         Index(0)
     }
+
+    pub fn inc(&mut self) {
+        self.0 += 1;
+    }
 }
 
 impl TryFrom<usize> for Index {
