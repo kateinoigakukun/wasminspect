@@ -178,11 +178,11 @@ impl<'a> Executor<'a> {
             }
             Instruction::SetLocal(index) => {
                 let value = self.pop();
-                self.locals_mut()[index as usize] = value;
+                self.locals_mut()?[index as usize] = value;
                 Ok(ExecSuccess::Next)
             }
             Instruction::GetLocal(index) => {
-                let value = self.locals_mut()[index as usize];
+                let value = self.locals_mut()?[index as usize];
                 self.push(value);
                 Ok(ExecSuccess::Next)
             }
@@ -270,11 +270,13 @@ impl<'a> Executor<'a> {
         }
     }
 
-    fn locals_mut(&mut self) -> &mut Vec<Value> {
+    fn locals_mut(&mut self) -> Result<&mut Vec<Value>, ExecError> {
         if let Some(frame) = self.call_stack.last_mut() {
-            return &mut frame.locals;
+            return Ok(&mut frame.locals);
+        } else {
+            debug_assert!(false, "No func frame");
+            Err(ExecError::NoCallFrame)
         }
-        panic!("No func frame");
     }
 
     fn push(&mut self, value: Value) {
@@ -316,37 +318,10 @@ fn eval_const_expr(init_expr: &InitExpr) -> Value {
     match *inst {
         Instruction::I32Const(val) => Value::I32(val),
         Instruction::I64Const(val) => Value::I64(val),
-        Instruction::F32Const(val) => panic!(),
-        Instruction::F64Const(val) => panic!(),
-        Instruction::GetGlobal(index) => panic!(),
+        Instruction::F32Const(_) => panic!(),
+        Instruction::F64Const(_) => panic!(),
+        Instruction::GetGlobal(_) => panic!(),
         _ => panic!("Unsupported init_expr {}", inst),
     }
 }
 
-struct InstOffset(u32);
-
-// struct Thread<'a, 'b> {
-//     env: &'a Environment<'b>,
-//     value_stack: Vec<Value>,
-//     call_stack: Vec<InstOffset>,
-//     pc: InstOffset,
-// }
-
-// impl<'a, 'b> Thread<'a, 'b> {
-//     fn new(env: &'a Environment<'b>) -> Self {
-//         Self {
-//             env: env,
-//             value_stack: vec![],
-//             call_stack: vec![],
-//             pc: InstOffset(0),
-//         }
-//     }
-
-//     fn set_pc(&mut self, offset: InstOffset) {
-//         self.pc = offset;
-//     }
-
-//     fn run(num_instructions: usize) {
-//     }
-
-// }
