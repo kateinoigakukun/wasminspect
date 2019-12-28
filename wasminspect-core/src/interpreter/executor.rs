@@ -34,6 +34,13 @@ impl<'a> CallFrame<'a> {
             ret_pc: pc,
         }
     }
+    pub fn new_with_locals(func: &'a Func, locals: Vec<Value>, pc: ProgramCounter) -> Self {
+        Self {
+            func,
+            locals: locals,
+            ret_pc: pc,
+        }
+    }
 }
 
 pub enum Label {
@@ -211,6 +218,23 @@ impl<'a> Executor<'a> {
             }
             Instruction::Br(depth) => {
                 self.branch(depth);
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::Call(func_index) => {
+                let func_index = Index::try_from(func_index as usize).unwrap();
+                let func = self.env.get_func(func_index);
+                let pc = ProgramCounter::new(func_index, Index::zero());
+                let mut locals: Vec<Value> = Vec::new();
+
+                for _ in func.func_type().params() {
+                    locals.push(self.pop());
+                }
+                locals.reverse();
+
+                let frame = CallFrame::new_with_locals(func, locals, self.pc);
+                self.call_stack.push(frame);
+
+                self.pc = pc;
                 Ok(ExecSuccess::Next)
             }
             Instruction::Return => {
