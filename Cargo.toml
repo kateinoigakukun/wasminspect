@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 wasminspect-core = { path = "wasminspect-core" }
+clap = "2.33.0"
 
 [workspace]
 members = [
