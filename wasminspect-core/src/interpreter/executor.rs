@@ -57,11 +57,12 @@ pub enum ExecError {
     NoCallFrame,
 }
 
-pub enum ExecResult {
-    Ok,
+pub enum ExecSuccess {
+    Next,
     End,
-    Err(ExecError),
 }
+
+pub type ExecResult = Result<ExecSuccess, ExecError>;
 
 #[derive(Debug)]
 pub enum ReturnValError {
@@ -173,31 +174,31 @@ impl<'a> Executor<'a> {
             Instruction::GetGlobal(index) => {
                 let value = self.globals[index as usize];
                 self.push(value);
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::SetLocal(index) => {
                 let value = self.pop();
                 self.locals_mut()[index as usize] = value;
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::GetLocal(index) => {
                 let value = self.locals_mut()[index as usize];
                 self.push(value);
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::I32Const(val) => {
                 self.stack.push(Value::I32(val));
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::I32Add => {
                 let lhs = self.pop();
                 let rhs = self.pop();
                 if let (Value::I32(lhs), Value::I32(rhs)) = (lhs, rhs) {
                     self.push(Value::I32(lhs + rhs));
-                    ExecResult::Ok
+                    Ok(ExecSuccess::Next)
                 } else {
                     debug_assert!(false, format!("Invalid inst"));
-                    ExecResult::Err(ExecError::Panic(format!("Invalid inst")))
+                    Err(ExecError::Panic(format!("Invalid inst")))
                 }
             }
             Instruction::I32LtS => {
@@ -209,50 +210,52 @@ impl<'a> Executor<'a> {
                     } else {
                         self.push(Value::I32(0));
                     }
-                    ExecResult::Ok
+                    Ok(ExecSuccess::Next)
                 } else {
                     debug_assert!(false, format!("Invalid inst"));
-                    ExecResult::Err(ExecError::Panic(format!("Invalid inst")))
+                    Err(ExecError::Panic(format!("Invalid inst")))
                 }
             }
             Instruction::Block(_) => {
                 self.label_stack.push(Label::Block);
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::Loop(_) => {
                 self.label_stack.push(Label::new_loop(self.pc.inst_index));
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::BrIf(depth) => {
                 let val = self.pop();
                 if val != Value::I32(0) {
                     self.branch(depth);
                 }
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::Br(depth) => {
                 self.branch(depth);
-                ExecResult::Ok
+                Ok(ExecSuccess::Next)
             }
             Instruction::Return => {
                 if let Some(Label::Return) = self.label_stack.pop() {
                     let frame = self.call_stack.pop().unwrap();
                     self.pc = frame.ret_pc;
                     self.last_ret_frame = Some(frame);
+                    Ok(ExecSuccess::Next)
+                } else {
+                    panic!();
                 }
-                ExecResult::Ok
             },
             Instruction::End => {
                 if let Some(Label::Return) = self.label_stack.pop() {
                     if let Some(frame) = self.call_stack.pop() {
                         self.pc = frame.ret_pc;
                         self.last_ret_frame = Some(frame);
-                        ExecResult::Ok
+                        Ok(ExecSuccess::Next)
                     } else {
-                        ExecResult::Err(ExecError::NoCallFrame)
+                        Err(ExecError::NoCallFrame)
                     }
                 } else {
-                    ExecResult::Ok
+                    Ok(ExecSuccess::Next)
                 }
             }
             _ => {
@@ -261,7 +264,7 @@ impl<'a> Executor<'a> {
             }
         };
         if self.label_stack.is_empty() {
-            return ExecResult::End;
+            return Ok(ExecSuccess::End);
         } else {
             return result;
         }

@@ -3,7 +3,7 @@ mod executor;
 mod module;
 
 use self::environment::Environment;
-use self::executor::{ExecResult, Executor, ProgramCounter};
+use self::executor::{ExecSuccess, Executor, ProgramCounter};
 pub use self::module::Value as WasmValue;
 use self::module::{DefinedModule, Index, Module};
 
@@ -39,18 +39,17 @@ impl WasmInstance {
         };
         env.load_module(Module::Defined(module));
         let mut executor = Executor::new(arguments, pc, env);
-        let mut result = ExecResult::Ok;
-        while let ExecResult::Ok = result {
-            result = executor.execute_step();
+        loop {
+            let result = executor.execute_step();
+            match result {
+                Ok(ExecSuccess::Next) => continue,
+                Ok(ExecSuccess::End) => match executor.peek_result() {
+                    Ok(values) => return Ok(values),
+                    Err(err) => return Err(WasmError::ReturnValueError(err)),
+                },
+                Err(err) => return Err(WasmError::ExecutionError(err)),
+            }
         }
-        return match result {
-            executor::ExecResult::End => match executor.peek_result() {
-                Ok(values) => Ok(values),
-                Err(err) => Err(WasmError::ReturnValueError(err)),
-            },
-            executor::ExecResult::Err(err) => Err(WasmError::ExecutionError(err)),
-            executor::ExecResult::Ok => unreachable!(),
-        };
     }
 }
 
