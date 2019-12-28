@@ -1,0 +1,8 @@
+[package]
+name = "wasminspect-wast-spec"
+version = "0.1.0"
+authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+wast = "5.0.1"

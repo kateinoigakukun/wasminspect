@@ -31,3 +31,13 @@ fn test_calc_mul() {
         vec![WasmValue::I32(6)],
     );
 }
+
+#[test]
+fn test_calc_call() {
+    run_wasm(
+        "calc.wasm",
+        "call_add",
+        vec![WasmValue::I32(3), WasmValue::I32(4)],
+        vec![WasmValue::I32(7)],
+    );
+}
