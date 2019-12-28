@@ -195,6 +195,30 @@ impl Value {
     }
 }
 
+pub enum ValueConversionError {
+    InvalidType(String)
+}
+
+impl TryFrom<Value> for i32 {
+    type Error = ValueConversionError;
+    fn try_from(input: Value) -> Result<i32, ValueConversionError> {
+        match input {
+            Value::I32(val) => Ok(val),
+            _ => Err(ValueConversionError::InvalidType("i32".to_string()))
+        }
+    }
+}
+
+impl TryFrom<Value> for i64 {
+    type Error = ValueConversionError;
+    fn try_from(input: Value) -> Result<i64, ValueConversionError> {
+        match input {
+            Value::I64(val) => Ok(val),
+            _ => Err(ValueConversionError::InvalidType("i64".to_string()))
+        }
+    }
+}
+
 pub type TypeVector = Vec<Type>;
 pub type IndexVector = Vec<Index>;
 

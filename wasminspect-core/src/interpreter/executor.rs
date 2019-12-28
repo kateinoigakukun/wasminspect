@@ -2,7 +2,7 @@ use super::environment::Environment;
 use super::module::*;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 #[derive(Clone, Copy)]
 pub struct ProgramCounter {
@@ -190,31 +190,9 @@ impl<'a> Executor<'a> {
                 self.stack.push(Value::I32(val));
                 Ok(ExecSuccess::Next)
             }
-            Instruction::I32Add => {
-                let lhs = self.pop();
-                let rhs = self.pop();
-                if let (Value::I32(lhs), Value::I32(rhs)) = (lhs, rhs) {
-                    self.push(Value::I32(lhs + rhs));
-                    Ok(ExecSuccess::Next)
-                } else {
-                    debug_assert!(false, format!("Invalid inst"));
-                    Err(ExecError::Panic(format!("Invalid inst")))
-                }
-            }
+            Instruction::I32Add => self.int_op::<i32, _>(|a, b| Value::I32(a + b)),
             Instruction::I32LtS => {
-                let rhs = self.pop();
-                let lhs = self.pop();
-                if let (Value::I32(lhs), Value::I32(rhs)) = (lhs, rhs) {
-                    if lhs < rhs {
-                        self.push(Value::I32(1));
-                    } else {
-                        self.push(Value::I32(0));
-                    }
-                    Ok(ExecSuccess::Next)
-                } else {
-                    debug_assert!(false, format!("Invalid inst"));
-                    Err(ExecError::Panic(format!("Invalid inst")))
-                }
+                self.int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
             }
             Instruction::Block(_) => {
                 self.label_stack.push(Label::Block);
@@ -244,7 +222,7 @@ impl<'a> Executor<'a> {
                 } else {
                     panic!();
                 }
-            },
+            }
             Instruction::End => {
                 if let Some(Label::Return) = self.label_stack.pop() {
                     if let Some(frame) = self.call_stack.pop() {
@@ -286,6 +264,14 @@ impl<'a> Executor<'a> {
         self.stack.pop().unwrap()
     }
 
+    fn pop_as<T: TryFrom<Value>>(&mut self) -> T {
+        let value = self.pop();
+        match T::try_from(value) {
+            Ok(val) => val,
+            Err(_) => panic!(),
+        }
+    }
+
     fn branch(&mut self, depth: u32) {
         self.label_stack
             .truncate(self.label_stack.len() - depth as usize);
@@ -311,6 +297,13 @@ impl<'a> Executor<'a> {
             Label::Return => panic!(),
         }
     }
+
+    fn int_op<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
+        let rhs = self.pop_as();
+        let lhs = self.pop_as();
+        self.push(f(lhs, rhs));
+        Ok(ExecSuccess::Next)
+    }
 }
 
 fn eval_const_expr(init_expr: &InitExpr) -> Value {
@@ -324,4 +317,3 @@ fn eval_const_expr(init_expr: &InitExpr) -> Value {
         _ => panic!("Unsupported init_expr {}", inst),
     }
 }
-
