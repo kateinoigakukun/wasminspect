@@ -6,6 +6,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
+      - name: Install wabt and fixtures
+        run: make .wabt fixtures
       - name: Run cargo build
         uses: actions-rs/cargo@v1.0.1
         with:

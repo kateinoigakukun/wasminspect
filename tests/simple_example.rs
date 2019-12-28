@@ -5,7 +5,7 @@ use std::path::Path;
 
 #[test]
 fn add_example() {
-    let example_dir = Path::new(file!()).parent().unwrap().join("example");
+    let example_dir = Path::new(file!()).parent().unwrap().join("simple-example");
     let instance = WasmInstance::new(example_dir.join("calc.wasm").to_str().unwrap().to_string());
     match instance.run(
         Some("add".to_string()),
