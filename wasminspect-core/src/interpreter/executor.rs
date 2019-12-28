@@ -2,6 +2,7 @@ use super::environment::Environment;
 use super::module::*;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
+#[derive(Clone, Copy)]
 pub struct ProgramCounter {
     func_index: Index,
     inst_index: Index,
@@ -19,20 +20,36 @@ impl ProgramCounter {
 pub struct CallFrame<'a> {
     pub func: &'a Func,
     pub locals: Vec<Value>,
+    pub ret_pc: ProgramCounter,
 }
 
 impl<'a> CallFrame<'a> {
-    pub fn new(func: &'a Func) -> Self {
+    pub fn new(func: &'a Func, pc: ProgramCounter) -> Self {
         Self {
             func,
             locals: Vec::with_capacity(func.locals().len() + func.func_type().params().len()),
+            ret_pc: pc,
         }
+    }
+}
+
+pub enum Label {
+    Block, Loop(LoopLabel), Return,
+}
+pub struct LoopLabel {
+    inst_index: u32,
+}
+
+impl Label {
+    pub fn new_loop(inst_index: u32) -> Self {
+        Self::Loop(LoopLabel{ inst_index})
     }
 }
 
 #[derive(Debug)]
 pub enum ExecError {
     Panic(String),
+    NoCallFrame,
 }
 
 pub enum ExecResult {
@@ -54,6 +71,8 @@ pub struct Executor<'a> {
     globals: Vec<Value>,
     stack: Vec<Value>,
     call_stack: Vec<CallFrame<'a>>,
+    label_stack: Vec<Label>,
+    last_ret_frame: Option<CallFrame<'a>>,
 }
 
 impl<'a> Executor<'a> {
@@ -64,7 +83,9 @@ impl<'a> Executor<'a> {
             pc: pc,
             globals: Self::init_global(env),
             stack: vec![],
+            label_stack: vec![Label::Return],
             call_stack: vec![initial_call_frame],
+            last_ret_frame: None,
         }
     }
 
@@ -88,7 +109,7 @@ impl<'a> Executor<'a> {
         env: &'b Environment,
     ) -> CallFrame<'b> {
         let func = env.get_func(pc.func_index);
-        let mut frame = CallFrame::new(func);
+        let mut frame = CallFrame::new(func, pc.clone());
         for arg in args.iter() {
             frame.locals.push(*arg);
         }
@@ -96,7 +117,7 @@ impl<'a> Executor<'a> {
     }
 
     pub fn peek_result(&self) -> ReturnValResult {
-        let frame: &CallFrame = match self.call_stack.last() {
+        let frame = match &self.last_ret_frame {
             Some(frame) => frame,
             None => return Err(ReturnValError::NoCallFrame),
         };
@@ -129,7 +150,7 @@ impl<'a> Executor<'a> {
 
     fn execute_inst(&mut self, inst: &Instruction) -> ExecResult {
         self.pc.inst_index.inc();
-        match *inst {
+        let result = match *inst {
             Instruction::Unreachable => panic!(),
             Instruction::GetGlobal(index) => {
                 let value = self.globals[index as usize];
@@ -157,11 +178,32 @@ impl<'a> Executor<'a> {
                     ExecResult::Err(ExecError::Panic(format!("Invalid inst")))
                 }
             }
-            Instruction::End => ExecResult::End,
+            Instruction::Block(block) => {
+                self.label_stack.push(Label::Block);
+                ExecResult::Ok
+            }
+            Instruction::End => {
+                if let Some(Label::Return) = self.label_stack.pop() {
+                    if let Some(frame) = self.call_stack.pop() {
+                        self.pc = frame.ret_pc;
+                        self.last_ret_frame = Some(frame);
+                        ExecResult::Ok
+                    } else {
+                        panic!()
+                    }
+                } else {
+                    ExecResult::Err(ExecError::NoCallFrame)
+                }
+            },
             _ => {
                 debug_assert!(false, format!("{} not supported yet", inst));
                 ExecResult::Err(ExecError::Panic(format!("{} not supported yet", inst)))
             }
+        };
+        if self.label_stack.is_empty() {
+            return ExecResult::End;
+        } else {
+            return result;
         }
     }
 
