@@ -2,6 +2,8 @@ use super::environment::Environment;
 use super::module::*;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
+use std::convert::TryInto;
+
 #[derive(Clone, Copy)]
 pub struct ProgramCounter {
     func_index: Index,
@@ -25,24 +27,27 @@ pub struct CallFrame<'a> {
 
 impl<'a> CallFrame<'a> {
     pub fn new(func: &'a Func, pc: ProgramCounter) -> Self {
+        let local_len = func.locals().len() + func.func_type().params().len();
         Self {
             func,
-            locals: Vec::with_capacity(func.locals().len() + func.func_type().params().len()),
+            locals: std::iter::repeat(Value::I32(0)).take(local_len).collect(),
             ret_pc: pc,
         }
     }
 }
 
 pub enum Label {
-    Block, Loop(LoopLabel), Return,
+    Block,
+    Loop(LoopLabel),
+    Return,
 }
 pub struct LoopLabel {
-    inst_index: u32,
+    inst_index: Index,
 }
 
 impl Label {
-    pub fn new_loop(inst_index: u32) -> Self {
-        Self::Loop(LoopLabel{ inst_index})
+    pub fn new_loop(inst_index: Index) -> Self {
+        Self::Loop(LoopLabel { inst_index })
     }
 }
 
@@ -53,7 +58,9 @@ pub enum ExecError {
 }
 
 pub enum ExecResult {
-    Ok, End, Err(ExecError)
+    Ok,
+    End,
+    Err(ExecError),
 }
 
 #[derive(Debug)]
@@ -110,8 +117,8 @@ impl<'a> Executor<'a> {
     ) -> CallFrame<'b> {
         let func = env.get_func(pc.func_index);
         let mut frame = CallFrame::new(func, pc.clone());
-        for arg in args.iter() {
-            frame.locals.push(*arg);
+        for (i, arg) in args.iter().enumerate() {
+            frame.locals[i] = *arg;
         }
         frame
     }
@@ -136,6 +143,16 @@ impl<'a> Executor<'a> {
         }
     }
 
+    pub fn current_func_insts(&self) -> &Vec<Instruction> {
+        if let Some(frame) = self.call_stack.last() {
+            match frame.func {
+                Func::Defined(defined) => &defined.instructions,
+            }
+        } else {
+            panic!();
+        }
+    }
+
     pub fn execute_step(&mut self) -> ExecResult {
         let func = self.env.get_func(self.pc.func_index);
         match func {
@@ -150,6 +167,7 @@ impl<'a> Executor<'a> {
 
     fn execute_inst(&mut self, inst: &Instruction) -> ExecResult {
         self.pc.inst_index.inc();
+        println!("{}", inst.clone());
         let result = match *inst {
             Instruction::Unreachable => panic!(),
             Instruction::GetGlobal(index) => {
@@ -167,6 +185,10 @@ impl<'a> Executor<'a> {
                 self.push(value);
                 ExecResult::Ok
             }
+            Instruction::I32Const(val) => {
+                self.stack.push(Value::I32(val));
+                ExecResult::Ok
+            }
             Instruction::I32Add => {
                 let lhs = self.pop();
                 let rhs = self.pop();
@@ -178,10 +200,48 @@ impl<'a> Executor<'a> {
                     ExecResult::Err(ExecError::Panic(format!("Invalid inst")))
                 }
             }
-            Instruction::Block(block) => {
+            Instruction::I32LtS => {
+                let rhs = self.pop();
+                let lhs = self.pop();
+                if let (Value::I32(lhs), Value::I32(rhs)) = (lhs, rhs) {
+                    if lhs < rhs {
+                        self.push(Value::I32(1));
+                    } else {
+                        self.push(Value::I32(0));
+                    }
+                    ExecResult::Ok
+                } else {
+                    debug_assert!(false, format!("Invalid inst"));
+                    ExecResult::Err(ExecError::Panic(format!("Invalid inst")))
+                }
+            }
+            Instruction::Block(_) => {
                 self.label_stack.push(Label::Block);
                 ExecResult::Ok
             }
+            Instruction::Loop(_) => {
+                self.label_stack.push(Label::new_loop(self.pc.inst_index));
+                ExecResult::Ok
+            }
+            Instruction::BrIf(depth) => {
+                let val = self.pop();
+                if val != Value::I32(0) {
+                    self.branch(depth);
+                }
+                ExecResult::Ok
+            }
+            Instruction::Br(depth) => {
+                self.branch(depth);
+                ExecResult::Ok
+            }
+            Instruction::Return => {
+                if let Some(Label::Return) = self.label_stack.pop() {
+                    let frame = self.call_stack.pop().unwrap();
+                    self.pc = frame.ret_pc;
+                    self.last_ret_frame = Some(frame);
+                }
+                ExecResult::Ok
+            },
             Instruction::End => {
                 if let Some(Label::Return) = self.label_stack.pop() {
                     if let Some(frame) = self.call_stack.pop() {
@@ -189,12 +249,12 @@ impl<'a> Executor<'a> {
                         self.last_ret_frame = Some(frame);
                         ExecResult::Ok
                     } else {
-                        panic!()
+                        ExecResult::Err(ExecError::NoCallFrame)
                     }
                 } else {
-                    ExecResult::Err(ExecError::NoCallFrame)
+                    ExecResult::Ok
                 }
-            },
+            }
             _ => {
                 debug_assert!(false, format!("{} not supported yet", inst));
                 ExecResult::Err(ExecError::Panic(format!("{} not supported yet", inst)))
@@ -219,6 +279,32 @@ impl<'a> Executor<'a> {
     }
     fn pop(&mut self) -> Value {
         self.stack.pop().unwrap()
+    }
+
+    fn branch(&mut self, depth: u32) {
+        self.label_stack
+            .truncate(self.label_stack.len() - depth as usize);
+        match self.label_stack.last().unwrap() {
+            Label::Loop(loop_label) => self.pc.inst_index = loop_label.inst_index,
+            Label::Block => {
+                let mut depth = depth + 1;
+                loop {
+                    let index: usize = self.pc.inst_index.try_into().unwrap();
+                    match self.current_func_insts()[index] {
+                        Instruction::End => depth -= 1,
+                        Instruction::Block(_) => depth += 1,
+                        Instruction::If(_) => depth += 1,
+                        Instruction::Loop(_) => depth += 1,
+                        _ => (),
+                    }
+                    if depth == 0 {
+                        break;
+                    }
+                    self.pc.inst_index.inc();
+                }
+            }
+            Label::Return => panic!(),
+        }
     }
 }
 
