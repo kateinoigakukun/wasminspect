@@ -25,6 +25,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug integration tests in executable 'wasminspect'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "simple_example",
+                    "--no-run",
+                ],
+                "filter": {
+                    "name": "simple_example",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'wasminspect'",
             "cargo": {
                 "args": [

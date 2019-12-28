@@ -3,7 +3,7 @@
     local.get 0
     local.get 1
     i32.add)
-  (func $mul (param $n i32) (result i32)  (local $i i32) (local $sum i32)
+  (func $mul (export "mul") (param $n i32) (result i32)  (local $i i32) (local $sum i32)
     (block $exit
       (loop $loop
         (br_if $exit (i32.le_s (get_local $n) (get_local $i)))
