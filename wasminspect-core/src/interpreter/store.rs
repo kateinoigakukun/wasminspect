@@ -1,9 +1,9 @@
+use super::address::{FuncAddr, GlobalAddr};
 use super::executor::eval_const_expr;
-use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance};
+use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
 use super::module::{ModuleIndex, ModuleInstance};
 use super::value::Value;
-use super::address::{FuncAddr, GlobalAddr};
 use parity_wasm;
 use std::collections::HashMap;
 
@@ -46,13 +46,15 @@ impl Store {
     ) -> &ModuleInstance {
         let types = Self::get_types(&parity_module);
         let module_index = ModuleIndex(self.modules.len() as u32);
-        let func_addrs = self.load_functions(&parity_module, module_index, types);
+        let mut func_addrs = self.load_imports(&parity_module, module_index, types);
+        func_addrs.append(&mut self.load_functions(&parity_module, module_index, types));
         self.load_globals(&parity_module, module_index);
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
             ModuleInstance::new_from_parity_module(parity_module, module_index, types, func_addrs);
         self.modules.push(instance);
+        // FIXME
         &self.modules.last().unwrap()
     }
 
@@ -61,6 +63,59 @@ impl Store {
             .type_section()
             .map(|sec| sec.types())
             .unwrap_or_default();
+    }
+
+    fn load_imports(
+        &mut self,
+        parity_module: &parity_wasm::elements::Module,
+        module_index: ModuleIndex,
+        types: &[parity_wasm::elements::Type],
+    ) -> Vec<FuncAddr> {
+        let imports = parity_module
+            .import_section()
+            .map(|sec| sec.entries())
+            .unwrap_or_default();
+        let mut func_addrs = Vec::new();
+        for import in imports {
+            match import.external() {
+                parity_wasm::elements::External::Function(type_index) => {
+                    let addr = self.load_import_function(
+                        module_index,
+                        import,
+                        *type_index as usize,
+                        &types,
+                    );
+                    func_addrs.push(addr);
+                }
+                _ => panic!(),
+            }
+        }
+        func_addrs
+    }
+
+    fn load_import_function(
+        &mut self,
+        module_index: ModuleIndex,
+        import: &parity_wasm::elements::ImportEntry,
+        type_index: usize,
+        types: &[parity_wasm::elements::Type],
+    ) -> FuncAddr {
+        let func_ty = {
+            let ty = types[type_index as usize].clone();
+            match ty {
+                parity_wasm::elements::Type::Function(func_ty) => func_ty,
+            }
+        };
+        let instance = HostFunctionInstance::new(
+            func_ty,
+            import.module().to_string(),
+            import.field().to_string(),
+        );
+
+        let map = self.funcs.entry(module_index).or_insert(Vec::new());
+        let func_index = map.len();
+        map.push(FunctionInstance::Host(instance));
+        return FuncAddr(module_index, func_index);
     }
 
     fn load_functions(

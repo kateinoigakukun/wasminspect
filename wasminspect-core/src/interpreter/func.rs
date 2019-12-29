@@ -19,14 +19,14 @@ impl InstIndex {
 
 pub enum FunctionInstance {
     Defined(DefinedFunctionInstance),
-    Host(FunctionType, HostFunc),
+    Host(HostFunctionInstance),
 }
 
 impl FunctionInstance {
     pub fn ty(&self) -> &FunctionType {
         match self {
             Self::Defined(defined) => defined.ty(),
-            Self::Host(ty, _) => ty,
+            Self::Host(host) => host.ty(),
         }
     }
 
@@ -103,10 +103,30 @@ impl DefinedFunc {
     }
 }
 
-pub struct HostFunc {}
+pub struct HostFunctionInstance {
+    ty: FunctionType,
+    module_name: String,
+    field_name: String,
+}
 
-impl HostFunc {
-    fn new(name: String, func_type: FunctionType, locals: Vec<ValueType>) -> Self {
-        panic!()
+impl HostFunctionInstance {
+    pub fn ty(&self) -> &FunctionType {
+        &self.ty
+    }
+
+    pub fn module_name(&self) -> &String {
+        &self.module_name
+    }
+
+    pub fn field_name(&self) -> &String {
+        &self.field_name
+    }
+
+    pub fn new(ty: FunctionType, module_name: String, field_name: String) -> Self {
+        Self {
+            ty,
+            module_name,
+            field_name,
+        }
     }
 }

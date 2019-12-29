@@ -162,7 +162,7 @@ impl Executor {
                         self.pc = pc;
                         Ok(ExecSuccess::Next)
                     }
-                    FunctionInstance::Host(_, _) => panic!(),
+                    FunctionInstance::Host(_) => panic!(),
                 }
             }
             Instruction::Return => {
