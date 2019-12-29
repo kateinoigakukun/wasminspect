@@ -1,5 +1,5 @@
-use super::func::{DefinedFunctionInstance, InstIndex};
 use super::address::FuncAddr;
+use super::func::{DefinedFunctionInstance, InstIndex};
 use super::value::Value;
 
 pub enum Label {

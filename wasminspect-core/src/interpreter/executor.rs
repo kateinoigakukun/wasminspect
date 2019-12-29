@@ -1,10 +1,10 @@
+use super::address::{FuncAddr, GlobalAddr};
 use super::func::*;
+use super::host::BuiltinPrintI32;
 use super::module::*;
 use super::stack::*;
 use super::store::*;
 use super::value::*;
-use super::address::{GlobalAddr, FuncAddr};
-use super::host::BuiltinPrintI32;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
 use std::convert::TryFrom;
@@ -163,14 +163,12 @@ impl Executor {
                         self.pc = pc;
                         Ok(ExecSuccess::Next)
                     }
-                    FunctionInstance::Host(host) => {
-                        match &host.field_name()[..] {
-                            "print_i32" => {
-                                BuiltinPrintI32::dispatch(&args);
-                                Ok(ExecSuccess::Next)
-                            }
-                            _ => panic!(),
+                    FunctionInstance::Host(host) => match &host.field_name()[..] {
+                        "print_i32" => {
+                            BuiltinPrintI32::dispatch(&args);
+                            Ok(ExecSuccess::Next)
                         }
+                        _ => panic!(),
                     },
                 }
             }

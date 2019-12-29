@@ -3,11 +3,11 @@ mod executor;
 mod export;
 mod func;
 mod global;
+mod host;
 mod module;
 mod stack;
 mod store;
 mod value;
-mod host;
 
 use self::executor::{ExecSuccess, Executor};
 use self::export::ExternalValue;
@@ -15,7 +15,6 @@ use self::func::InstIndex;
 use self::stack::ProgramCounter;
 use self::store::Store;
 pub use self::value::Value as WasmValue;
-// use self::module::{DefinedModule, Index, Module};
 
 pub struct WasmInstance {
     filename: String,

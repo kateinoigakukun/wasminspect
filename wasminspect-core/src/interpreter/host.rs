@@ -19,4 +19,4 @@ impl BuiltinPrintI32 {
     }
 }
 
-// struct ModuleRegistory 
+// struct ModuleRegistory
