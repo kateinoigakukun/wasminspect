@@ -132,35 +132,37 @@ impl<'a> Executor<'a> {
             }
             Instruction::Call(func_index) => {
                 let addr = FuncAddr(module_index, func_index as usize);
-                let func = self.store.func(addr);
+                let func: &'a FunctionInstance = self.store.func(addr);
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
-                let mut locals: Vec<Value> = Vec::new();
-
-                for _ in func.func_type().params() {
-                    locals.push(self.pop());
+                match func {
+                    FunctionInstance::Defined(defined) => {
+                        let mut args = Vec::new();
+                        for _ in func.ty().params() {
+                            args.push(self.pop());
+                        }
+                        args.reverse();
+                        let frame: CallFrame<'a> = CallFrame::new(defined, args, pc);
+                        self.stack.set_frame(frame);
+                        self.stack.push_label(Label::Return);
+                        self.pc = pc;
+                        Ok(ExecSuccess::Next)
+                    }
+                    FunctionInstance::Host(_, _) => panic!(),
                 }
-                locals.reverse();
-
-                let frame = CallFrame::new_with_locals(func, locals, self.pc);
-                self.call_stack.push(frame);
-                self.label_stack.push(Label::Return);
-
-                self.pc = pc;
-                Ok(ExecSuccess::Next)
             }
             Instruction::Return => {
-                if let Some(Label::Return) = self.label_stack.pop() {
-                    let frame = self.call_stack.pop().unwrap();
-                    self.pc = frame.ret_pc;
-                    self.last_ret_frame = Some(frame);
+                if let Some(Label::Return) = self.stack.pop_label() {
+                    let frame = self.stack.take_current_frame();
+                    self.pc = frame.unwrap().ret_pc;
+                    self.last_ret_frame = frame;
                     Ok(ExecSuccess::Next)
                 } else {
                     panic!();
                 }
             }
             Instruction::End => {
-                if let Some(Label::Return) = self.label_stack.pop() {
-                    if let Some(frame) = self.call_stack.pop() {
+                if let Some(Label::Return) = self.stack.pop_label() {
+                    if let Some(frame) = self.stack.take_current_frame() {
                         self.pc = frame.ret_pc;
                         self.last_ret_frame = Some(frame);
                         Ok(ExecSuccess::Next)
@@ -176,7 +178,7 @@ impl<'a> Executor<'a> {
                 ExecResult::Err(ExecError::Panic(format!("{} not supported yet", inst)))
             }
         };
-        if self.label_stack.is_empty() {
+        if self.stack.is_over_top_level() {
             return Ok(ExecSuccess::End);
         } else {
             return result;

@@ -53,14 +53,21 @@ pub struct CallFrame<'a> {
 }
 
 impl<'a> CallFrame<'a> {
-    pub fn new(func: &'a DefinedFunctionInstance, pc: ProgramCounter) -> Self {
-        let local_len = func.code().locals().len() + func.ty().params().len();
-        let locals = std::iter::repeat(Value::I32(0)).take(local_len).collect();
+    pub fn new(func: &'a DefinedFunctionInstance, args: Vec<Value>, pc: ProgramCounter) -> Self {
+        let local_len = func.ty().params().len() + func.code().locals().len();
+        let mut locals: Vec<Value> = std::iter::repeat(Value::I32(0)).take(local_len).collect();
+        for (i, arg) in args.into_iter().enumerate() {
+            locals[i] = arg;
+        }
         Self {
             func,
             locals,
             ret_pc: pc,
         }
+    }
+
+    pub fn set_local(&mut self, index: usize, value: Value) {
+        self.locals[index] = value;
     }
 }
 
@@ -84,11 +91,27 @@ impl<'a> Stack<'a> {
         self.labels.push(val)
     }
 
-    pub fn current_frame(&self) -> &CallFrame {
+    pub fn pop_label(&mut self) -> Option<Label> {
+        self.labels.pop()
+    }
+
+    pub fn set_frame(&mut self, frame: CallFrame<'a>) {
+        self.activations.push(frame)
+    }
+
+    pub fn take_current_frame(&mut self) -> Option<CallFrame<'a>> {
+        self.activations.pop()
+    }
+
+    pub fn current_frame(&self) -> &CallFrame<'a> {
         &self.activations.last().unwrap()
     }
 
     pub fn current_instructions(&self) -> &[Instruction] {
         self.current_frame().func.code().instructions()
+    }
+
+    pub fn is_over_top_level(&self) -> bool {
+        self.labels.is_empty()
     }
 }
