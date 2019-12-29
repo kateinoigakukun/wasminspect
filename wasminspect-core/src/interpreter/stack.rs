@@ -1,7 +1,6 @@
-use super::func::{DefinedFunctionInstance, FuncIndex, InstIndex};
+use super::func::{DefinedFunctionInstance, InstIndex};
 use super::address::FuncAddr;
 use super::value::Value;
-use parity_wasm::elements::Instruction;
 
 pub enum Label {
     Block,

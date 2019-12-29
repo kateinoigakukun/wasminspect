@@ -1,6 +1,5 @@
 use super::address::*;
 use super::export::ExportInstance;
-use super::store::*;
 use std::hash::Hash;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]

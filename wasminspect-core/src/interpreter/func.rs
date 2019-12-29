@@ -1,5 +1,4 @@
 use super::module::*;
-use super::address::FuncAddr;
 use parity_wasm::elements::*;
 
 use std::iter;
@@ -17,10 +16,6 @@ impl InstIndex {
         InstIndex(0)
     }
 }
-
-#[deprecated]
-#[derive(Clone, Copy)]
-pub struct FuncIndex(u32);
 
 pub enum FunctionInstance {
     Defined(DefinedFunctionInstance),
