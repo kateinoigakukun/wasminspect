@@ -1,6 +1,7 @@
 use super::Environment;
 use super::func::*;
-use super::func::Func as _Func;
+use super::address::*;
+use super::store;
 use parity_wasm::elements::Module as PModule;
 use parity_wasm::elements::*;
 use std::collections::HashMap;
@@ -59,7 +60,7 @@ pub struct DefinedModule {
     base_module: BaseModule,
     pmodule: parity_wasm::elements::Module,
     start_func: Option<u32>,
-    funcs: Vec<_Func>,
+    funcs: Vec<FuncAddr>,
 }
 
 impl DefinedModule {

@@ -1,55 +1,44 @@
-use parity_wasm::elements::*;
+use super::module::Module as _Module;
 use super::module::*;
+use parity_wasm::elements::*;
 
-pub struct FunctionInstance {
-    r#type: FunctionType,
-    // module: ModuleInstance,
+use std::iter;
+
+// TODO: move
+pub struct TypeIndex(u32);
+
+pub enum FunctionInstance<'a> {
+    Defined(FunctionType, &'a _Module, DefinedFunc),
+    Host(FunctionType, HostFunc),
 }
 
-pub enum Func {
-    Defined(DefinedFunc),
-}
-
-impl Func {
-    fn base(&self) -> &FuncBase {
+impl<'a> FunctionInstance<'a> {
+    pub fn r#type(&self) -> &FunctionType {
         match self {
-            Func::Defined(defined) => &defined.base,
+            Self::Defined(ty, _, _) => ty,
+            Self::Host(ty, _) => ty,
         }
     }
-
-    pub fn func_type(&self) -> &FunctionType {
-        &self.base().func_type
-    }
-
-    pub fn locals(&self) -> &Vec<ValueType> {
-        &self.base().locals
-    }
 }
 
-pub struct FuncBase {
-    name: String,
-    func_type: FunctionType,
-    locals: Vec<ValueType>,
-}
 pub struct DefinedFunc {
-    base: FuncBase,
-    pub instructions: Vec<Instruction>,
+    type_index: TypeIndex,
+    locals: Vec<ValueType>,
+    instructions: Vec<Instruction>,
 }
 
 impl DefinedFunc {
-    pub fn new(
-        name: String,
-        func_type: FunctionType,
-        locals: Vec<ValueType>,
-        instructions: Vec<Instruction>,
-    ) -> Self {
+    pub fn new(func: parity_wasm::elements::Func, body: parity_wasm::elements::FuncBody) -> Self {
+        let locals = body
+            .locals()
+            .iter()
+            .flat_map(|locals| iter::repeat(locals.value_type()).take(locals.count() as usize))
+            .collect();
+        let instructions = body.code().elements().to_vec();
         Self {
-            base: FuncBase {
-                name,
-                func_type,
-                locals: locals,
-            },
-            instructions: instructions,
+            type_index: TypeIndex(func.type_ref()),
+            locals,
+            instructions,
         }
     }
 
@@ -58,22 +47,10 @@ impl DefinedFunc {
     }
 }
 
-pub struct ImportedFunc {
-    base: FuncBase,
-}
+pub struct HostFunc {}
 
-impl ImportedFunc {
-    fn new(
-        name: String,
-        func_type: FunctionType,
-        locals: Vec<ValueType>,
-    ) -> Self {
-        Self {
-            base: FuncBase {
-                name,
-                func_type,
-                locals: locals,
-            },
-        }
+impl HostFunc {
+    fn new(name: String, func_type: FunctionType, locals: Vec<ValueType>) -> Self {
+        panic!()
     }
 }

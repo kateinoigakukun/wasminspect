@@ -2,6 +2,8 @@ mod environment;
 mod executor;
 mod module;
 mod func;
+mod address;
+mod store;
 
 use self::environment::Environment;
 use self::executor::{ExecSuccess, Executor, ProgramCounter};
