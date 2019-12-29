@@ -3,6 +3,11 @@ use super::module::{ModuleInstance, ModuleIndex};
 use parity_wasm;
 use std::collections::HashMap;
 
+// Addresses
+pub struct FuncAddr(ModuleIndex, usize);
+
+
+/// Store
 pub struct Store {
     funcs: HashMap<ModuleIndex, Vec<FunctionInstance>>,
     // tables: Vec<TableInstance<'a>>,
@@ -15,6 +20,13 @@ impl Store {
     pub fn new() -> Self {
         Self { funcs: HashMap::new(), modules: Vec::new() }
     }
+
+    pub fn func(&self, addr: FuncAddr) -> &FunctionInstance {
+        &self.funcs[&addr.0][addr.1]
+    }
+}
+
+impl Store {
     pub fn load_parity_module(
         &mut self,
         parity_module: parity_wasm::elements::Module
@@ -51,5 +63,8 @@ impl Store {
             let instance = FunctionInstance::Defined(func_type, module_index, DefinedFunc::new(*func, *body, module_index));
             self.funcs[&module_index].push(instance);
         }
+    }
+
+    fn load_globals() {
     }
 }

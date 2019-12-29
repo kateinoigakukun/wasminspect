@@ -9,13 +9,19 @@ pub struct TypeIndex {
     index: u32,
 }
 
+#[derive(Clone, Copy)]
+pub struct InstIndex(u32);
+
+#[derive(Clone, Copy)]
+pub struct FuncIndex(u32);
+
 pub enum FunctionInstance {
     Defined(FunctionType, ModuleIndex, DefinedFunc),
     Host(FunctionType, HostFunc),
 }
 
 impl FunctionInstance {
-    pub fn r#type(&self) -> &FunctionType {
+    pub fn ty(&self) -> &FunctionType {
         match self {
             Self::Defined(ty, _, _) => ty,
             Self::Host(ty, _) => ty,
@@ -30,7 +36,11 @@ pub struct DefinedFunc {
 }
 
 impl DefinedFunc {
-    pub fn new(func: parity_wasm::elements::Func, body: parity_wasm::elements::FuncBody, module_index: ModuleIndex) -> Self {
+    pub fn new(
+        func: parity_wasm::elements::Func,
+        body: parity_wasm::elements::FuncBody,
+        module_index: ModuleIndex,
+    ) -> Self {
         let locals = body
             .locals()
             .iter()
@@ -38,7 +48,10 @@ impl DefinedFunc {
             .collect();
         let instructions = body.code().elements().to_vec();
         Self {
-            type_index: TypeIndex { module_index, index: func.type_ref() },
+            type_index: TypeIndex {
+                module_index,
+                index: func.type_ref(),
+            },
             locals,
             instructions,
         }
@@ -46,6 +59,9 @@ impl DefinedFunc {
 
     pub fn inst(&self, index: Index) -> &Instruction {
         &self.instructions[index.0 as usize]
+    }
+    pub fn locals(&self) -> &Vec<ValueType> {
+        &self.locals
     }
 }
 

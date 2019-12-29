@@ -1,63 +1,11 @@
-use super::environment::Environment;
 use super::module::*;
 use super::func::*;
+use super::stack::*;
+use super::value::*;
+use super::store::*;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
 use std::convert::{TryFrom, TryInto};
-
-#[derive(Clone, Copy)]
-pub struct ProgramCounter {
-    func_index: Index,
-    inst_index: Index,
-}
-
-impl ProgramCounter {
-    pub fn new(func_index: Index, inst_index: Index) -> Self {
-        Self {
-            func_index,
-            inst_index,
-        }
-    }
-}
-
-pub struct CallFrame<'a> {
-    pub func: &'a Func,
-    pub locals: Vec<Value>,
-    pub ret_pc: ProgramCounter,
-}
-
-impl<'a> CallFrame<'a> {
-    pub fn new(func: &'a Func, pc: ProgramCounter) -> Self {
-        let local_len = func.locals().len() + func.func_type().params().len();
-        Self {
-            func,
-            locals: std::iter::repeat(Value::I32(0)).take(local_len).collect(),
-            ret_pc: pc,
-        }
-    }
-    pub fn new_with_locals(func: &'a Func, locals: Vec<Value>, pc: ProgramCounter) -> Self {
-        Self {
-            func,
-            locals: locals,
-            ret_pc: pc,
-        }
-    }
-}
-
-pub enum Label {
-    Block,
-    Loop(LoopLabel),
-    Return,
-}
-pub struct LoopLabel {
-    inst_index: Index,
-}
-
-impl Label {
-    pub fn new_loop(inst_index: Index) -> Self {
-        Self::Loop(LoopLabel { inst_index })
-    }
-}
 
 #[derive(Debug)]
 pub enum ExecError {
@@ -82,7 +30,7 @@ pub enum ReturnValError {
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
 pub struct Executor<'a> {
-    env: &'a Environment,
+    store: Store,
     pc: ProgramCounter,
     globals: Vec<Value>,
     stack: Vec<Value>,
@@ -92,12 +40,12 @@ pub struct Executor<'a> {
 }
 
 impl<'a> Executor<'a> {
-    pub fn new(initial_args: Vec<Value>, pc: ProgramCounter, env: &'a Environment) -> Self {
-        let initial_call_frame = Self::init_initial_call_frame(&initial_args, &pc, env);
+    pub fn new(initial_args: Vec<Value>, pc: ProgramCounter, store: Store) -> Self {
+        let initial_call_frame = Self::init_initial_call_frame(&initial_args, &pc, store);
         Self {
-            env,
+            store,
             pc: pc,
-            globals: Self::init_global(env),
+            globals: Self::init_global(&store),
             stack: vec![],
             label_stack: vec![Label::Return],
             call_stack: vec![initial_call_frame],
@@ -105,7 +53,7 @@ impl<'a> Executor<'a> {
         }
     }
 
-    pub fn init_global(env: &Environment) -> Vec<Value> {
+    pub fn init_global(env: &Store) -> Vec<Value> {
         let mut globals = Vec::with_capacity(env.modules().len());
         for module in env.modules() {
             match module {

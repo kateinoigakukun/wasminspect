@@ -4,10 +4,12 @@ mod module;
 mod func;
 mod address;
 mod store;
+mod value;
+mod stack;
 
 use self::environment::Environment;
 use self::executor::{ExecSuccess, Executor, ProgramCounter};
-pub use self::module::Value as WasmValue;
+pub use self::value::Value as WasmValue;
 use self::module::{DefinedModule, Index, Module};
 
 pub struct WasmInstance {
