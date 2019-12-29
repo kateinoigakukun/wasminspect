@@ -44,6 +44,10 @@ impl ProgramCounter {
     pub fn inc_inst_index(&mut self) {
         self.inst_index.0 += 1;
     }
+
+    pub fn loop_jump(&mut self, loop_label: &LoopLabel) {
+        self.inst_index = loop_label.inst_index;
+    }
 }
 
 pub struct CallFrame<'a> {
@@ -69,6 +73,10 @@ impl<'a> CallFrame<'a> {
     pub fn set_local(&mut self, index: usize, value: Value) {
         self.locals[index] = value;
     }
+
+    pub fn local(&self, index: usize) -> Value {
+        self.locals[index]
+    }
 }
 
 #[derive(Default)]
@@ -83,6 +91,10 @@ impl<'a> Stack<'a> {
         self.values.push(val)
     }
 
+    pub fn pop_value(&mut self) -> Option<Value> {
+        self.values.pop()
+    }
+
     pub fn peek_last_value(&self) -> Option<&Value> {
         self.values.last()
     }
@@ -93,6 +105,14 @@ impl<'a> Stack<'a> {
 
     pub fn pop_label(&mut self) -> Option<Label> {
         self.labels.pop()
+    }
+
+    pub fn pop_labels(&mut self, depth: usize) {
+        self.labels.truncate(self.labels.len() - depth)
+    }
+
+    pub fn peek_last_label(&self) -> Option<&Label> {
+        self.labels.last()
     }
 
     pub fn set_frame(&mut self, frame: CallFrame<'a>) {
@@ -107,11 +127,19 @@ impl<'a> Stack<'a> {
         &self.activations.last().unwrap()
     }
 
+    fn current_frame_mut(&mut self) -> &mut CallFrame<'a> {
+        return self.activations.last_mut().unwrap();
+    }
+
     pub fn current_instructions(&self) -> &[Instruction] {
         self.current_frame().func.code().instructions()
     }
 
     pub fn is_over_top_level(&self) -> bool {
         self.labels.is_empty()
+    }
+
+    pub fn set_local(&mut self, index: usize, value: Value) {
+        self.current_frame_mut().set_local(index, value)
     }
 }

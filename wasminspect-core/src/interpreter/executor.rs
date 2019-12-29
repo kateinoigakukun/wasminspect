@@ -1,8 +1,8 @@
-use super::module::*;
 use super::func::*;
+use super::module::*;
 use super::stack::*;
-use super::value::*;
 use super::store::*;
+use super::value::*;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
 use std::convert::{TryFrom, TryInto};
@@ -71,40 +71,35 @@ impl<'a> Executor<'a> {
     }
 
     pub fn execute_step(&mut self) -> ExecResult {
-        let func = self.store.func(self.pc.func_addr());
-        match func {
-            FunctionInstance::Defined(defined) => self.execute_defined_func_step(defined),
-        }
-    }
-
-    fn execute_defined_func_step(&mut self, func: &DefinedFunctionInstance) -> ExecResult {
-        let inst = func.code().inst(self.pc.inst_index());
-        return self.execute_inst(inst, func.module_index());
+        let func = self.store.func(self.pc.func_addr()).defined().unwrap();
+        let module_index = func.module_index().clone();
+        let inst = func.code().inst(self.pc.inst_index()).clone();
+        return self.execute_inst(&inst, module_index);
     }
 
     fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult {
         self.pc.inc_inst_index();
         println!("{}", inst.clone());
-        let result = match *inst {
+        let result = match inst {
             Instruction::Unreachable => panic!(),
             Instruction::GetGlobal(index) => {
-                let addr = GlobalAddr(module_index, index as usize);
+                let addr = GlobalAddr(module_index, *index as usize);
                 let global = self.store.global(addr);
-                self.push(global.value());
+                self.stack.push_value(global.value());
                 Ok(ExecSuccess::Next)
             }
             Instruction::SetLocal(index) => {
-                let value = self.pop();
-                self.locals_mut()?[index as usize] = value;
+                let value = self.stack.pop_value().unwrap();
+                self.stack.set_local(*index as usize, value);
                 Ok(ExecSuccess::Next)
             }
             Instruction::GetLocal(index) => {
-                let value = self.locals_mut()?[index as usize];
-                self.push(value);
+                let value = self.stack.current_frame().local(*index as usize);
+                self.stack.push_value(value);
                 Ok(ExecSuccess::Next)
             }
             Instruction::I32Const(val) => {
-                self.stack.push_value(Value::I32(val));
+                self.stack.push_value(Value::I32(*val));
                 Ok(ExecSuccess::Next)
             }
             Instruction::I32Add => self.int_op::<i32, _>(|a, b| Value::I32(a + b)),
@@ -120,30 +115,30 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
             Instruction::BrIf(depth) => {
-                let val = self.pop();
+                let val = self.stack.pop_value().unwrap();
                 if val != Value::I32(0) {
-                    self.branch(depth);
+                    self.branch(*depth);
                 }
                 Ok(ExecSuccess::Next)
             }
             Instruction::Br(depth) => {
-                self.branch(depth);
+                self.branch(*depth);
                 Ok(ExecSuccess::Next)
             }
             Instruction::Call(func_index) => {
-                let addr = FuncAddr(module_index, func_index as usize);
-                let func: &'a FunctionInstance = self.store.func(addr);
+                let addr = FuncAddr(module_index, *func_index as usize);
+                let func = self.store.func(addr);
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
                 match func {
                     FunctionInstance::Defined(defined) => {
                         let mut args = Vec::new();
                         for _ in func.ty().params() {
-                            args.push(self.pop());
+                            args.push(self.stack.pop_value().unwrap());
                         }
                         args.reverse();
-                        let frame: CallFrame<'a> = CallFrame::new(defined, args, pc);
-                        self.stack.set_frame(frame);
-                        self.stack.push_label(Label::Return);
+                        let frame = CallFrame::new(defined, args, pc);
+                        // self.stack.set_frame(frame);
+                        // self.stack.push_label(Label::Return);
                         self.pc = pc;
                         Ok(ExecSuccess::Next)
                     }
@@ -152,9 +147,9 @@ impl<'a> Executor<'a> {
             }
             Instruction::Return => {
                 if let Some(Label::Return) = self.stack.pop_label() {
-                    let frame = self.stack.take_current_frame();
-                    self.pc = frame.unwrap().ret_pc;
-                    self.last_ret_frame = frame;
+                    let frame = self.stack.take_current_frame().unwrap();
+                    self.pc = frame.ret_pc;
+                    self.last_ret_frame = Some(frame);
                     Ok(ExecSuccess::Next)
                 } else {
                     panic!();
@@ -185,24 +180,8 @@ impl<'a> Executor<'a> {
         }
     }
 
-    fn locals_mut(&mut self) -> Result<&mut Vec<Value>, ExecError> {
-        if let Some(frame) = self.call_stack.last_mut() {
-            return Ok(&mut frame.locals);
-        } else {
-            debug_assert!(false, "No func frame");
-            Err(ExecError::NoCallFrame)
-        }
-    }
-
-    fn push(&mut self, value: Value) {
-        self.stack.push(value)
-    }
-    fn pop(&mut self) -> Value {
-        self.stack.pop().unwrap()
-    }
-
     fn pop_as<T: TryFrom<Value>>(&mut self) -> T {
-        let value = self.pop();
+        let value = self.stack.pop_value().unwrap();
         match T::try_from(value) {
             Ok(val) => val,
             Err(_) => panic!(),
@@ -210,14 +189,13 @@ impl<'a> Executor<'a> {
     }
 
     fn branch(&mut self, depth: u32) {
-        self.label_stack
-            .truncate(self.label_stack.len() - depth as usize);
-        match self.label_stack.last().unwrap() {
-            Label::Loop(loop_label) => self.pc.inst_index = loop_label.inst_index,
+        self.stack.pop_labels(depth as usize);
+        match self.stack.peek_last_label().unwrap() {
+            Label::Loop(loop_label) => self.pc.loop_jump(loop_label),
             Label::Block => {
                 let mut depth = depth + 1;
                 loop {
-                    let index: usize = self.pc.inst_index.try_into().unwrap();
+                    let index = self.pc.inst_index().0 as usize;
                     match self.current_func_insts()[index] {
                         Instruction::End => depth -= 1,
                         Instruction::Block(_) => depth += 1,
@@ -228,7 +206,7 @@ impl<'a> Executor<'a> {
                     if depth == 0 {
                         break;
                     }
-                    self.pc.inst_index.inc();
+                    self.pc.inc_inst_index();
                 }
             }
             Label::Return => panic!(),
@@ -238,7 +216,7 @@ impl<'a> Executor<'a> {
     fn int_op<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
         let rhs = self.pop_as();
         let lhs = self.pop_as();
-        self.push(f(lhs, rhs));
+        self.stack.push_value(f(lhs, rhs));
         Ok(ExecSuccess::Next)
     }
 }

@@ -11,7 +11,9 @@ mod global;
 use self::stack::ProgramCounter;
 use self::executor::{ExecSuccess, Executor};
 pub use self::value::Value as WasmValue;
-use self::module::{DefinedModule, Index, Module};
+use self::module::{ModuleInstance};
+use self::store::{Store, FuncAddr};
+// use self::module::{DefinedModule, Index, Module};
 
 pub struct WasmInstance {
     filename: String,
@@ -29,22 +31,22 @@ impl WasmInstance {
         func_name: Option<String>,
         arguments: Vec<WasmValue>,
     ) -> Result<Vec<WasmValue>, WasmError> {
-        let env = &mut Environment::new();
+        // let env = &mut Environment::new();
         let module = parity_wasm::deserialize_file(self.filename.clone()).unwrap();
-        let module = DefinedModule::read_from_parity_wasm(module, env);
-        let pc = if let Some(func_name) = func_name {
-            if let Some(func_index) = module.exported_func_by_name(func_name.clone()) {
-                ProgramCounter::new(func_index, Index::zero())
-            } else {
-                return Err(WasmError::EntryFunctionNotFound(func_name.clone()));
-            }
-        } else if let Some(start_func_index) = module.start_func_index() {
-            ProgramCounter::new(start_func_index, Index::zero())
-        } else {
-            ProgramCounter::new(Index::zero(), Index::zero())
-        };
-        env.load_module(Module::Defined(module));
-        let mut executor = Executor::new(arguments, pc, env);
+        let mut store = Store::new();
+        store.load_parity_module(module);
+        // let pc = if let Some(func_name) = func_name {
+        //     if let Some(func_index) = module.exported_func_by_name(func_name.clone()) {
+        //         ProgramCounter::new(func_index, Index::zero())
+        //     } else {
+        //         return Err(WasmError::EntryFunctionNotFound(func_name.clone()));
+        //     }
+        // } else if let Some(start_func_index) = module.start_func_index() {
+        //     ProgramCounter::new(start_func_index, Index::zero())
+        // } else {
+        // let pc = ProgramCounter::new(FuncAddr, Index::zero())
+        // };
+        let mut executor = Executor::new(arguments, panic!(), store);
         loop {
             let result = executor.execute_step();
             match result {

@@ -14,4 +14,12 @@ impl GlobalInstance {
     pub fn value(&self) -> Value {
         self.value
     }
+
+    pub fn set_value(&mut self, value: Value) {
+        self.value = value
+    }
+
+    pub fn is_mutable(&self) -> bool {
+        self.ty.is_mutable()
+    }
 }

@@ -35,6 +35,13 @@ impl FunctionInstance {
             Self::Host(ty, _) => ty,
         }
     }
+
+    pub fn defined(&self) -> Option<&DefinedFunctionInstance> {
+        match self {
+            Self::Defined(defined) => Some(defined),
+            _ => None,
+        }
+    }
 }
 
 pub struct DefinedFunctionInstance {
@@ -44,6 +51,13 @@ pub struct DefinedFunctionInstance {
 }
 
 impl DefinedFunctionInstance {
+    pub fn new(ty: FunctionType, module_index: ModuleIndex, code: DefinedFunc) -> Self {
+        Self {
+            ty,
+            module_index,
+            code,
+        }
+    }
     pub fn ty(&self) -> &FunctionType {
         &self.ty
     }
@@ -51,7 +65,6 @@ impl DefinedFunctionInstance {
     pub fn code(&self) -> &DefinedFunc {
         &self.code
     }
-    
     pub fn module_index(&self) -> ModuleIndex {
         self.module_index
     }

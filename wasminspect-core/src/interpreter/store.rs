@@ -1,7 +1,8 @@
 use super::executor::eval_const_expr;
-use super::func::{DefinedFunc, FunctionInstance};
+use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance};
 use super::global::GlobalInstance;
 use super::module::{ModuleIndex, ModuleInstance};
+use super::value::Value;
 use parity_wasm;
 use std::collections::HashMap;
 
@@ -33,12 +34,13 @@ impl Store {
         &self.funcs[&addr.0][addr.1]
     }
 
-    pub fn global_mut(&mut self, addr: GlobalAddr) -> &mut GlobalInstance {
-        &mut self.globals[&addr.0][addr.1]
+    pub fn set_global(&mut self, addr: GlobalAddr, value: Value) {
+        let instance = self.globals.get_mut(&addr.0).unwrap();
+        instance[addr.1].set_value(value);
     }
 
-    pub fn global(&mut self, addr: GlobalAddr) -> GlobalInstance {
-        self.globals[&addr.0][addr.1]
+    pub fn global(&mut self, addr: GlobalAddr) -> &GlobalInstance {
+        &self.globals[&addr.0][addr.1]
     }
 }
 
@@ -71,20 +73,20 @@ impl Store {
             .code_section()
             .map(|sec| sec.bodies())
             .unwrap_or_default();
-        self.funcs[&module_index] = Vec::new();
         for (func, body) in functions.into_iter().zip(bodies) {
-            let parity_wasm::elements::Type::Function(func_type) = types[func.type_ref() as usize];
-            let instance = FunctionInstance::Defined(
+            let parity_wasm::elements::Type::Function(func_type) = types[func.type_ref() as usize].clone();
+            let defined = DefinedFunctionInstance::new(
                 func_type,
                 module_index,
-                DefinedFunc::new(*func, *body, module_index),
+                DefinedFunc::new(*func, body.clone(), module_index),
             );
-            self.funcs[&module_index].push(instance);
+            let instance = FunctionInstance::Defined(defined);
+            self.funcs.entry(module_index).or_insert(Vec::new()).push(instance);
         }
     }
 
     fn load_globals(
-        &self,
+        &mut self,
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
     ) {
@@ -92,11 +94,10 @@ impl Store {
             .global_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
-        self.globals[&module_index] = Vec::new();
         for entry in globals {
             let value = eval_const_expr(entry.init_expr());
             let instance = GlobalInstance::new(value, entry.global_type().clone());
-            self.globals[&module_index].push(instance);
+            self.globals.entry(module_index).or_insert(Vec::new()).push(instance);
         }
     }
 }
