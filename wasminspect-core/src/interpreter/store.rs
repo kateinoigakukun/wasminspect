@@ -44,11 +44,20 @@ impl Store {
 }
 
 impl Store {
-    pub fn load_parity_module(&mut self, parity_module: parity_wasm::elements::Module) {
+    pub fn load_parity_module(
+        &mut self,
+        parity_module: parity_wasm::elements::Module,
+    ) -> &ModuleInstance {
         let types = Self::get_types(&parity_module);
         let module_index = ModuleIndex(self.modules.len() as u32);
-        self.load_functions(&parity_module, module_index, types);
+        let func_addrs = self.load_functions(&parity_module, module_index, types);
         self.load_globals(&parity_module, module_index);
+        let types = types.iter().map(|ty| *ty).collect();
+
+        let instance =
+            ModuleInstance::new_from_parity_module(parity_module, module_index, types, func_addrs);
+        self.modules.push(instance);
+        &instance
     }
 
     fn get_types(parity_module: &parity_wasm::elements::Module) -> &[parity_wasm::elements::Type] {
@@ -63,7 +72,7 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) {
+    ) -> Vec<FuncAddr> {
         let functions = parity_module
             .function_section()
             .map(|sec| sec.entries())
@@ -72,6 +81,7 @@ impl Store {
             .code_section()
             .map(|sec| sec.bodies())
             .unwrap_or_default();
+        let func_addrs = Vec::new();
         for (func, body) in functions.into_iter().zip(bodies) {
             let parity_wasm::elements::Type::Function(func_type) =
                 types[func.type_ref() as usize].clone();
@@ -81,11 +91,14 @@ impl Store {
                 DefinedFunc::new(*func, body.clone(), module_index),
             );
             let instance = FunctionInstance::Defined(defined);
+            let func_index = self.funcs.len();
             self.funcs
                 .entry(module_index)
                 .or_insert(Vec::new())
                 .push(instance);
+            func_addrs.push(FuncAddr(module_index, func_index));
         }
+        func_addrs
     }
 
     fn load_globals(
