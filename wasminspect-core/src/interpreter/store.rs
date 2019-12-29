@@ -91,11 +91,9 @@ impl Store {
                 DefinedFunc::new(*func, body.clone(), module_index),
             );
             let instance = FunctionInstance::Defined(defined);
-            let func_index = self.funcs.len();
-            self.funcs
-                .entry(module_index)
-                .or_insert(Vec::new())
-                .push(instance);
+            let map = self.funcs.entry(module_index).or_insert(Vec::new());
+            let func_index = map.len();
+            map.push(instance);
             func_addrs.push(FuncAddr(module_index, func_index));
         }
         func_addrs

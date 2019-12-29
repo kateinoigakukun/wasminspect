@@ -37,18 +37,23 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new(local_len: usize, func_addr: FuncAddr, initial_args: Vec<Value>, pc: ProgramCounter, store: Store) -> Self {
-        let stack = {
-                let mut stack = Stack::default();
-                let frame = CallFrame::new(func_addr, local_len, initial_args, None);
-                stack.set_frame(frame);
-                stack
-        };
+    pub fn new(
+        local_len: usize,
+        func_addr: FuncAddr,
+        initial_args: Vec<Value>,
+        pc: ProgramCounter,
+        store: Store,
+    ) -> Self {
+        let mut stack = Stack::default();
+        let frame = CallFrame::new(func_addr, local_len, initial_args, None);
+        let f = CallFrame::new(func_addr, local_len, vec![], None);
+        stack.set_frame(frame);
+        stack.push_label(Label::Return);
         Self {
             store,
             pc,
             stack,
-            last_ret_frame: None,
+            last_ret_frame: Some(f),
         }
     }
 
@@ -156,7 +161,9 @@ impl Executor {
             Instruction::Return => {
                 if let Some(Label::Return) = self.stack.pop_label() {
                     let frame = self.stack.take_current_frame().unwrap();
-                    self.pc = frame.ret_pc.unwrap();
+                    if let Some(ret_pc) = frame.ret_pc {
+                        self.pc = ret_pc;
+                    }
                     self.last_ret_frame = Some(frame);
                     Ok(ExecSuccess::Next)
                 } else {
@@ -166,7 +173,9 @@ impl Executor {
             Instruction::End => {
                 if let Some(Label::Return) = self.stack.pop_label() {
                     if let Some(frame) = self.stack.take_current_frame() {
-                        self.pc = frame.ret_pc.unwrap();
+                        if let Some(ret_pc) = frame.ret_pc {
+                            self.pc = ret_pc;
+                        }
                         self.last_ret_frame = Some(frame);
                         Ok(ExecSuccess::Next)
                     } else {

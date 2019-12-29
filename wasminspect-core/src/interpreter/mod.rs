@@ -33,7 +33,6 @@ impl WasmInstance {
         func_name: Option<String>,
         arguments: Vec<WasmValue>,
     ) -> Result<Vec<WasmValue>, WasmError> {
-        // let env = &mut Environment::new();
         let module = parity_wasm::deserialize_file(self.filename.clone()).unwrap();
         let mut store = Store::new();
         let module = store.load_parity_module(module);
