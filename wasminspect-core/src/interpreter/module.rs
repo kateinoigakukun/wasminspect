@@ -1,7 +1,6 @@
-use super::Environment;
 use super::func::*;
 use super::address::*;
-use super::store;
+use super::store::*;
 use parity_wasm::elements::Module as PModule;
 use parity_wasm::elements::*;
 use std::hash::Hash;
@@ -10,7 +9,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::error::Error;
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
 pub struct ModuleIndex(pub u32);
 
 pub struct ModuleInstance {

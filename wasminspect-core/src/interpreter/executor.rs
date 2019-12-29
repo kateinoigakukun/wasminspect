@@ -32,52 +32,18 @@ pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 pub struct Executor<'a> {
     store: Store,
     pc: ProgramCounter,
-    globals: Vec<Value>,
-    stack: Vec<Value>,
-    call_stack: Vec<CallFrame<'a>>,
-    label_stack: Vec<Label>,
+    stack: Stack<'a>,
     last_ret_frame: Option<CallFrame<'a>>,
 }
 
 impl<'a> Executor<'a> {
     pub fn new(initial_args: Vec<Value>, pc: ProgramCounter, store: Store) -> Self {
-        let initial_call_frame = Self::init_initial_call_frame(&initial_args, &pc, store);
         Self {
             store,
             pc: pc,
-            globals: Self::init_global(&store),
-            stack: vec![],
-            label_stack: vec![Label::Return],
-            call_stack: vec![initial_call_frame],
+            stack: Stack::default(),
             last_ret_frame: None,
         }
-    }
-
-    pub fn init_global(env: &Store) -> Vec<Value> {
-        let mut globals = Vec::with_capacity(env.modules().len());
-        for module in env.modules() {
-            match module {
-                Module::Defined(defined) => {
-                    for entry in defined.globals() {
-                        globals.push(eval_const_expr(entry.init_expr()));
-                    }
-                }
-            }
-        }
-        globals
-    }
-
-    pub fn init_initial_call_frame<'b>(
-        args: &Vec<Value>,
-        pc: &ProgramCounter,
-        env: &'b Environment,
-    ) -> CallFrame<'b> {
-        let func = env.get_func(pc.func_index);
-        let mut frame = CallFrame::new(func, pc.clone());
-        for (i, arg) in args.iter().enumerate() {
-            frame.locals[i] = *arg;
-        }
-        frame
     }
 
     pub fn peek_result(&self) -> ReturnValResult {
@@ -85,9 +51,9 @@ impl<'a> Executor<'a> {
             Some(frame) => frame,
             None => return Err(ReturnValError::NoCallFrame),
         };
-        let return_ty = frame.func.func_type().return_type();
+        let return_ty = frame.func.ty().return_type();
         // TODO: support multi value
-        match (self.stack.last(), return_ty) {
+        match (self.stack.peek_last_value(), return_ty) {
             (Some(val), Some(ty)) => {
                 if val.value_type() == ty {
                     return Ok(vec![val.clone()]);
@@ -100,36 +66,31 @@ impl<'a> Executor<'a> {
         }
     }
 
-    pub fn current_func_insts(&self) -> &Vec<Instruction> {
-        if let Some(frame) = self.call_stack.last() {
-            match frame.func {
-                Func::Defined(defined) => &defined.instructions,
-            }
-        } else {
-            panic!();
-        }
+    pub fn current_func_insts(&self) -> &[Instruction] {
+        self.stack.current_instructions()
     }
 
     pub fn execute_step(&mut self) -> ExecResult {
-        let func = self.env.get_func(self.pc.func_index);
+        let func = self.store.func(self.pc.func_addr());
         match func {
-            Func::Defined(defined) => self.execute_defined_func_step(defined),
+            FunctionInstance::Defined(defined) => self.execute_defined_func_step(defined),
         }
     }
 
-    fn execute_defined_func_step(&mut self, func: &DefinedFunc) -> ExecResult {
-        let inst = func.inst(self.pc.inst_index);
-        return self.execute_inst(inst);
+    fn execute_defined_func_step(&mut self, func: &DefinedFunctionInstance) -> ExecResult {
+        let inst = func.code().inst(self.pc.inst_index());
+        return self.execute_inst(inst, func.module_index());
     }
 
-    fn execute_inst(&mut self, inst: &Instruction) -> ExecResult {
-        self.pc.inst_index.inc();
+    fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult {
+        self.pc.inc_inst_index();
         println!("{}", inst.clone());
         let result = match *inst {
             Instruction::Unreachable => panic!(),
             Instruction::GetGlobal(index) => {
-                let value = self.globals[index as usize];
-                self.push(value);
+                let addr = GlobalAddr(module_index, index as usize);
+                let global = self.store.global(addr);
+                self.push(global.value());
                 Ok(ExecSuccess::Next)
             }
             Instruction::SetLocal(index) => {
@@ -143,7 +104,7 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
             Instruction::I32Const(val) => {
-                self.stack.push(Value::I32(val));
+                self.stack.push_value(Value::I32(val));
                 Ok(ExecSuccess::Next)
             }
             Instruction::I32Add => self.int_op::<i32, _>(|a, b| Value::I32(a + b)),
@@ -151,11 +112,11 @@ impl<'a> Executor<'a> {
                 self.int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
             }
             Instruction::Block(_) => {
-                self.label_stack.push(Label::Block);
+                self.stack.push_label(Label::Block);
                 Ok(ExecSuccess::Next)
             }
             Instruction::Loop(_) => {
-                self.label_stack.push(Label::new_loop(self.pc.inst_index));
+                self.stack.push_label(Label::new_loop(self.pc.inst_index()));
                 Ok(ExecSuccess::Next)
             }
             Instruction::BrIf(depth) => {
@@ -170,9 +131,9 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
             Instruction::Call(func_index) => {
-                let func_index = Index::try_from(func_index as usize).unwrap();
-                let func = self.env.get_func(func_index);
-                let pc = ProgramCounter::new(func_index, Index::zero());
+                let addr = FuncAddr(module_index, func_index as usize);
+                let func = self.store.func(addr);
+                let pc = ProgramCounter::new(addr, InstIndex::zero());
                 let mut locals: Vec<Value> = Vec::new();
 
                 for _ in func.func_type().params() {
@@ -280,7 +241,7 @@ impl<'a> Executor<'a> {
     }
 }
 
-fn eval_const_expr(init_expr: &InitExpr) -> Value {
+pub fn eval_const_expr(init_expr: &InitExpr) -> Value {
     let inst = &init_expr.code()[0];
     match *inst {
         Instruction::I32Const(val) => Value::I32(val),

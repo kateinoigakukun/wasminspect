@@ -6,9 +6,10 @@ mod address;
 mod store;
 mod value;
 mod stack;
+mod global;
 
-use self::environment::Environment;
-use self::executor::{ExecSuccess, Executor, ProgramCounter};
+use self::stack::ProgramCounter;
+use self::executor::{ExecSuccess, Executor};
 pub use self::value::Value as WasmValue;
 use self::module::{DefinedModule, Index, Module};
 

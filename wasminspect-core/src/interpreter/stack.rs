@@ -1,5 +1,7 @@
-use super::func::{FuncIndex, FunctionInstance, InstIndex};
+use super::func::{DefinedFunctionInstance, FuncIndex, InstIndex};
+use super::store::FuncAddr;
 use super::value::Value;
+use parity_wasm::elements::Instruction;
 
 pub enum Label {
     Block,
@@ -19,55 +21,74 @@ impl Label {
 
 #[derive(Clone, Copy)]
 pub struct ProgramCounter {
-    func_index: FuncIndex,
+    func_addr: FuncAddr,
     inst_index: InstIndex,
 }
 
 impl ProgramCounter {
-    pub fn new(func_index: FuncIndex, inst_index: InstIndex) -> Self {
+    pub fn new(func_addr: FuncAddr, inst_index: InstIndex) -> Self {
         Self {
-            func_index,
+            func_addr,
             inst_index,
         }
+    }
+
+    pub fn func_addr(&self) -> FuncAddr {
+        self.func_addr
+    }
+
+    pub fn inst_index(&self) -> InstIndex {
+        self.inst_index
+    }
+
+    pub fn inc_inst_index(&mut self) {
+        self.inst_index.0 += 1;
     }
 }
 
 pub struct CallFrame<'a> {
-    pub func: &'a FunctionInstance,
+    pub func: &'a DefinedFunctionInstance,
     pub locals: Vec<Value>,
     pub ret_pc: ProgramCounter,
 }
 
 impl<'a> CallFrame<'a> {
-    pub fn new(func: &'a FunctionInstance, pc: ProgramCounter) -> Self {
-        match func {
-            FunctionInstance::Defined(ty, module_index, defined) => {
-                let local_len = defined.locals().len() + func.ty().params().len();
-                let locals = std::iter::repeat(Value::I32(0)).take(local_len).collect();
-                Self {
-                    func,
-                    locals,
-                    ret_pc: pc,
-                }
-            }
-            FunctionInstance::Host(ty, host) => panic!(),
-        }
-    }
-    pub fn new_with_locals(
-        func: &'a FunctionInstance,
-        locals: Vec<Value>,
-        pc: ProgramCounter,
-    ) -> Self {
+    pub fn new(func: &'a DefinedFunctionInstance, pc: ProgramCounter) -> Self {
+        let local_len = func.code().locals().len() + func.ty().params().len();
+        let locals = std::iter::repeat(Value::I32(0)).take(local_len).collect();
         Self {
             func,
-            locals: locals,
+            locals,
             ret_pc: pc,
         }
     }
 }
 
-struct Stack<'a> {
+#[derive(Default)]
+pub struct Stack<'a> {
     values: Vec<Value>,
     labels: Vec<Label>,
     activations: Vec<CallFrame<'a>>,
+}
+
+impl<'a> Stack<'a> {
+    pub fn push_value(&mut self, val: Value) {
+        self.values.push(val)
+    }
+
+    pub fn peek_last_value(&self) -> Option<&Value> {
+        self.values.last()
+    }
+
+    pub fn push_label(&mut self, val: Label) {
+        self.labels.push(val)
+    }
+
+    pub fn current_frame(&self) -> &CallFrame {
+        &self.activations.last().unwrap()
+    }
+
+    pub fn current_instructions(&self) -> &[Instruction] {
+        self.current_frame().func.code().instructions()
+    }
 }

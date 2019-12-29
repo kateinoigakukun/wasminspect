@@ -1,4 +1,5 @@
 use super::module::*;
+use super::store::FuncAddr;
 use parity_wasm::elements::*;
 
 use std::iter;
@@ -10,22 +11,49 @@ pub struct TypeIndex {
 }
 
 #[derive(Clone, Copy)]
-pub struct InstIndex(u32);
+pub struct InstIndex(pub u32);
 
+impl InstIndex {
+    pub fn zero() -> InstIndex {
+        InstIndex(0)
+    }
+}
+
+#[deprecated]
 #[derive(Clone, Copy)]
 pub struct FuncIndex(u32);
 
 pub enum FunctionInstance {
-    Defined(FunctionType, ModuleIndex, DefinedFunc),
+    Defined(DefinedFunctionInstance),
     Host(FunctionType, HostFunc),
 }
 
 impl FunctionInstance {
     pub fn ty(&self) -> &FunctionType {
         match self {
-            Self::Defined(ty, _, _) => ty,
+            Self::Defined(defined) => defined.ty(),
             Self::Host(ty, _) => ty,
         }
+    }
+}
+
+pub struct DefinedFunctionInstance {
+    ty: FunctionType,
+    module_index: ModuleIndex,
+    code: DefinedFunc,
+}
+
+impl DefinedFunctionInstance {
+    pub fn ty(&self) -> &FunctionType {
+        &self.ty
+    }
+
+    pub fn code(&self) -> &DefinedFunc {
+        &self.code
+    }
+    
+    pub fn module_index(&self) -> ModuleIndex {
+        self.module_index
     }
 }
 
@@ -57,7 +85,10 @@ impl DefinedFunc {
         }
     }
 
-    pub fn inst(&self, index: Index) -> &Instruction {
+    pub fn instructions(&self) -> &[Instruction] {
+        &self.instructions
+    }
+    pub fn inst(&self, index: InstIndex) -> &Instruction {
         &self.instructions[index.0 as usize]
     }
     pub fn locals(&self) -> &Vec<ValueType> {
