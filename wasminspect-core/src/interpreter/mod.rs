@@ -1,18 +1,18 @@
+mod address;
 mod environment;
 mod executor;
-mod module;
 mod func;
-mod address;
+mod global;
+mod module;
+mod stack;
 mod store;
 mod value;
-mod stack;
-mod global;
 
-use self::stack::ProgramCounter;
 use self::executor::{ExecSuccess, Executor};
+use self::module::ModuleInstance;
+use self::stack::ProgramCounter;
+use self::store::{FuncAddr, Store};
 pub use self::value::Value as WasmValue;
-use self::module::{ModuleInstance};
-use self::store::{Store, FuncAddr};
 // use self::module::{DefinedModule, Index, Module};
 
 pub struct WasmInstance {

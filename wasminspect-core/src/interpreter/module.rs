@@ -1,13 +1,13 @@
-use super::func::*;
 use super::address::*;
+use super::func::*;
 use super::store::*;
 use parity_wasm::elements::Module as PModule;
 use parity_wasm::elements::*;
-use std::hash::Hash;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::error::Error;
+use std::hash::Hash;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 pub struct ModuleIndex(pub u32);
@@ -150,7 +150,6 @@ pub struct ModuleInstance {
 //         Some(())
 //     }
 // }
-
 
 // pub type TypeVector = Vec<Type>;
 // pub type IndexVector = Vec<Index>;

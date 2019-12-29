@@ -5,8 +5,8 @@ use std::convert::TryFrom;
 pub enum Value {
     I32(i32),
     I64(i64),
-	F32(f32),
-	F64(f64),
+    F32(f32),
+    F64(f64),
 }
 
 impl Value {
@@ -21,7 +21,7 @@ impl Value {
 }
 
 pub enum ValueConversionError {
-    InvalidType(String)
+    InvalidType(String),
 }
 
 impl TryFrom<Value> for i32 {
@@ -29,7 +29,7 @@ impl TryFrom<Value> for i32 {
     fn try_from(input: Value) -> Result<i32, ValueConversionError> {
         match input {
             Value::I32(val) => Ok(val),
-            _ => Err(ValueConversionError::InvalidType("i32".to_string()))
+            _ => Err(ValueConversionError::InvalidType("i32".to_string())),
         }
     }
 }
@@ -39,7 +39,7 @@ impl TryFrom<Value> for i64 {
     fn try_from(input: Value) -> Result<i64, ValueConversionError> {
         match input {
             Value::I64(val) => Ok(val),
-            _ => Err(ValueConversionError::InvalidType("i64".to_string()))
+            _ => Err(ValueConversionError::InvalidType("i64".to_string())),
         }
     }
 }

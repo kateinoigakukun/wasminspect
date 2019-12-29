@@ -11,7 +11,6 @@ use std::collections::HashMap;
 pub struct FuncAddr(pub ModuleIndex, pub usize);
 pub struct GlobalAddr(pub ModuleIndex, pub usize);
 
-
 /// Store
 pub struct Store {
     funcs: HashMap<ModuleIndex, Vec<FunctionInstance>>,
@@ -74,14 +73,18 @@ impl Store {
             .map(|sec| sec.bodies())
             .unwrap_or_default();
         for (func, body) in functions.into_iter().zip(bodies) {
-            let parity_wasm::elements::Type::Function(func_type) = types[func.type_ref() as usize].clone();
+            let parity_wasm::elements::Type::Function(func_type) =
+                types[func.type_ref() as usize].clone();
             let defined = DefinedFunctionInstance::new(
                 func_type,
                 module_index,
                 DefinedFunc::new(*func, body.clone(), module_index),
             );
             let instance = FunctionInstance::Defined(defined);
-            self.funcs.entry(module_index).or_insert(Vec::new()).push(instance);
+            self.funcs
+                .entry(module_index)
+                .or_insert(Vec::new())
+                .push(instance);
         }
     }
 
@@ -97,7 +100,10 @@ impl Store {
         for entry in globals {
             let value = eval_const_expr(entry.init_expr());
             let instance = GlobalInstance::new(value, entry.global_type().clone());
-            self.globals.entry(module_index).or_insert(Vec::new()).push(instance);
+            self.globals
+                .entry(module_index)
+                .or_insert(Vec::new())
+                .push(instance);
         }
     }
 }
