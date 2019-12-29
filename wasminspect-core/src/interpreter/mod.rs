@@ -1,19 +1,19 @@
 mod address;
 mod executor;
+mod export;
 mod func;
 mod global;
 mod module;
 mod stack;
 mod store;
 mod value;
-mod export;
 
 use self::executor::{ExecSuccess, Executor};
+use self::export::ExternalValue;
+use self::func::InstIndex;
 use self::module::ModuleInstance;
 use self::stack::ProgramCounter;
 use self::store::{FuncAddr, Store};
-use self::export::ExternalValue;
-use self::func::InstIndex;
 pub use self::value::Value as WasmValue;
 // use self::module::{DefinedModule, Index, Module};
 

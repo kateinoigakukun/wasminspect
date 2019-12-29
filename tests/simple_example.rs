@@ -12,25 +12,25 @@ fn run_wasm(filename: &str, func: &str, args: Vec<WasmValue>, results: Vec<WasmV
     }
 }
 
-// #[test]
-// fn test_calc_add() {
-//     run_wasm(
-//         "calc.wasm",
-//         "add",
-//         vec![WasmValue::I32(1), WasmValue::I32(2)],
-//         vec![WasmValue::I32(3)],
-//     );
-// }
+#[test]
+fn test_calc_add() {
+    run_wasm(
+        "calc.wasm",
+        "add",
+        vec![WasmValue::I32(1), WasmValue::I32(2)],
+        vec![WasmValue::I32(3)],
+    );
+}
 
-// #[test]
-// fn test_calc_mul() {
-//     run_wasm(
-//         "calc.wasm",
-//         "mul",
-//         vec![WasmValue::I32(2), WasmValue::I32(3)],
-//         vec![WasmValue::I32(6)],
-//     );
-// }
+#[test]
+fn test_calc_mul() {
+    run_wasm(
+        "calc.wasm",
+        "mul",
+        vec![WasmValue::I32(2), WasmValue::I32(3)],
+        vec![WasmValue::I32(6)],
+    );
+}
 
 #[test]
 fn test_calc_call() {

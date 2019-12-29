@@ -57,7 +57,12 @@ pub struct CallFrame {
 }
 
 impl CallFrame {
-    pub fn new(func_addr: FuncAddr, local_len: usize,  args: Vec<Value>, pc: Option<ProgramCounter>) -> Self {
+    pub fn new(
+        func_addr: FuncAddr,
+        local_len: usize,
+        args: Vec<Value>,
+        pc: Option<ProgramCounter>,
+    ) -> Self {
         let mut locals: Vec<Value> = std::iter::repeat(Value::I32(0)).take(local_len).collect();
         for (i, arg) in args.into_iter().enumerate() {
             locals[i] = arg;
@@ -69,7 +74,12 @@ impl CallFrame {
         }
     }
 
-    pub fn new_from_func(func_addr: FuncAddr, func: &DefinedFunctionInstance, args: Vec<Value>, pc: Option<ProgramCounter>) -> Self {
+    pub fn new_from_func(
+        func_addr: FuncAddr,
+        func: &DefinedFunctionInstance,
+        args: Vec<Value>,
+        pc: Option<ProgramCounter>,
+    ) -> Self {
         let local_len = func.ty().params().len() + func.code().locals().len();
         let mut locals: Vec<Value> = std::iter::repeat(Value::I32(0)).take(local_len).collect();
         for (i, arg) in args.into_iter().enumerate() {
