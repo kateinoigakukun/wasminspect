@@ -27,7 +27,7 @@ impl ModuleInstance {
                 .export_section()
                 .map(|sec| sec.entries().iter())
                 .map(|entries| {
-                    entries.map(|e| ExportInstance::new_from_parity_entry(*e, module_index))
+                    entries.map(|e| ExportInstance::new_from_parity_entry(e.clone(), module_index))
                 })
                 .map(|s| s.collect())
                 .unwrap_or_default(),
@@ -38,7 +38,7 @@ impl ModuleInstance {
     }
 
     pub fn exported_func(&self, name: String) -> Option<&ExportInstance> {
-        self.exports.iter().filter(|e| e.name() == name).next()
+        self.exports.iter().filter(|e| *e.name() == name).next()
     }
 
     pub fn start_func_addr(&self) -> &Option<FuncAddr> {

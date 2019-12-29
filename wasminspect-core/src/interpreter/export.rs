@@ -8,8 +8,8 @@ pub struct ExportInstance {
 }
 
 impl ExportInstance {
-    pub fn name(&self) -> String {
-        self.name
+    pub fn name(&self) -> &String {
+        &self.name
     }
 
     pub fn value(&self) -> &ExternalValue {
@@ -27,6 +27,7 @@ impl ExportInstance {
                     let addr = FuncAddr(module_index, *func_index as usize);
                     ExternalValue::Func(addr)
                 }
+                _ => panic!()
             },
         }
     }

@@ -52,12 +52,12 @@ impl Store {
         let module_index = ModuleIndex(self.modules.len() as u32);
         let func_addrs = self.load_functions(&parity_module, module_index, types);
         self.load_globals(&parity_module, module_index);
-        let types = types.iter().map(|ty| *ty).collect();
+        let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
             ModuleInstance::new_from_parity_module(parity_module, module_index, types, func_addrs);
         self.modules.push(instance);
-        &instance
+        &self.modules.last().unwrap()
     }
 
     fn get_types(parity_module: &parity_wasm::elements::Module) -> &[parity_wasm::elements::Type] {
@@ -81,7 +81,7 @@ impl Store {
             .code_section()
             .map(|sec| sec.bodies())
             .unwrap_or_default();
-        let func_addrs = Vec::new();
+        let mut func_addrs = Vec::new();
         for (func, body) in functions.into_iter().zip(bodies) {
             let parity_wasm::elements::Type::Function(func_type) =
                 types[func.type_ref() as usize].clone();
