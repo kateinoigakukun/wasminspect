@@ -11,9 +11,8 @@ mod value;
 use self::executor::{ExecSuccess, Executor};
 use self::export::ExternalValue;
 use self::func::InstIndex;
-use self::module::ModuleInstance;
 use self::stack::ProgramCounter;
-use self::store::{FuncAddr, Store};
+use self::store::Store;
 pub use self::value::Value as WasmValue;
 // use self::module::{DefinedModule, Index, Module};
 

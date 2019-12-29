@@ -1,10 +1,9 @@
 use super::module::*;
-use super::store::FuncAddr;
+use super::address::FuncAddr;
 use parity_wasm::elements::*;
 
 use std::iter;
 
-// TODO: move
 pub struct TypeIndex {
     module_index: ModuleIndex,
     index: u32,

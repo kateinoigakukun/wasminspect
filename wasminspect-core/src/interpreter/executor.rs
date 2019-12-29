@@ -3,9 +3,10 @@ use super::module::*;
 use super::stack::*;
 use super::store::*;
 use super::value::*;
+use super::address::{GlobalAddr, FuncAddr};
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 #[derive(Debug)]
 pub enum ExecError {
@@ -101,6 +102,12 @@ impl Executor {
                 self.stack.push_value(global.value());
                 Ok(ExecSuccess::Next)
             }
+            Instruction::SetGlobal(index) => {
+                let addr = GlobalAddr(module_index, *index as usize);
+                let value = self.stack.pop_value().unwrap();
+                self.store.set_global(addr, value);
+                Ok(ExecSuccess::Next)
+            }
             Instruction::SetLocal(index) => {
                 let value = self.stack.pop_value().unwrap();
                 self.stack.set_local(*index as usize, value);
@@ -149,7 +156,7 @@ impl Executor {
                             args.push(self.stack.pop_value().unwrap());
                         }
                         args.reverse();
-                        let frame = CallFrame::new_from_func(addr, defined, args, Some(pc));
+                        let frame = CallFrame::new_from_func(addr, &defined, args, Some(pc));
                         self.stack.set_frame(frame);
                         self.stack.push_label(Label::Return);
                         self.pc = pc;

@@ -1,4 +1,6 @@
 use super::module::ModuleIndex;
-pub struct TableAddr(u32);
-pub struct MemAddr(u32);
-pub struct GlobalAddr(u32);
+
+// Addresses
+#[derive(Clone, Copy)]
+pub struct FuncAddr(pub ModuleIndex, pub usize);
+pub struct GlobalAddr(pub ModuleIndex, pub usize);

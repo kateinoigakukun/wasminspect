@@ -16,6 +16,7 @@ impl GlobalInstance {
     }
 
     pub fn set_value(&mut self, value: Value) {
+        assert!(self.is_mutable());
         self.value = value
     }
 

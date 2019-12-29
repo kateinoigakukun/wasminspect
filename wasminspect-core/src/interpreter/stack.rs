@@ -1,5 +1,5 @@
 use super::func::{DefinedFunctionInstance, FuncIndex, InstIndex};
-use super::store::FuncAddr;
+use super::address::FuncAddr;
 use super::value::Value;
 use parity_wasm::elements::Instruction;
 

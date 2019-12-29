@@ -3,13 +3,9 @@ use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance};
 use super::global::GlobalInstance;
 use super::module::{ModuleIndex, ModuleInstance};
 use super::value::Value;
+use super::address::{FuncAddr, GlobalAddr};
 use parity_wasm;
 use std::collections::HashMap;
-
-// Addresses
-#[derive(Clone, Copy)]
-pub struct FuncAddr(pub ModuleIndex, pub usize);
-pub struct GlobalAddr(pub ModuleIndex, pub usize);
 
 /// Store
 pub struct Store {

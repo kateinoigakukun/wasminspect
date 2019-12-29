@@ -1,5 +1,5 @@
 use super::module::ModuleIndex;
-use super::store::{FuncAddr, GlobalAddr};
+use super::address::{FuncAddr, GlobalAddr};
 use parity_wasm::elements::Internal;
 
 pub struct ExportInstance {
