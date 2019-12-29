@@ -4,6 +4,7 @@ use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFu
 use super::global::GlobalInstance;
 use super::module::{ModuleIndex, ModuleInstance};
 use super::value::Value;
+use super::host::HostFunc;
 use parity_wasm;
 use std::collections::HashMap;
 

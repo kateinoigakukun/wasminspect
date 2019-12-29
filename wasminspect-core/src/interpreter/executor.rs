@@ -4,6 +4,7 @@ use super::stack::*;
 use super::store::*;
 use super::value::*;
 use super::address::{GlobalAddr, FuncAddr};
+use super::host::BuiltinPrintI32;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
 use std::convert::TryFrom;
@@ -148,21 +149,29 @@ impl Executor {
             Instruction::Call(func_index) => {
                 let addr = FuncAddr(module_index, *func_index as usize);
                 let func = self.store.func(addr);
-                let pc = ProgramCounter::new(addr, InstIndex::zero());
+                let mut args = Vec::new();
+                for _ in func.ty().params() {
+                    args.push(self.stack.pop_value().unwrap());
+                }
                 match func {
                     FunctionInstance::Defined(defined) => {
-                        let mut args = Vec::new();
-                        for _ in func.ty().params() {
-                            args.push(self.stack.pop_value().unwrap());
-                        }
+                        let pc = ProgramCounter::new(addr, InstIndex::zero());
                         args.reverse();
-                        let frame = CallFrame::new_from_func(addr, &defined, args, Some(pc));
+                        let frame = CallFrame::new_from_func(addr, &defined, args, Some(self.pc));
                         self.stack.set_frame(frame);
                         self.stack.push_label(Label::Return);
                         self.pc = pc;
                         Ok(ExecSuccess::Next)
                     }
-                    FunctionInstance::Host(_) => panic!(),
+                    FunctionInstance::Host(host) => {
+                        match &host.field_name()[..] {
+                            "print_i32" => {
+                                BuiltinPrintI32::dispatch(&args);
+                                Ok(ExecSuccess::Next)
+                            }
+                            _ => panic!(),
+                        }
+                    },
                 }
             }
             Instruction::Return => {

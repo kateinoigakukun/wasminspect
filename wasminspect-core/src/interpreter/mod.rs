@@ -7,6 +7,7 @@ mod module;
 mod stack;
 mod store;
 mod value;
+mod host;
 
 use self::executor::{ExecSuccess, Executor};
 use self::export::ExternalValue;
