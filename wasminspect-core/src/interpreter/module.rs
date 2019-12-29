@@ -4,11 +4,19 @@ use super::address::*;
 use super::store;
 use parity_wasm::elements::Module as PModule;
 use parity_wasm::elements::*;
+use std::hash::Hash;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::error::Error;
-use std::iter;
+
+#[derive(Hash, PartialEq, Eq)]
+pub struct ModuleIndex(pub u32);
+
+pub struct ModuleInstance {
+    types: Vec<parity_wasm::elements::Type>,
+    func_addrs: Vec<FuncAddr>,
+}
 
 struct BaseModule {
     name: String,
@@ -130,52 +138,6 @@ impl<'a> ModuleReader<'a> {
 
 impl<'a> ModuleReader<'a> {
     fn walk(&mut self, module: &PModule) {
-        let types = self.walk_types(module);
-        self.walk_functions(module, &types);
-    }
-
-    fn walk_types(&mut self, module: &PModule) -> Vec<FunctionType> {
-        let type_sec = match module.type_section() {
-            Some(type_sec) => type_sec,
-            None => return vec![],
-        };
-
-        for type_ in type_sec.types() {
-            match type_ {
-                Type::Function(func_type) => {
-                    self.env.push_back_func_signature(func_type);
-                }
-            }
-        }
-        return type_sec
-            .types()
-            .into_iter()
-            .map(|t| match t {
-                Type::Function(func_type) => func_type.clone(),
-            })
-            .collect();
-    }
-
-    fn walk_functions(&mut self, module: &PModule, types: &[FunctionType]) {
-        let function_sec = match module.function_section() {
-            Some(function_sec) => function_sec,
-            None => return,
-        };
-        let code_sec = match module.code_section() {
-            Some(code_sec) => code_sec,
-            None => return,
-        };
-        for (entry, body) in function_sec.entries().into_iter().zip(code_sec.bodies()) {
-            let func_type = types[entry.type_ref() as usize].clone();
-            let locals: Vec<ValueType> = body
-                .locals()
-                .iter()
-                .flat_map(|locals| iter::repeat(locals.value_type()).take(locals.count() as usize))
-                .collect();
-            let instructions = body.code().elements().to_vec();
-            let fun = DefinedFunc::new("TODO".to_string(), func_type, locals, instructions);
-            self.env.push_back_func(_Func::Defined(fun));
-        }
     }
 
     fn walk_imports(&mut self, module: &parity_wasm::elements::Module) -> Option<()> {

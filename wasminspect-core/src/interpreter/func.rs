@@ -1,18 +1,20 @@
-use super::module::Module as _Module;
 use super::module::*;
 use parity_wasm::elements::*;
 
 use std::iter;
 
 // TODO: move
-pub struct TypeIndex(u32);
+pub struct TypeIndex {
+    module_index: ModuleIndex,
+    index: u32,
+}
 
-pub enum FunctionInstance<'a> {
-    Defined(FunctionType, &'a _Module, DefinedFunc),
+pub enum FunctionInstance {
+    Defined(FunctionType, ModuleIndex, DefinedFunc),
     Host(FunctionType, HostFunc),
 }
 
-impl<'a> FunctionInstance<'a> {
+impl FunctionInstance {
     pub fn r#type(&self) -> &FunctionType {
         match self {
             Self::Defined(ty, _, _) => ty,
@@ -28,7 +30,7 @@ pub struct DefinedFunc {
 }
 
 impl DefinedFunc {
-    pub fn new(func: parity_wasm::elements::Func, body: parity_wasm::elements::FuncBody) -> Self {
+    pub fn new(func: parity_wasm::elements::Func, body: parity_wasm::elements::FuncBody, module_index: ModuleIndex) -> Self {
         let locals = body
             .locals()
             .iter()
@@ -36,7 +38,7 @@ impl DefinedFunc {
             .collect();
         let instructions = body.code().elements().to_vec();
         Self {
-            type_index: TypeIndex(func.type_ref()),
+            type_index: TypeIndex { module_index, index: func.type_ref() },
             locals,
             instructions,
         }
