@@ -29,19 +29,25 @@ pub enum ReturnValError {
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
-pub struct Executor<'a> {
+pub struct Executor {
     store: Store,
     pc: ProgramCounter,
-    stack: Stack<'a>,
-    last_ret_frame: Option<CallFrame<'a>>,
+    stack: Stack,
+    last_ret_frame: Option<CallFrame>,
 }
 
-impl<'a> Executor<'a> {
-    pub fn new(initial_args: Vec<Value>, pc: ProgramCounter, store: Store) -> Self {
+impl Executor {
+    pub fn new(local_len: usize, func_addr: FuncAddr, initial_args: Vec<Value>, pc: ProgramCounter, store: Store) -> Self {
+        let stack = {
+                let mut stack = Stack::default();
+                let frame = CallFrame::new(func_addr, local_len, initial_args, None);
+                stack.set_frame(frame);
+                stack
+        };
         Self {
             store,
-            pc: pc,
-            stack: Stack::default(),
+            pc,
+            stack,
             last_ret_frame: None,
         }
     }
@@ -51,7 +57,8 @@ impl<'a> Executor<'a> {
             Some(frame) => frame,
             None => return Err(ReturnValError::NoCallFrame),
         };
-        let return_ty = frame.func.ty().return_type();
+        let func = self.store.func(frame.func_addr);
+        let return_ty = func.ty().return_type();
         // TODO: support multi value
         match (self.stack.peek_last_value(), return_ty) {
             (Some(val), Some(ty)) => {
@@ -67,7 +74,8 @@ impl<'a> Executor<'a> {
     }
 
     pub fn current_func_insts(&self) -> &[Instruction] {
-        self.stack.current_instructions()
+        let func = self.store.func(self.stack.current_func_addr());
+        &func.defined().unwrap().code().instructions()
     }
 
     pub fn execute_step(&mut self) -> ExecResult {
@@ -136,9 +144,9 @@ impl<'a> Executor<'a> {
                             args.push(self.stack.pop_value().unwrap());
                         }
                         args.reverse();
-                        let frame = CallFrame::new(defined, args, pc);
-                        // self.stack.set_frame(frame);
-                        // self.stack.push_label(Label::Return);
+                        let frame = CallFrame::new_from_func(addr, defined, args, Some(pc));
+                        self.stack.set_frame(frame);
+                        self.stack.push_label(Label::Return);
                         self.pc = pc;
                         Ok(ExecSuccess::Next)
                     }
@@ -148,7 +156,7 @@ impl<'a> Executor<'a> {
             Instruction::Return => {
                 if let Some(Label::Return) = self.stack.pop_label() {
                     let frame = self.stack.take_current_frame().unwrap();
-                    self.pc = frame.ret_pc;
+                    self.pc = frame.ret_pc.unwrap();
                     self.last_ret_frame = Some(frame);
                     Ok(ExecSuccess::Next)
                 } else {
@@ -158,7 +166,7 @@ impl<'a> Executor<'a> {
             Instruction::End => {
                 if let Some(Label::Return) = self.stack.pop_label() {
                     if let Some(frame) = self.stack.take_current_frame() {
-                        self.pc = frame.ret_pc;
+                        self.pc = frame.ret_pc.unwrap();
                         self.last_ret_frame = Some(frame);
                         Ok(ExecSuccess::Next)
                     } else {
