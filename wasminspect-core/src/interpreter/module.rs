@@ -1,4 +1,6 @@
 use super::Environment;
+use super::func::*;
+use super::func::Func as _Func;
 use parity_wasm::elements::Module as PModule;
 use parity_wasm::elements::*;
 use std::collections::HashMap;
@@ -57,7 +59,7 @@ pub struct DefinedModule {
     base_module: BaseModule,
     pmodule: parity_wasm::elements::Module,
     start_func: Option<u32>,
-    funcs: Vec<Func>,
+    funcs: Vec<_Func>,
 }
 
 impl DefinedModule {
@@ -171,8 +173,19 @@ impl<'a> ModuleReader<'a> {
                 .collect();
             let instructions = body.code().elements().to_vec();
             let fun = DefinedFunc::new("TODO".to_string(), func_type, locals, instructions);
-            self.env.push_back_func(Func::Defined(fun));
+            self.env.push_back_func(_Func::Defined(fun));
         }
+    }
+
+    fn walk_imports(&mut self, module: &parity_wasm::elements::Module) -> Option<()> {
+        let import_sec = module.import_section()?;
+        for entry in import_sec.entries() {
+        };
+        Some(())
+    }
+
+    fn walk_import_entry(&mut self, module: &parity_wasm::elements::Module, types: &[FunctionType], type_index: Index) -> Option<()> {
+        Some(())
     }
 }
 
@@ -222,58 +235,6 @@ impl TryFrom<Value> for i64 {
 pub type TypeVector = Vec<Type>;
 pub type IndexVector = Vec<Index>;
 
-pub enum Func {
-    Defined(DefinedFunc),
-}
-
-impl Func {
-    fn base(&self) -> &FuncBase {
-        match self {
-            Func::Defined(defined) => &defined.base,
-        }
-    }
-
-    pub fn func_type(&self) -> &FunctionType {
-        &self.base().func_type
-    }
-
-    pub fn locals(&self) -> &Vec<ValueType> {
-        &self.base().locals
-    }
-}
-
-pub struct FuncBase {
-    name: String,
-    func_type: FunctionType,
-    locals: Vec<ValueType>,
-}
-pub struct DefinedFunc {
-    base: FuncBase,
-    pub instructions: Vec<Instruction>,
-}
-
-impl DefinedFunc {
-    fn new(
-        name: String,
-        func_type: FunctionType,
-        locals: Vec<ValueType>,
-        instructions: Vec<Instruction>,
-    ) -> Self {
-        Self {
-            base: FuncBase {
-                name,
-                func_type,
-                locals: locals,
-            },
-            instructions: instructions,
-        }
-    }
-
-    pub fn inst(&self, index: Index) -> &Instruction {
-        &self.instructions[index.0 as usize]
-    }
-}
-
 #[derive(PartialEq)]
 pub enum ExternalKind {
     Func = 0,
@@ -289,7 +250,7 @@ pub struct Export {
 }
 
 #[derive(PartialEq, Clone, Copy)]
-pub struct Index(u32);
+pub struct Index(pub u32);
 
 impl Index {
     pub fn zero() -> Index {

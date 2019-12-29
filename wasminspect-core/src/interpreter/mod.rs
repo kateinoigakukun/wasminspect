@@ -1,6 +1,7 @@
 mod environment;
 mod executor;
 mod module;
+mod func;
 
 use self::environment::Environment;
 use self::executor::{ExecSuccess, Executor, ProgramCounter};

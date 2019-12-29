@@ -1,4 +1,5 @@
 (module
+  (func $print_i32 (import "spectest" "print_i32") (param i32))
   (func $add (export "add") (param i32) (param i32) (result i32)
     get_local 0
     get_local 1
@@ -11,6 +12,6 @@
         (set_local $i (i32.add (get_local $i) (i32.const 1)))
         (br $loop)))
     (return (get_local $sum)))
-  (func $call_add (export "call_add") (param i32) (param i32) (result i32)
-    (call $add (get_local 0) (get_local 1)))
+  (func $call_add (export "call_add") (param i32) (param i32)
+    (call $print_i32 (call $add (get_local 0) (get_local 1))))
 )

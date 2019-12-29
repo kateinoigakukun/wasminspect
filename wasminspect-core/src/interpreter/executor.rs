@@ -1,5 +1,6 @@
 use super::environment::Environment;
 use super::module::*;
+use super::func::*;
 use parity_wasm::elements::{InitExpr, Instruction, ValueType};
 
 use std::convert::{TryFrom, TryInto};
@@ -233,6 +234,7 @@ impl<'a> Executor<'a> {
 
                 let frame = CallFrame::new_with_locals(func, locals, self.pc);
                 self.call_stack.push(frame);
+                self.label_stack.push(Label::Return);
 
                 self.pc = pc;
                 Ok(ExecSuccess::Next)
