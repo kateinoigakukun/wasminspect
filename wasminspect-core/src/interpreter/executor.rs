@@ -127,6 +127,10 @@ impl Executor {
             Instruction::I32LtS => {
                 self.int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
             }
+            Instruction::I64Const(val) => {
+                self.stack.push_value(Value::I64(*val));
+                Ok(ExecSuccess::Next)
+            }
             Instruction::Block(_) => {
                 self.stack.push_label(Label::Block);
                 Ok(ExecSuccess::Next)

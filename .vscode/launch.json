@@ -43,6 +43,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug testsuite in executable 'wasminspect'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "spectest",
+                    "--no-run",
+                ],
+                "filter": {
+                    "name": "spectest",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'wasminspect'",
             "cargo": {
                 "args": [

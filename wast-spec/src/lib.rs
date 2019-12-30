@@ -3,9 +3,9 @@ pub fn spectest() {}
 use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::Path;
 use std::rc::Rc;
 use std::str;
-use std::path::Path;
 use wasminspect_core::interpreter::{WasmInstance, WasmValue};
 
 pub struct WastContext {
@@ -24,6 +24,15 @@ impl WastContext {
         let bytes = std::fs::read(path).unwrap();
         self.run_buffer(path.to_str().unwrap(), &bytes)
     }
+
+    pub fn instantiate(&self, bytes: &[u8]) -> Rc<RefCell<WasmInstance>> {
+        let parity_module: parity_wasm::elements::Module =
+            parity_wasm::deserialize_buffer(&bytes).unwrap();
+        return Rc::new(RefCell::new(WasmInstance::new_from_parity_module(
+            parity_module,
+        )));
+    }
+
     pub fn run_buffer(&mut self, filename: &str, wast: &[u8]) -> Result<()> {
         use wast::WastDirective::*;
 
@@ -46,11 +55,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let parity_module: parity_wasm::elements::Module =
-                        parity_wasm::deserialize_buffer(&bytes).unwrap();
-                    let instance = Rc::new(RefCell::new(WasmInstance::new_from_parity_module(
-                        parity_module,
-                    )));
+                    let instance = self.instantiate(&bytes);
                     if let Some(module_name) = module.name.map(|s| s.name()) {
                         self.instances
                             .insert(module_name.to_string(), instance.clone());
@@ -61,8 +66,28 @@ impl WastContext {
                     let instance = self.get_instance(module.map(|s| s.name()));
                     self.instances.insert(name.to_string(), instance);
                 }
-                Invoke(i) => {self.invoke(i.module.map(|s| s.name()), i.name, &i.args);}
-                _ => panic!("unsupported"),
+                Invoke(i) => {
+                    self.invoke(i.module.map(|s| s.name()), i.name, &i.args);
+                }
+                AssertReturn {
+                    span,
+                    exec,
+                    results,
+                } => match self.perform_execute(exec) {
+                    Ok(values) => {
+                        for (v, e) in values.iter().zip(results.iter().map(const_expr)) {
+                            let e = e;
+                            if v == &e {
+                                continue;
+                            }
+                            panic!("expected {:?}, got {:?}", e, v)
+                        }
+                    }
+                    Err(e) => {
+                        panic!("unexpected err: {}", e);
+                    }
+                },
+                other => panic!("unsupported"),
             }
         }
         Ok(())
@@ -78,19 +103,42 @@ impl WastContext {
         }
     }
 
+    /// Get the value of an exported global from an instance.
+    fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Vec<WasmValue>> {
+        let instance = self.get_instance(instance_name.as_ref().map(|x| &**x));
+        let instance = instance.borrow();
+        panic!();
+    }
+
     fn invoke(
         &mut self,
         module_name: Option<&str>,
         func_name: &str,
         args: &[wast::Expression],
-    ) -> WasmValue {
+    ) -> Vec<WasmValue> {
         let instance = self.get_instance(module_name).clone();
         let args = args.iter().map(const_expr).collect();
         return instance
             .borrow_mut()
             .run(Some(func_name.to_string()), args)
             .ok()
-            .expect("func invocation")[0];
+            .expect("func invocation");
+    }
+
+    fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Vec<WasmValue>> {
+        match exec {
+            wast::WastExecute::Invoke(i) => Ok(self.invoke(
+                i.module.map(|s| s.name()),
+                i.name,
+                &i.args,
+            )),
+            wast::WastExecute::Module(mut module) => {
+                let binary = module.encode()?;
+                let result = self.instantiate(&binary);
+                Ok(Vec::new())
+            }
+            wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
+        }
     }
 }
 
