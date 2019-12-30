@@ -4,6 +4,7 @@ mod export;
 mod func;
 mod global;
 mod table;
+mod memory;
 mod host;
 mod module;
 mod stack;

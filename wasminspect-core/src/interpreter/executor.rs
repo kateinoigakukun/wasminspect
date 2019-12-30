@@ -133,6 +133,9 @@ impl Executor {
                 self.stack.push_value(Value::I32(*val));
                 Ok(ExecSuccess::Next)
             }
+            // Instruction::I32Store(_, offset) => {
+            //     let frame = self.stack.current_frame();
+            // }
             Instruction::I32Add => self.int_op::<i32, _>(|a, b| Value::I32(a + b)),
             Instruction::I32LtS => {
                 self.int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))

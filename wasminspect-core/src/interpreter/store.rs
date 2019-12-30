@@ -2,7 +2,7 @@ use super::address::{FuncAddr, GlobalAddr, TableAddr};
 use super::executor::eval_const_expr;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
-use super::host::HostFunc;
+use super::memory::MemoryInstance;
 use super::module::{ModuleIndex, ModuleInstance};
 use super::table::TableInstance;
 use super::value::Value;
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 pub struct Store {
     funcs: HashMap<ModuleIndex, Vec<FunctionInstance>>,
     tables: HashMap<ModuleIndex, Vec<TableInstance>>,
-    // mems: Vec<MemoryInstance<'a>>,
+    mems: HashMap<ModuleIndex, Vec<MemoryInstance>>,
     globals: HashMap<ModuleIndex, Vec<GlobalInstance>>,
     modules: Vec<ModuleInstance>,
 }
@@ -23,6 +23,7 @@ impl Store {
         Self {
             funcs: HashMap::new(),
             tables: HashMap::new(),
+            mems: HashMap::new(),
             globals: HashMap::new(),
             modules: Vec::new(),
         }
@@ -57,11 +58,14 @@ impl Store {
     ) -> &ModuleInstance {
         let types = Self::get_types(&parity_module);
         let elem_segs = Self::get_element_segments(&parity_module);
+        let data_segs = Self::get_data_segments(&parity_module);
+
         let module_index = ModuleIndex(self.modules.len() as u32);
         let mut func_addrs = self.load_imports(&parity_module, module_index, types);
         func_addrs.append(&mut self.load_functions(&parity_module, module_index, types));
         self.load_globals(&parity_module, module_index);
         self.load_tables(&parity_module, module_index, elem_segs);
+        self.load_mems(&parity_module, module_index, data_segs);
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
@@ -92,6 +96,25 @@ impl Store {
                 .or_insert(Vec::new())
                 .push(seg);
         }
+        result
+    }
+
+    fn get_data_segments(
+        parity_module: &parity_wasm::elements::Module,
+    ) -> HashMap<usize, Vec<&parity_wasm::elements::DataSegment>> {
+        let segments = parity_module
+            .data_section()
+            .map(|sec| sec.entries())
+            .unwrap_or_default();
+
+        let mut result = HashMap::new();
+        for seg in segments {
+            result
+                .entry(seg.index() as usize)
+                .or_insert(Vec::new())
+                .push(seg);
+        }
+        println!("data_segments is {:?}", result);
         result
     }
 
@@ -236,6 +259,38 @@ impl Store {
                         .push(instance);
                 }
             }
+        }
+    }
+
+    fn load_mems(
+        &mut self,
+        parity_module: &parity_wasm::elements::Module,
+        module_index: ModuleIndex,
+        data_segments: HashMap<usize, Vec<&parity_wasm::elements::DataSegment>>,
+    ) {
+        let mem_sec = parity_module
+            .memory_section()
+            .map(|sec| sec.entries())
+            .unwrap_or_default();
+        for (index, entry) in mem_sec.iter().enumerate() {
+            let mut instance = MemoryInstance::new(
+                entry.limits().initial() as usize,
+                entry.limits().maximum().map(|mx| mx as usize),
+            );
+            if data_segments.len() > index {
+                let segs = &data_segments[&index];
+                for seg in segs {
+                    let offset = match seg.offset().as_ref().map(|e| eval_const_expr(&e)).unwrap() {
+                        Value::I32(v) => v,
+                        _ => panic!(),
+                    };
+                    instance.initialize(offset as usize, seg.value());
+                }
+            }
+            self.mems
+                .entry(module_index)
+                .or_insert(Vec::new())
+                .push(instance);
         }
     }
 }
