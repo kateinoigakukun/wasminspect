@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::str;
+use std::path::Path;
 use wasminspect_core::interpreter::{WasmInstance, WasmValue};
 
 pub struct WastContext {
@@ -13,6 +14,16 @@ pub struct WastContext {
 }
 
 impl WastContext {
+    pub fn new() -> Self {
+        Self {
+            instances: HashMap::new(),
+            current: None,
+        }
+    }
+    pub fn run_file(&mut self, path: &Path) -> Result<()> {
+        let bytes = std::fs::read(path).unwrap();
+        self.run_buffer(path.to_str().unwrap(), &bytes)
+    }
     pub fn run_buffer(&mut self, filename: &str, wast: &[u8]) -> Result<()> {
         use wast::WastDirective::*;
 
