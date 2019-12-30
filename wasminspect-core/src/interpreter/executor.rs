@@ -50,7 +50,6 @@ impl Executor {
         let frame = CallFrame::new(func_addr, local_len, initial_args, None);
         let f = CallFrame::new(func_addr, local_len, vec![], None);
         stack.set_frame(frame);
-        stack.push_label(Label::Return);
         Self {
             store,
             pc,
@@ -139,7 +138,7 @@ impl Executor {
                 Ok(ExecSuccess::Next)
             }
             Instruction::Block(_) => {
-                self.stack.push_label(Label::Block);
+                self.stack.push_label(Label::Block(1));
                 Ok(ExecSuccess::Next)
             }
             Instruction::Loop(_) => {
@@ -147,7 +146,7 @@ impl Executor {
                 Ok(ExecSuccess::Next)
             }
             Instruction::If(_) => {
-                self.stack.push_label(Label::If);
+                self.stack.push_label(Label::If(1));
                 let val: i32 = self.pop_as();
                 if val == 0 {
                     let mut depth = 1;
@@ -195,10 +194,10 @@ impl Executor {
                 self.invoke(addr)
             }
             Instruction::Return => {
-                let frame = self.stack.current_frame();
+                let frame = self.stack.current_frame().clone();
                 let func = self.store.func(frame.func_addr);
                 let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-                let result = vec![];
+                let mut result = vec![];
                 for _ in 0..arity {
                     result.push(self.stack.pop_value());
                 }
@@ -219,10 +218,10 @@ impl Executor {
             Instruction::End => {
                 if self.stack.current_frame_labels().is_empty() {
                     // When the end of a function is reached without a jump
-                    let frame = self.stack.current_frame();
+                    let frame = self.stack.current_frame().clone();
                     let func = self.store.func(frame.func_addr);
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-                    let result = vec![];
+                    let mut result = vec![];
                     for _ in 0..arity {
                         result.push(self.stack.pop_value());
                     }
@@ -245,10 +244,6 @@ impl Executor {
                     let label = &self.stack.pop_label();
                     for v in results {
                         self.stack.push_value(*v.as_value().unwrap());
-                    }
-                    match label {
-                        Label::Loop(l) => self.pc.loop_jump(l),
-                        _ => { /* nop */ }
                     }
                     Ok(ExecSuccess::Next)
                 }
@@ -275,10 +270,39 @@ impl Executor {
     }
 
     fn branch(&mut self, depth: u32) {
-        self.stack.pop_labels(depth as usize);
-        match self.stack.peek_last_label() {
-            Label::Loop(loop_label) => self.pc.loop_jump(loop_label),
-            Label::If | Label::Block => {
+        let depth = depth as usize;
+        let label = { 
+            let labels = self.stack.current_frame_labels();
+            let labels_len = labels.len();
+            assert!(depth + 1 >= labels_len);
+            *labels[labels_len - depth - 1]
+        };
+
+        let arity = label.arity();
+
+        let mut results = vec![];
+        for _ in 0..arity {
+            results.push(self.stack.pop_value());
+        }
+
+        for _ in 0..depth+1 {
+            self.stack.pop_while(|v| {
+                match v {
+                    StackValue::Value(_) => true,
+                    _ => false,
+                }
+            });
+            self.stack.pop_label();
+        }
+
+        for _ in 0..arity {
+            self.stack.push_value(results.pop().unwrap());
+        }
+
+        // Jump to the continuation
+        match label {
+            Label::Loop(loop_label) => self.pc.loop_jump(&loop_label),
+            Label::If(_) | Label::Block(_) => {
                 let mut depth = depth + 1;
                 loop {
                     let index = self.pc.inst_index().0 as usize;
@@ -295,7 +319,6 @@ impl Executor {
                     self.pc.inc_inst_index();
                 }
             }
-            Label::Return => panic!(),
         }
     }
 
@@ -318,7 +341,6 @@ impl Executor {
                 args.reverse();
                 let frame = CallFrame::new_from_func(addr, &defined, args, Some(self.pc));
                 self.stack.set_frame(frame);
-                self.stack.push_label(Label::Return);
                 self.pc = pc;
                 Ok(ExecSuccess::Next)
             }

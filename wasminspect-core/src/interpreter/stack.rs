@@ -5,11 +5,11 @@ use super::value::Value;
 
 use std::fmt::{Display, Formatter, Result};
 
+#[derive(Copy)]
 pub enum Label {
-    If,
-    Block,
+    If(usize),
+    Block(usize),
     Loop(LoopLabel),
-    Return,
 }
 
 pub struct LoopLabel {
@@ -19,6 +19,14 @@ pub struct LoopLabel {
 impl Label {
     pub fn new_loop(inst_index: InstIndex) -> Self {
         Self::Loop(LoopLabel { inst_index })
+    }
+
+    pub fn arity(&self) -> usize {
+        match self {
+            Label::If(arity) => *arity,
+            Label::Block(arity) => *arity,
+            Label::Loop(_) => 0,
+        }
     }
 }
 
@@ -53,6 +61,7 @@ impl ProgramCounter {
     }
 }
 
+#[derive(Clone)]
 pub struct CallFrame {
     pub func_addr: FuncAddr,
     pub locals: Vec<Value>,
@@ -160,16 +169,16 @@ pub struct Stack {
 }
 
 impl Stack {
-    pub fn pop_while<F: Fn(&StackValue) -> bool>(&self, f: F) -> Vec<&StackValue> {
-        let result = vec![];
+    pub fn pop_while<F: Fn(&StackValue) -> bool>(&mut self, f: F) -> Vec<StackValue> {
+        let mut result = vec![];
         while f(self.latest()) {
-            result.push(&self.stack.pop().unwrap());
+            result.push(self.stack.pop().unwrap());
         }
         result
     }
 
-    pub fn current_frame_labels(&self) -> &Vec<&Label> {
-        &self.stack[self.current_frame_index..].iter().filter_map(|v| {
+    pub fn current_frame_labels(&self) -> Vec<&Label> {
+        self.stack[self.current_frame_index..].iter().filter_map(|v| {
             match v {
                 StackValue::Label(label) => Some(label),
                 _ => None,
@@ -247,7 +256,7 @@ impl Stack {
         }
     }
 
-    pub fn pop_frame(&mut self) -> Label {
+    pub fn pop_frame(&mut self) -> CallFrame {
         match self.stack.pop() {
             Some(StackValue::Activation(val)) => val,
             Some(val) => panic!("Unexpected stack value type {}", val),
