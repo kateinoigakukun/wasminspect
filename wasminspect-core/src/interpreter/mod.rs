@@ -8,6 +8,7 @@ mod module;
 mod stack;
 mod store;
 mod value;
+mod validator;
 
 use self::executor::{ExecSuccess, Executor};
 use self::export::ExternalValue;
