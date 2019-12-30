@@ -50,7 +50,7 @@ impl WastContext {
                     let instance = self.get_instance(module.map(|s| s.name()));
                     self.instances.insert(name.to_string(), instance);
                 }
-                Invoke(i) => self.invoke(i.module.map(|s| s.name()), i.name.to_string());,
+                Invoke(i) => {self.invoke(i.module.map(|s| s.name()), i.name, &i.args);}
                 _ => panic!("unsupported"),
             }
         }
