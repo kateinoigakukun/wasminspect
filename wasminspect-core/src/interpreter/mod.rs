@@ -58,7 +58,7 @@ impl WasmInstance {
         let func = store.func(pc.func_addr()).defined().unwrap();
         let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
         let local_len = func.ty().params().len() + func.code().locals().len();
-        let mut executor = Executor::new(local_len, pc.func_addr(), arguments, pc, store);
+        let mut executor = Executor::new(local_len, pc.func_addr(), arguments, ret_types.len(), pc, store);
         loop {
             let result = executor.execute_step();
             match result {

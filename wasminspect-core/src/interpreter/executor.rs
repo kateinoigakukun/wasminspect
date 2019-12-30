@@ -35,7 +35,6 @@ pub struct Executor {
     store: Store,
     pc: ProgramCounter,
     stack: Stack,
-    last_ret_frame: Option<CallFrame>,
 }
 
 impl Executor {
@@ -43,6 +42,7 @@ impl Executor {
         local_len: usize,
         func_addr: FuncAddr,
         initial_args: Vec<Value>,
+        initial_arity: usize,
         pc: ProgramCounter,
         store: Store,
     ) -> Self {
@@ -50,11 +50,11 @@ impl Executor {
         let frame = CallFrame::new(func_addr, local_len, initial_args, None);
         let f = CallFrame::new(func_addr, local_len, vec![], None);
         stack.set_frame(frame);
+        stack.push_label(Label::Return(initial_arity));
         Self {
             store,
             pc,
             stack,
-            last_ret_frame: Some(f),
         }
     }
 
@@ -186,51 +186,24 @@ impl Executor {
                 }
                 Ok(ExecSuccess::Next)
             }
-            Instruction::Else => {
-                self.branch(0);
-                Ok(ExecSuccess::Next)
-            }
+            Instruction::Else => self.branch(0),
             Instruction::BrIf(depth) => {
                 let val = self.stack.pop_value();
                 if val != Value::I32(0) {
-                    self.branch(*depth);
+                    self.branch(*depth)
+                } else {
+                    Ok(ExecSuccess::Next)
                 }
-                Ok(ExecSuccess::Next)
             }
-            Instruction::Br(depth) => {
-                self.branch(*depth);
-                Ok(ExecSuccess::Next)
-            }
+            Instruction::Br(depth) => self.branch(*depth),
             Instruction::Call(func_index) => {
                 let frame = self.stack.current_frame();
                 let addr = FuncAddr(frame.module_index(), *func_index as usize);
                 self.invoke(addr)
             }
-            Instruction::Return => {
-                let frame = self.stack.current_frame().clone();
-                let func = self.store.func(frame.func_addr);
-                println!("--- Function return {:?} ---", func.ty());
-                let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-                let mut result = vec![];
-                for _ in 0..arity {
-                    result.push(self.stack.pop_value());
-                }
-                self.stack.pop_while(|v| match v {
-                    StackValue::Activation(_) => false,
-                    _ => true,
-                });
-                self.stack.pop_frame();
-                for v in result {
-                    self.stack.push_value(v);
-                }
-
-                if let Some(ret_pc) = frame.ret_pc {
-                    self.pc = ret_pc;
-                }
-                Ok(ExecSuccess::Next)
-            }
+            Instruction::Return => self.do_return(),
             Instruction::End => {
-                if self.stack.current_frame_labels().is_empty() {
+                if self.stack.is_func_top_level() {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().clone();
                     let func = self.store.func(frame.func_addr);
@@ -240,6 +213,8 @@ impl Executor {
                     for _ in 0..arity {
                         result.push(self.stack.pop_value());
                     }
+                    println!("{:?}", self.stack);
+                    self.stack.pop_label();
                     self.stack.pop_frame();
                     for v in result {
                         self.stack.push_value(v);
@@ -285,7 +260,7 @@ impl Executor {
         }
     }
 
-    fn branch(&mut self, depth: u32) {
+    fn branch(&mut self, depth: u32) -> ExecResult {
         let depth = depth as usize;
         let label = {
             let labels = self.stack.current_frame_labels();
@@ -317,6 +292,9 @@ impl Executor {
         println!("> Jump to the continuation");
         match label {
             Label::Loop(loop_label) => self.pc.loop_jump(&loop_label),
+            Label::Return(_) => {
+                return self.do_return();
+            }
             Label::If(_) | Label::Block(_) => {
                 let mut depth = depth + 1;
                 loop {
@@ -335,6 +313,7 @@ impl Executor {
                 }
             }
         }
+        Ok(ExecSuccess::Next)
     }
 
     fn int_op<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
@@ -346,6 +325,7 @@ impl Executor {
 
     fn invoke(&mut self, addr: FuncAddr) -> ExecResult {
         let func = self.store.func(addr);
+        let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         println!("--- Start of Function {:?} ---", func.ty());
 
         println!("{:?}", self.stack);
@@ -359,6 +339,7 @@ impl Executor {
                 args.reverse();
                 let frame = CallFrame::new_from_func(addr, &defined, args, Some(self.pc));
                 self.stack.set_frame(frame);
+                self.stack.push_label(Label::Return(arity));
                 self.pc = pc;
                 Ok(ExecSuccess::Next)
             }
@@ -370,6 +351,29 @@ impl Executor {
                 _ => panic!(),
             },
         }
+    }
+    fn do_return(&mut self) -> ExecResult {
+        let frame = self.stack.current_frame().clone();
+        let func = self.store.func(frame.func_addr);
+        println!("--- Function return {:?} ---", func.ty());
+        let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
+        let mut result = vec![];
+        for _ in 0..arity {
+            result.push(self.stack.pop_value());
+        }
+        self.stack.pop_while(|v| match v {
+            StackValue::Activation(_) => false,
+            _ => true,
+        });
+        self.stack.pop_frame();
+        for v in result {
+            self.stack.push_value(v);
+        }
+
+        if let Some(ret_pc) = frame.ret_pc {
+            self.pc = ret_pc;
+        }
+        Ok(ExecSuccess::Next)
     }
 }
 

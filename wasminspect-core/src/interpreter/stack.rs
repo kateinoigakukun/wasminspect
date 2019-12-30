@@ -10,6 +10,7 @@ pub enum Label {
     If(usize),
     Block(usize),
     Loop(LoopLabel),
+    Return(usize),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -27,6 +28,7 @@ impl Label {
             Label::If(arity) => *arity,
             Label::Block(arity) => *arity,
             Label::Loop(_) => 0,
+            Label::Return(arity) => *arity,
         }
     }
 }
@@ -180,6 +182,19 @@ impl Stack {
 
     pub fn current_frame_index(&self) -> usize {
         *self.frame_index.last().unwrap()
+    }
+
+    pub fn is_func_top_level(&self) -> bool {
+        match self.stack[self.current_frame_index()..].iter().filter(|v| {
+            match v {
+                StackValue::Label(Label::Return(_)) => false,
+                StackValue::Label(_) => true,
+                _ => false,
+            }
+        }).next() {
+            Some(_) => false,
+            None => true,
+        }
     }
 
     pub fn current_frame_labels(&self) -> Vec<&Label> {
