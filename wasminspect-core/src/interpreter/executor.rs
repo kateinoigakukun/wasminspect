@@ -190,52 +190,66 @@ impl Executor {
                 Ok(ExecSuccess::Next)
             }
             Instruction::Call(func_index) => {
-                let addr = FuncAddr(module_index, *func_index as usize);
-                let func = self.store.func(addr);
-                let mut args = Vec::new();
-                for _ in func.ty().params() {
-                    args.push(self.stack.pop_value());
-                }
-                match func {
-                    FunctionInstance::Defined(defined) => {
-                        let pc = ProgramCounter::new(addr, InstIndex::zero());
-                        args.reverse();
-                        let frame = CallFrame::new_from_func(addr, &defined, args, Some(self.pc));
-                        self.stack.set_frame(frame);
-                        self.stack.push_label(Label::Return);
-                        self.pc = pc;
-                        Ok(ExecSuccess::Next)
-                    }
-                    FunctionInstance::Host(host) => match &host.field_name()[..] {
-                        "print_i32" => {
-                            BuiltinPrintI32::dispatch(&args);
-                            Ok(ExecSuccess::Next)
-                        }
-                        _ => panic!(),
-                    },
-                }
+                let frame = self.stack.current_frame();
+                let addr = FuncAddr(frame.module_index(), *func_index as usize);
+                self.invoke(addr)
             }
             Instruction::Return => {
-                let _ = self.stack.pop_label();
-                let frame = self.stack.take_current_frame().unwrap();
+                let frame = self.stack.current_frame();
+                let func = self.store.func(frame.func_addr);
+                let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
+                let result = vec![];
+                for _ in 0..arity {
+                    result.push(self.stack.pop_value());
+                }
+                self.stack.pop_while(|v| match v {
+                    StackValue::Activation(_) => false,
+                    _ => true,
+                });
+                self.stack.pop_frame();
+                for v in result {
+                    self.stack.push_value(v);
+                }
+
                 if let Some(ret_pc) = frame.ret_pc {
                     self.pc = ret_pc;
                 }
-                self.last_ret_frame = Some(frame);
                 Ok(ExecSuccess::Next)
             }
             Instruction::End => {
-                if let Some(Label::Return) = self.stack.pop_label() {
-                    if let Some(frame) = self.stack.take_current_frame() {
-                        if let Some(ret_pc) = frame.ret_pc {
-                            self.pc = ret_pc;
-                        }
-                        self.last_ret_frame = Some(frame);
+                if self.stack.current_frame_labels().is_empty() {
+                    // When the end of a function is reached without a jump
+                    let frame = self.stack.current_frame();
+                    let func = self.store.func(frame.func_addr);
+                    let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
+                    let result = vec![];
+                    for _ in 0..arity {
+                        result.push(self.stack.pop_value());
+                    }
+                    self.stack.pop_frame();
+                    for v in result {
+                        self.stack.push_value(v);
+                    }
+                    if let Some(ret_pc) = frame.ret_pc {
+                        self.pc = ret_pc;
                         Ok(ExecSuccess::Next)
                     } else {
-                        Err(ExecError::NoCallFrame)
+                        Ok(ExecSuccess::End)
                     }
                 } else {
+                    // When the end of a block is reached without a jump
+                    let results = self.stack.pop_while(|v| match v {
+                        StackValue::Value(_) => true,
+                        _ => false,
+                    });
+                    let label = &self.stack.pop_label();
+                    for v in results {
+                        self.stack.push_value(*v.as_value().unwrap());
+                    }
+                    match label {
+                        Label::Loop(l) => self.pc.loop_jump(l),
+                        _ => { /* nop */ }
+                    }
                     Ok(ExecSuccess::Next)
                 }
             }
@@ -290,6 +304,32 @@ impl Executor {
         let lhs = self.pop_as();
         self.stack.push_value(f(lhs, rhs));
         Ok(ExecSuccess::Next)
+    }
+
+    fn invoke(&self, addr: FuncAddr) -> ExecResult {
+        let func = self.store.func(addr);
+        let mut args = Vec::new();
+        for _ in func.ty().params() {
+            args.push(self.stack.pop_value());
+        }
+        match func {
+            FunctionInstance::Defined(defined) => {
+                let pc = ProgramCounter::new(addr, InstIndex::zero());
+                args.reverse();
+                let frame = CallFrame::new_from_func(addr, &defined, args, Some(self.pc));
+                self.stack.set_frame(frame);
+                self.stack.push_label(Label::Return);
+                self.pc = pc;
+                Ok(ExecSuccess::Next)
+            }
+            FunctionInstance::Host(host) => match &host.field_name()[..] {
+                "print_i32" => {
+                    BuiltinPrintI32::dispatch(&args);
+                    Ok(ExecSuccess::Next)
+                }
+                _ => panic!(),
+            },
+        }
     }
 }
 

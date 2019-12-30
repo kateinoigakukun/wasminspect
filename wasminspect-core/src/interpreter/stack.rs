@@ -1,5 +1,6 @@
 use super::address::FuncAddr;
 use super::func::{DefinedFunctionInstance, InstIndex};
+use super::module::ModuleIndex;
 use super::value::Value;
 
 use std::fmt::{Display, Formatter, Result};
@@ -101,6 +102,10 @@ impl CallFrame {
     pub fn local(&self, index: usize) -> Value {
         self.locals[index]
     }
+
+    pub fn module_index(&self) -> ModuleIndex {
+        self.func_addr.0
+    }
 }
 
 pub enum StackValue {
@@ -111,7 +116,7 @@ pub enum StackValue {
 
 impl StackValue {
 
-    fn as_value(&self) -> Option<&Value> {
+    pub fn as_value(&self) -> Option<&Value> {
         match self {
             Self::Value(val) => Some(val),
             _ => None,
@@ -155,6 +160,35 @@ pub struct Stack {
 }
 
 impl Stack {
+    pub fn pop_while<F: Fn(&StackValue) -> bool>(&self, f: F) -> Vec<&StackValue> {
+        let result = vec![];
+        while f(self.latest()) {
+            result.push(&self.stack.pop().unwrap());
+        }
+        result
+    }
+
+    pub fn current_frame_labels(&self) -> &Vec<&Label> {
+        &self.stack[self.current_frame_index..].iter().filter_map(|v| {
+            match v {
+                StackValue::Label(label) => Some(label),
+                _ => None,
+            }
+        }).collect()
+    }
+
+    pub fn current_label(&self) -> &Label {
+        self.stack.iter().filter_map(|v| {
+            match v {
+                StackValue::Label(label) => Some(label),
+                _ => None,
+            }
+        }).next().unwrap()
+    }
+
+    pub fn latest(&self) -> &StackValue {
+        self.stack.last().unwrap()
+    }
     pub fn push_value(&mut self, val: Value) {
         self.stack.push(StackValue::Value(val))
     }
@@ -210,6 +244,14 @@ impl Stack {
         match &self.stack[self.current_frame_index] {
             StackValue::Activation(val) => val,
             val => panic!("Unexpected stack value type {}", val),
+        }
+    }
+
+    pub fn pop_frame(&mut self) -> Label {
+        match self.stack.pop() {
+            Some(StackValue::Activation(val)) => val,
+            Some(val) => panic!("Unexpected stack value type {}", val),
+            None => panic!("Stack is empty"),
         }
     }
 
