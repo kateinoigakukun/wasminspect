@@ -3,6 +3,7 @@ use super::func::{DefinedFunctionInstance, InstIndex};
 use super::value::Value;
 
 pub enum Label {
+    If,
     Block,
     Loop(LoopLabel),
     Return,

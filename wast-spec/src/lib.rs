@@ -116,6 +116,7 @@ impl WastContext {
         func_name: &str,
         args: &[wast::Expression],
     ) -> Vec<WasmValue> {
+        println!("Invoking \"{}.{}\"", module_name.unwrap_or("unknown"), func_name);
         let instance = self.get_instance(module_name).clone();
         let args = args.iter().map(const_expr).collect();
         return instance

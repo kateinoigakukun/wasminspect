@@ -147,6 +147,38 @@ impl Executor {
                 self.stack.push_label(Label::new_loop(self.pc.inst_index()));
                 Ok(ExecSuccess::Next)
             }
+            Instruction::If(_) => {
+                self.stack.push_label(Label::If);
+                let val: i32 = self.pop_as();
+                if val == 0 {
+                    let mut depth = 1;
+                    loop {
+                        let index = self.pc.inst_index().0 as usize;
+                        match self.current_func_insts()[index] {
+                            Instruction::End => depth -= 1,
+                            Instruction::Block(_) => depth += 1,
+                            Instruction::If(_) => depth += 1,
+                            Instruction::Loop(_) => depth += 1,
+                            Instruction::Else => {
+                                if depth == 1 {
+                                    self.pc.inc_inst_index();
+                                    break;
+                                }
+                            }
+                            _ => (),
+                        }
+                        if depth == 0 {
+                            break;
+                        }
+                        self.pc.inc_inst_index();
+                    }
+                }
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::Else => {
+                self.branch(0);
+                Ok(ExecSuccess::Next)
+            }
             Instruction::BrIf(depth) => {
                 let val = self.stack.pop_value().unwrap();
                 if val != Value::I32(0) {
@@ -236,7 +268,7 @@ impl Executor {
         self.stack.pop_labels(depth as usize);
         match self.stack.peek_last_label().unwrap() {
             Label::Loop(loop_label) => self.pc.loop_jump(loop_label),
-            Label::Block => {
+            Label::If | Label::Block => {
                 let mut depth = depth + 1;
                 loop {
                     let index = self.pc.inst_index().0 as usize;
