@@ -85,7 +85,11 @@ impl Executor {
     fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult {
         self.pc.inc_inst_index();
         {
-            println!("{}", inst.clone());
+            let mut indent = String::new();
+            for _ in 0..self.stack.current_frame_labels().len() {
+                indent.push_str("  ");
+            }
+            println!("{}{}", indent, inst.clone());
         }
         let result = match inst {
             Instruction::Unreachable => panic!(),
@@ -145,13 +149,13 @@ impl Executor {
                 Ok(ExecSuccess::Next)
             }
             Instruction::If(ty) => {
+                let val: i32 = self.pop_as();
                 self.stack.push_label(Label::If({
                     match ty {
                         BlockType::Value(_) => 1,
                         BlockType::NoResult => 0,
                     }
                 }));
-                let val: i32 = self.pop_as();
                 if val == 0 {
                     let mut depth = 1;
                     loop {
@@ -283,7 +287,7 @@ impl Executor {
         let label = {
             let labels = self.stack.current_frame_labels();
             let labels_len = labels.len();
-            assert!(depth + 1 >= labels_len);
+            assert!(depth + 1 <= labels_len);
             *labels[labels_len - depth - 1]
         };
 

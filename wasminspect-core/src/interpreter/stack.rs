@@ -178,7 +178,7 @@ impl Stack {
         result
     }
 
-    fn current_frame_index(&self) -> usize {
+    pub fn current_frame_index(&self) -> usize {
         *self.frame_index.last().unwrap()
     }
 
