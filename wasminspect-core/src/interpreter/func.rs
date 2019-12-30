@@ -8,7 +8,7 @@ pub struct TypeIndex {
     index: u32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct InstIndex(pub u32);
 
 impl InstIndex {

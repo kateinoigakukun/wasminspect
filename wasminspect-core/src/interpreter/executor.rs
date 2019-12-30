@@ -84,7 +84,9 @@ impl Executor {
 
     fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult {
         self.pc.inc_inst_index();
-        println!("{}", inst.clone());
+        {
+            println!("{}", inst.clone());
+        }
         let result = match inst {
             Instruction::Unreachable => panic!(),
             Instruction::GetGlobal(index) => {
@@ -198,6 +200,7 @@ impl Executor {
             Instruction::Return => {
                 let frame = self.stack.current_frame().clone();
                 let func = self.store.func(frame.func_addr);
+                println!("--- Function return {:?} ---", func.ty());
                 let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
                 let mut result = vec![];
                 for _ in 0..arity {
@@ -222,6 +225,8 @@ impl Executor {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().clone();
                     let func = self.store.func(frame.func_addr);
+                    println!("--- End of function {:?} ---", func.ty());
+                    println!("{:?}", self.stack);
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
                     let mut result = vec![];
                     for _ in 0..arity {
@@ -231,6 +236,8 @@ impl Executor {
                     for v in result {
                         self.stack.push_value(v);
                     }
+                    println!("--- End of finish process ---");
+                    println!("{:?}", self.stack);
                     if let Some(ret_pc) = frame.ret_pc {
                         self.pc = ret_pc;
                         Ok(ExecSuccess::Next)
@@ -331,6 +338,9 @@ impl Executor {
 
     fn invoke(&mut self, addr: FuncAddr) -> ExecResult {
         let func = self.store.func(addr);
+        println!("--- Start of Function {:?} ---", func.ty());
+
+        println!("{:?}", self.stack);
         let mut args = Vec::new();
         for _ in func.ty().params() {
             args.push(self.stack.pop_value());

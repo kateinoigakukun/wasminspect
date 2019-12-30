@@ -3,16 +3,16 @@ use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
 use super::value::Value;
 
-use std::fmt::{Display, Formatter, Result};
+use std::fmt::{Display, Debug, Formatter, Result};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Label {
     If(usize),
     Block(usize),
     Loop(LoopLabel),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct LoopLabel {
     inst_index: InstIndex,
 }
@@ -166,7 +166,7 @@ impl Display for StackValue {
 #[derive(Default)]
 pub struct Stack {
    stack: Vec<StackValue>,
-   current_frame_index: usize,
+   frame_index: Vec<usize>,
 }
 
 impl Stack {
@@ -178,8 +178,12 @@ impl Stack {
         result
     }
 
+    fn current_frame_index(&self) -> usize {
+        *self.frame_index.last().unwrap()
+    }
+
     pub fn current_frame_labels(&self) -> Vec<&Label> {
-        self.stack[self.current_frame_index..].iter().filter_map(|v| {
+        self.stack[self.current_frame_index()..].iter().filter_map(|v| {
             match v {
                 StackValue::Label(label) => Some(label),
                 _ => None,
@@ -215,12 +219,12 @@ impl Stack {
     }
 
     pub fn set_frame(&mut self, frame: CallFrame) {
-        self.current_frame_index = self.stack.len();
+        self.frame_index.push(self.stack.len());
         self.stack.push(StackValue::Activation(frame))
     }
 
     pub fn current_frame(&self) -> &CallFrame {
-        match &self.stack[self.current_frame_index] {
+        match &self.stack[self.current_frame_index()] {
             StackValue::Activation(val) => val,
             val => panic!("Unexpected stack value type {}", val),
         }
@@ -228,7 +232,10 @@ impl Stack {
 
     pub fn pop_frame(&mut self) -> CallFrame {
         match self.stack.pop() {
-            Some(StackValue::Activation(val)) => val,
+            Some(StackValue::Activation(val)) => {
+                self.frame_index.pop();
+                return val;
+            },
             Some(val) => panic!("Unexpected stack value type {}", val),
             None => panic!("Stack is empty"),
         }
@@ -254,10 +261,34 @@ impl Stack {
     }
 
     pub fn set_local(&mut self, index: usize, value: Value) {
-        if let Some(stack) = self.stack.get_mut(self.current_frame_index) {
+        let size = self.current_frame_index();
+        if let Some(stack) = self.stack.get_mut(size) {
             if let Some(frame) = stack.as_activation_mut() {
                 frame.set_local(index, value);
             }
         }
+    }
+}
+
+impl Debug for Stack {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        writeln!(f, "┌-------------------------┐")?;
+        writeln!(f, "|--------- Stack ---------|")?;
+        writeln!(f, "|     ty     |     val    |")?;
+        for v in &self.stack {
+            match v {
+                StackValue::Value(value) => {
+                    writeln!(f, "| Value({})|{:?}|",value.value_type(), value)?;
+                }
+                StackValue::Label(label) => {
+                    writeln!(f, "| Label |{:?}|", label)?;
+                }
+                StackValue::Activation(_) => {
+                    writeln!(f, "| Frame |   -   |")?;
+                }
+            }
+        }
+        writeln!(f, "└-------------------------┘")?;
+        Ok(())
     }
 }
