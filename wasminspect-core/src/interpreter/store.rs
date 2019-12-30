@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr};
+use super::address::{FuncAddr, GlobalAddr, TableAddr};
 use super::executor::eval_const_expr;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
@@ -39,6 +39,14 @@ impl Store {
 
     pub fn global(&mut self, addr: GlobalAddr) -> &GlobalInstance {
         &self.globals[&addr.0][addr.1]
+    }
+
+    pub fn table(&self, addr: TableAddr) -> &TableInstance {
+        &self.tables[&addr.0][addr.1]
+    }
+
+    pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
+        &self.modules[module_index.0 as usize]
     }
 }
 

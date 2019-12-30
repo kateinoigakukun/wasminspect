@@ -17,4 +17,12 @@ impl TableInstance {
             self.buffer[offset + index] = Some(func_addr);
         }
     }
+
+    pub fn buffer_len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    pub fn get_at(&self, index: usize) -> Option<FuncAddr> {
+        self.buffer[index]
+    }
 }

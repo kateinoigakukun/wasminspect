@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr};
+use super::address::{FuncAddr, GlobalAddr, TableAddr};
 use super::func::*;
 use super::host::BuiltinPrintI32;
 use super::module::*;
@@ -220,9 +220,27 @@ impl Executor {
                 let addr = FuncAddr(frame.module_index(), *func_index as usize);
                 self.invoke(addr)
             }
-            Instruction::CallIndirect(func_index, sig) => {
-                let frame = self.stack.current_frame();
-                panic!()
+            Instruction::CallIndirect(type_index, _) => {
+                let (ty, addr) = {
+                    let frame = self.stack.current_frame();
+                    let addr = TableAddr(frame.module_index(), 0);
+                    let module = self.store.module(frame.module_index());
+                    let ty = match module.get_type(*type_index as usize) {
+                        parity_wasm::elements::Type::Function(ty) => ty,
+                    };
+                    (ty.clone(), addr)
+                };
+                let buf_index: i32 = self.pop_as();
+                let table = self.store.table(addr);
+                let buf_index = buf_index as usize;
+                assert!(buf_index < table.buffer_len());
+                let func_addr = match table.get_at(buf_index) {
+                    Some(addr) => addr, 
+                    None => panic!(),
+                };
+                let func = self.store.func(func_addr);
+                assert_eq!(*func.ty(), ty);
+                self.invoke(func_addr)
             }
             Instruction::Return => self.do_return(),
             Instruction::End => {

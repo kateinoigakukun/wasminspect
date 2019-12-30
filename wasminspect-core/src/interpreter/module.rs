@@ -43,4 +43,8 @@ impl ModuleInstance {
     pub fn start_func_addr(&self) -> &Option<FuncAddr> {
         &self.start_func
     }
+
+    pub fn get_type(&self, index: usize) -> &parity_wasm::elements::Type {
+        &self.types[index]
+    }
 }
