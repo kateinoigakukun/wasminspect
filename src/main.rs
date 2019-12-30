@@ -34,7 +34,7 @@ fn main() {
         .map(|c| c.collect())
         .unwrap_or(vec![]);
     if let Some(path) = matches.value_of("file") {
-        let instance = WasmInstance::new(path.to_string());
+        let mut instance = WasmInstance::new(path.to_string());
         match instance.run(
             func,
             arguments

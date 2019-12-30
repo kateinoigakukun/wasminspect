@@ -17,24 +17,27 @@ use self::store::Store;
 pub use self::value::Value as WasmValue;
 
 pub struct WasmInstance {
-    filename: String,
+    parity_module: parity_wasm::elements::Module,
 }
 
 impl WasmInstance {
     pub fn new(module_filename: String) -> Self {
         Self {
-            filename: module_filename,
+            parity_module: parity_wasm::deserialize_file(module_filename).unwrap(),
         }
     }
 
+    pub fn new_from_parity_module(parity_module: parity_wasm::elements::Module) -> Self {
+        Self { parity_module }
+    }
+
     pub fn run(
-        &self,
+        &mut self,
         func_name: Option<String>,
         arguments: Vec<WasmValue>,
     ) -> Result<Vec<WasmValue>, WasmError> {
-        let module = parity_wasm::deserialize_file(self.filename.clone()).unwrap();
         let mut store = Store::new();
-        let module = store.load_parity_module(module);
+        let module = store.load_parity_module(self.parity_module.clone());
         let pc = if let Some(func_name) = func_name {
             if let Some(export) = module.exported_func(func_name.clone()) {
                 if let ExternalValue::Func(func_addr) = export.value() {

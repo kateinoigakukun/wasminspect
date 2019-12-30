@@ -1,8 +1,11 @@
 [package]
-name = "wasminspect-wast-spec"
+name = "wast-spec"
 version = "0.1.0"
 authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+wasminspect-core = { path = "../wasminspect-core" }
 wast = "5.0.1"
+anyhow = "1.0.26"
+parity-wasm = "0.41"
