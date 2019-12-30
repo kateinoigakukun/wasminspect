@@ -68,7 +68,7 @@ impl Executor {
         let return_ty = func.ty().return_type();
         // TODO: support multi value
         match (self.stack.peek_last_value(), return_ty) {
-            (Some(val), Some(ty)) => {
+            (val, Some(ty)) => {
                 if val.value_type() == ty {
                     return Ok(vec![val.clone()]);
                 } else {
@@ -76,7 +76,6 @@ impl Executor {
                 }
             }
             (_, None) => return Ok(vec![]),
-            (None, Some(ty)) => Err(ReturnValError::NoValue(ty)),
         }
     }
 
@@ -105,12 +104,12 @@ impl Executor {
             }
             Instruction::SetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
-                let value = self.stack.pop_value().unwrap();
+                let value = self.stack.pop_value();
                 self.store.set_global(addr, value);
                 Ok(ExecSuccess::Next)
             }
             Instruction::SetLocal(index) => {
-                let value = self.stack.pop_value().unwrap();
+                let value = self.stack.pop_value();
                 self.stack.set_local(*index as usize, value);
                 Ok(ExecSuccess::Next)
             }
@@ -180,7 +179,7 @@ impl Executor {
                 Ok(ExecSuccess::Next)
             }
             Instruction::BrIf(depth) => {
-                let val = self.stack.pop_value().unwrap();
+                let val = self.stack.pop_value();
                 if val != Value::I32(0) {
                     self.branch(*depth);
                 }
@@ -195,7 +194,7 @@ impl Executor {
                 let func = self.store.func(addr);
                 let mut args = Vec::new();
                 for _ in func.ty().params() {
-                    args.push(self.stack.pop_value().unwrap());
+                    args.push(self.stack.pop_value());
                 }
                 match func {
                     FunctionInstance::Defined(defined) => {
@@ -217,16 +216,13 @@ impl Executor {
                 }
             }
             Instruction::Return => {
-                if let Some(Label::Return) = self.stack.pop_label() {
-                    let frame = self.stack.take_current_frame().unwrap();
-                    if let Some(ret_pc) = frame.ret_pc {
-                        self.pc = ret_pc;
-                    }
-                    self.last_ret_frame = Some(frame);
-                    Ok(ExecSuccess::Next)
-                } else {
-                    panic!();
+                let _ = self.stack.pop_label();
+                let frame = self.stack.take_current_frame().unwrap();
+                if let Some(ret_pc) = frame.ret_pc {
+                    self.pc = ret_pc;
                 }
+                self.last_ret_frame = Some(frame);
+                Ok(ExecSuccess::Next)
             }
             Instruction::End => {
                 if let Some(Label::Return) = self.stack.pop_label() {
@@ -257,7 +253,7 @@ impl Executor {
     }
 
     fn pop_as<T: TryFrom<Value>>(&mut self) -> T {
-        let value = self.stack.pop_value().unwrap();
+        let value = self.stack.pop_value();
         match T::try_from(value) {
             Ok(val) => val,
             Err(_) => panic!(),
@@ -266,7 +262,7 @@ impl Executor {
 
     fn branch(&mut self, depth: u32) {
         self.stack.pop_labels(depth as usize);
-        match self.stack.peek_last_label().unwrap() {
+        match self.stack.peek_last_label() {
             Label::Loop(loop_label) => self.pc.loop_jump(loop_label),
             Label::If | Label::Block => {
                 let mut depth = depth + 1;

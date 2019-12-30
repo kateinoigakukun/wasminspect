@@ -2,6 +2,8 @@ use super::address::FuncAddr;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::value::Value;
 
+use std::fmt::{Display, Formatter, Result};
+
 pub enum Label {
     If,
     Block,
@@ -101,56 +103,114 @@ impl CallFrame {
     }
 }
 
+pub enum StackValue {
+    Value(Value),
+    Label(Label),
+    Activation(CallFrame),
+}
+
+impl StackValue {
+
+    fn as_value(&self) -> Option<&Value> {
+        match self {
+            Self::Value(val) => Some(val),
+            _ => None,
+        }
+    }
+    fn as_label(&self) -> Option<&Label> {
+        match self {
+            Self::Label(val) => Some(val),
+            _ => None,
+        }
+    }
+    fn as_activation(&self) -> Option<&CallFrame> {
+        match self {
+            Self::Activation(val) => Some(val),
+            _ => None,
+        }
+    }
+
+    fn as_activation_mut(&mut self) -> Option<&mut CallFrame> {
+        match self {
+            Self::Activation(val) => Some(val),
+            _ => None,
+        }
+    }
+}
+
+impl Display for StackValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Value(_) => writeln!(f, "StackValue::Value"),
+            Self::Label(_) => writeln!(f, "StackValue::Label"),
+            Self::Activation(_) => writeln!(f, "StackValue::Activation"),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Stack {
-    values: Vec<Value>,
-    labels: Vec<Label>,
-    activations: Vec<CallFrame>,
+   stack: Vec<StackValue>,
+   current_frame_index: usize,
 }
 
 impl Stack {
     pub fn push_value(&mut self, val: Value) {
-        self.values.push(val)
+        self.stack.push(StackValue::Value(val))
     }
 
-    pub fn pop_value(&mut self) -> Option<Value> {
-        self.values.pop()
+    pub fn pop_value(&mut self) -> Value {
+        match self.stack.pop() {
+            Some(StackValue::Value(val)) => val,
+            Some(val) => panic!("Unexpected stack value type {}", val),
+            None => panic!("Stack is empty"),
+        }
     }
 
-    pub fn peek_last_value(&self) -> Option<&Value> {
-        self.values.last()
+    pub fn peek_last_value(&self) -> &Value {
+        match self.stack.last() {
+            Some(StackValue::Value(val)) => val,
+            Some(val) => panic!("Unexpected stack value type {}", val),
+            None => panic!("Stack is empty"),
+        }
     }
 
     pub fn push_label(&mut self, val: Label) {
-        self.labels.push(val)
+        self.stack.push(StackValue::Label(val))
     }
 
-    pub fn pop_label(&mut self) -> Option<Label> {
-        self.labels.pop()
+    pub fn pop_label(&mut self) -> Label {
+        match self.stack.pop() {
+            Some(StackValue::Label(val)) => val,
+            Some(val) => panic!("Unexpected stack value type {}", val),
+            None => panic!("Stack is empty"),
+        }
     }
 
+    #[deprecated]
     pub fn pop_labels(&mut self, depth: usize) {
-        self.labels.truncate(self.labels.len() - depth)
+        panic!()
+        // self.labels.truncate(self.labels.len() - depth)
     }
 
-    pub fn peek_last_label(&self) -> Option<&Label> {
-        self.labels.last()
+    pub fn peek_last_label(&self) -> &Label {
+        match self.stack.last() {
+            Some(StackValue::Label(val)) => val,
+            Some(val) => panic!("Unexpected stack value type {}", val),
+            None => panic!("Stack is empty"),
+        }
     }
 
     pub fn set_frame(&mut self, frame: CallFrame) {
-        self.activations.push(frame)
-    }
-
-    pub fn take_current_frame(&mut self) -> Option<CallFrame> {
-        self.activations.pop()
+        self.current_frame_index = self.stack.len();
+        self.stack.push(StackValue::Activation(frame))
     }
 
     pub fn current_frame(&self) -> &CallFrame {
-        &self.activations.last().unwrap()
-    }
-
-    fn current_frame_mut(&mut self) -> &mut CallFrame {
-        return self.activations.last_mut().unwrap();
+        match &self.stack[self.current_frame_index] {
+            StackValue::Activation(val) => val,
+            val => panic!("Unexpected stack value type {}", val),
+        }
     }
 
     pub fn current_func_addr(&self) -> FuncAddr {
@@ -158,10 +218,25 @@ impl Stack {
     }
 
     pub fn is_over_top_level(&self) -> bool {
-        self.labels.is_empty()
+        match self
+            .stack
+            .iter()
+            .filter(|v| match v {
+                StackValue::Label(_) => true,
+                _ => false,
+            })
+            .next()
+        {
+            None => true,
+            Some(_) => false,
+        }
     }
 
     pub fn set_local(&mut self, index: usize, value: Value) {
-        self.current_frame_mut().set_local(index, value)
+        if let Some(stack) = self.stack.get_mut(self.current_frame_index) {
+            if let Some(frame) = stack.as_activation_mut() {
+                frame.set_local(index, value);
+            }
+        }
     }
 }
