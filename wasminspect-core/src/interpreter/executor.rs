@@ -329,7 +329,7 @@ impl Executor {
         Ok(ExecSuccess::Next)
     }
 
-    fn invoke(&self, addr: FuncAddr) -> ExecResult {
+    fn invoke(&mut self, addr: FuncAddr) -> ExecResult {
         let func = self.store.func(addr);
         let mut args = Vec::new();
         for _ in func.ty().params() {

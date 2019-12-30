@@ -5,13 +5,14 @@ use super::value::Value;
 
 use std::fmt::{Display, Formatter, Result};
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum Label {
     If(usize),
     Block(usize),
     Loop(LoopLabel),
 }
 
+#[derive(Clone, Copy)]
 pub struct LoopLabel {
     inst_index: InstIndex,
 }
