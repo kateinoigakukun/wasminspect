@@ -220,6 +220,10 @@ impl Executor {
                 let addr = FuncAddr(frame.module_index(), *func_index as usize);
                 self.invoke(addr)
             }
+            Instruction::CallIndirect(func_index, sig) => {
+                let frame = self.stack.current_frame();
+                panic!()
+            }
             Instruction::Return => self.do_return(),
             Instruction::End => {
                 if self.stack.is_func_top_level() {

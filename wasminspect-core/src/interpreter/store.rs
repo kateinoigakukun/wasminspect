@@ -4,6 +4,7 @@ use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFu
 use super::global::GlobalInstance;
 use super::host::HostFunc;
 use super::module::{ModuleIndex, ModuleInstance};
+use super::table::TableInstance;
 use super::value::Value;
 use parity_wasm;
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ use std::collections::HashMap;
 /// Store
 pub struct Store {
     funcs: HashMap<ModuleIndex, Vec<FunctionInstance>>,
-    // tables: Vec<TableInstance<'a>>,
+    tables: HashMap<ModuleIndex, Vec<TableInstance>>,
     // mems: Vec<MemoryInstance<'a>>,
     globals: HashMap<ModuleIndex, Vec<GlobalInstance>>,
     modules: Vec<ModuleInstance>,
@@ -21,6 +22,7 @@ impl Store {
     pub fn new() -> Self {
         Self {
             funcs: HashMap::new(),
+            tables: HashMap::new(),
             globals: HashMap::new(),
             modules: Vec::new(),
         }
@@ -46,10 +48,12 @@ impl Store {
         parity_module: parity_wasm::elements::Module,
     ) -> &ModuleInstance {
         let types = Self::get_types(&parity_module);
+        let elem_segs = Self::get_element_segments(&parity_module);
         let module_index = ModuleIndex(self.modules.len() as u32);
         let mut func_addrs = self.load_imports(&parity_module, module_index, types);
         func_addrs.append(&mut self.load_functions(&parity_module, module_index, types));
         self.load_globals(&parity_module, module_index);
+        self.load_tables(&parity_module, module_index, elem_segs);
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
@@ -64,6 +68,23 @@ impl Store {
             .type_section()
             .map(|sec| sec.types())
             .unwrap_or_default();
+    }
+
+    fn get_element_segments(
+        parity_module: &parity_wasm::elements::Module,
+    ) -> HashMap<usize, Vec<&parity_wasm::elements::ElementSegment>> {
+        let segments = parity_module
+            .elements_section()
+            .map(|sec| sec.entries())
+            .unwrap_or_default();
+        let mut result = HashMap::new();
+        for seg in segments {
+            result
+                .entry(seg.index() as usize)
+                .or_insert(Vec::new())
+                .push(seg);
+        }
+        result
     }
 
     fn load_imports(
@@ -167,6 +188,46 @@ impl Store {
                 .entry(module_index)
                 .or_insert(Vec::new())
                 .push(instance);
+        }
+    }
+
+    fn load_tables(
+        &mut self,
+        parity_module: &parity_wasm::elements::Module,
+        module_index: ModuleIndex,
+        element_segments: HashMap<usize, Vec<&parity_wasm::elements::ElementSegment>>,
+    ) {
+        let tables = parity_module
+            .table_section()
+            .map(|sec| sec.entries())
+            .unwrap_or_default();
+        for (index, entry) in tables.iter().enumerate() {
+            match entry.elem_type() {
+                parity_wasm::elements::TableElementType::AnyFunc => {
+                    let mut instance = TableInstance::new(
+                        entry.limits().initial() as usize,
+                        entry.limits().maximum().map(|mx| mx as usize),
+                    );
+                    let segs = &element_segments[&index];
+                    for seg in segs {
+                        let offset =
+                            match seg.offset().as_ref().map(|e| eval_const_expr(&e)).unwrap() {
+                                Value::I32(v) => v,
+                                _ => panic!(),
+                            };
+                        let data = seg
+                            .members()
+                            .iter()
+                            .map(|func_index| FuncAddr(module_index, *func_index as usize))
+                            .collect();
+                        instance.initialize(offset as usize, data);
+                    }
+                    self.tables
+                        .entry(module_index)
+                        .or_insert(Vec::new())
+                        .push(instance);
+                }
+            }
         }
     }
 }
