@@ -193,6 +193,16 @@ impl Executor {
                     Ok(ExecSuccess::Next)
                 }
             }
+            Instruction::BrTable(ref payload) => {
+                let val: i32 = self.pop_as();
+                let val = val as usize;
+                let depth = if val < payload.table.len() {
+                    payload.table[val]
+                } else {
+                    payload.default
+                };
+                self.branch(depth)
+            }
             Instruction::Br(depth) => self.branch(*depth),
             Instruction::Call(func_index) => {
                 let frame = self.stack.current_frame();
