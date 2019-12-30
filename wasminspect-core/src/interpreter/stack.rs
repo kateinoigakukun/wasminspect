@@ -246,18 +246,7 @@ impl Stack {
     }
 
     pub fn is_over_top_level(&self) -> bool {
-        match self
-            .stack
-            .iter()
-            .filter(|v| match v {
-                StackValue::Label(_) => true,
-                _ => false,
-            })
-            .next()
-        {
-            None => true,
-            Some(_) => false,
-        }
+        self.frame_index.is_empty()
     }
 
     pub fn set_local(&mut self, index: usize, value: Value) {

@@ -91,6 +91,7 @@ impl Executor {
             }
             println!("{}{}", indent, inst.clone());
         }
+        println!("{:?}", self.stack);
         let result = match inst {
             Instruction::Unreachable => panic!(),
             Instruction::GetGlobal(index) => {
@@ -230,7 +231,6 @@ impl Executor {
                     let frame = self.stack.current_frame().clone();
                     let func = self.store.func(frame.func_addr);
                     println!("--- End of function {:?} ---", func.ty());
-                    println!("{:?}", self.stack);
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
                     let mut result = vec![];
                     for _ in 0..arity {
@@ -241,7 +241,6 @@ impl Executor {
                         self.stack.push_value(v);
                     }
                     println!("--- End of finish process ---");
-                    println!("{:?}", self.stack);
                     if let Some(ret_pc) = frame.ret_pc {
                         self.pc = ret_pc;
                         Ok(ExecSuccess::Next)
@@ -311,6 +310,7 @@ impl Executor {
         }
 
         // Jump to the continuation
+        println!("> Jump to the continuation");
         match label {
             Label::Loop(loop_label) => self.pc.loop_jump(&loop_label),
             Label::If(_) | Label::Block(_) => {
@@ -324,10 +324,10 @@ impl Executor {
                         Instruction::Loop(_) => depth += 1,
                         _ => (),
                     }
+                    self.pc.inc_inst_index();
                     if depth == 0 {
                         break;
                     }
-                    self.pc.inc_inst_index();
                 }
             }
         }
