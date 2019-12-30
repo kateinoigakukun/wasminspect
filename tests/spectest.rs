@@ -19,3 +19,4 @@ fn run_spectest(filename: &str) {
 
 run_wast!("br.wast", test_wast_br);
 run_wast!("br_if.wast", test_wast_br_if);
+run_wast!("block.wast", test_wast_block);

@@ -118,6 +118,17 @@ impl Executor {
                 self.stack.pop_value();
                 Ok(ExecSuccess::Next)
             }
+            Instruction::Select => {
+                let cond: i32 = self.pop_as();
+                let val2 = self.stack.pop_value();
+                let val1 = self.stack.pop_value();
+                if cond != 0 {
+                    self.stack.push_value(val1);
+                } else {
+                    self.stack.push_value(val2);
+                }
+                Ok(ExecSuccess::Next)
+            }
             Instruction::I32Const(val) => {
                 self.stack.push_value(Value::I32(*val));
                 Ok(ExecSuccess::Next)
