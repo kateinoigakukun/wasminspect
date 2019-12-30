@@ -51,11 +51,7 @@ impl Executor {
         let f = CallFrame::new(func_addr, local_len, vec![], None);
         stack.set_frame(frame);
         stack.push_label(Label::Return(initial_arity));
-        Self {
-            store,
-            pc,
-            stack,
-        }
+        Self { store, pc, stack }
     }
 
     pub fn pop_result(&mut self, return_ty: Vec<ValueType>) -> ReturnValResult {
@@ -106,15 +102,17 @@ impl Executor {
                 self.store.set_global(addr, value);
                 Ok(ExecSuccess::Next)
             }
-            Instruction::SetLocal(index) => {
-                let value = self.stack.pop_value();
-                self.stack.set_local(*index as usize, value);
-                Ok(ExecSuccess::Next)
-            }
+            Instruction::SetLocal(index) => self.set_local(*index as usize),
             Instruction::GetLocal(index) => {
                 let value = self.stack.current_frame().local(*index as usize);
                 self.stack.push_value(value);
                 Ok(ExecSuccess::Next)
+            }
+            Instruction::TeeLocal(index) => {
+                let val = self.stack.pop_value();
+                self.stack.push_value(val);
+                self.stack.push_value(val);
+                self.set_local(*index as usize)
             }
             Instruction::Drop => {
                 self.stack.pop_value();
@@ -373,6 +371,13 @@ impl Executor {
         if let Some(ret_pc) = frame.ret_pc {
             self.pc = ret_pc;
         }
+        Ok(ExecSuccess::Next)
+    }
+
+    fn set_local(&mut self, index: usize) -> ExecResult {
+        let value = self.stack.pop_value();
+        self.stack.set_local(index, value);
+
         Ok(ExecSuccess::Next)
     }
 }
