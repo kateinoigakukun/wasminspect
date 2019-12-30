@@ -55,13 +55,14 @@ impl WasmInstance {
         };
 
         let func = store.func(pc.func_addr()).defined().unwrap();
+        let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
         let local_len = func.ty().params().len() + func.code().locals().len();
         let mut executor = Executor::new(local_len, pc.func_addr(), arguments, pc, store);
         loop {
             let result = executor.execute_step();
             match result {
                 Ok(ExecSuccess::Next) => continue,
-                Ok(ExecSuccess::End) => match executor.peek_result() {
+                Ok(ExecSuccess::End) => match executor.pop_result(ret_types) {
                     Ok(values) => return Ok(values),
                     Err(err) => return Err(WasmError::ReturnValueError(err)),
                 },

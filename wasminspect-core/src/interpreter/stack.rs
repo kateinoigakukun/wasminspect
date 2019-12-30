@@ -187,15 +187,6 @@ impl Stack {
         }).collect()
     }
 
-    pub fn current_label(&self) -> &Label {
-        self.stack.iter().filter_map(|v| {
-            match v {
-                StackValue::Label(label) => Some(label),
-                _ => None,
-            }
-        }).next().unwrap()
-    }
-
     pub fn latest(&self) -> &StackValue {
         self.stack.last().unwrap()
     }
@@ -211,34 +202,12 @@ impl Stack {
         }
     }
 
-    pub fn peek_last_value(&self) -> &Value {
-        match self.stack.last() {
-            Some(StackValue::Value(val)) => val,
-            Some(val) => panic!("Unexpected stack value type {}", val),
-            None => panic!("Stack is empty"),
-        }
-    }
-
     pub fn push_label(&mut self, val: Label) {
         self.stack.push(StackValue::Label(val))
     }
 
     pub fn pop_label(&mut self) -> Label {
         match self.stack.pop() {
-            Some(StackValue::Label(val)) => val,
-            Some(val) => panic!("Unexpected stack value type {}", val),
-            None => panic!("Stack is empty"),
-        }
-    }
-
-    #[deprecated]
-    pub fn pop_labels(&mut self, depth: usize) {
-        panic!()
-        // self.labels.truncate(self.labels.len() - depth)
-    }
-
-    pub fn peek_last_label(&self) -> &Label {
-        match self.stack.last() {
             Some(StackValue::Label(val)) => val,
             Some(val) => panic!("Unexpected stack value type {}", val),
             None => panic!("Stack is empty"),

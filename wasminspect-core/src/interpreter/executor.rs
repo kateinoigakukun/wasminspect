@@ -5,7 +5,7 @@ use super::module::*;
 use super::stack::*;
 use super::store::*;
 use super::value::*;
-use parity_wasm::elements::{InitExpr, Instruction, ValueType};
+use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::convert::TryFrom;
 
@@ -58,24 +58,16 @@ impl Executor {
         }
     }
 
-    pub fn peek_result(&self) -> ReturnValResult {
-        let frame = match &self.last_ret_frame {
-            Some(frame) => frame,
-            None => return Err(ReturnValError::NoCallFrame),
-        };
-        let func = self.store.func(frame.func_addr);
-        let return_ty = func.ty().return_type();
-        // TODO: support multi value
-        match (self.stack.peek_last_value(), return_ty) {
-            (val, Some(ty)) => {
-                if val.value_type() == ty {
-                    return Ok(vec![val.clone()]);
-                } else {
-                    return Err(ReturnValError::TypeMismatchReturnValue(val.clone(), ty));
-                }
+    pub fn pop_result(&mut self, return_ty: Vec<ValueType>) -> ReturnValResult {
+        let mut results = vec![];
+        for ty in return_ty {
+            let val = self.stack.pop_value();
+            results.push(val);
+            if val.value_type() != ty {
+                return Err(ReturnValError::TypeMismatchReturnValue(val.clone(), ty));
             }
-            (_, None) => return Ok(vec![]),
         }
+        Ok(results)
     }
 
     pub fn current_func_insts(&self) -> &[Instruction] {
@@ -137,16 +129,26 @@ impl Executor {
                 self.stack.push_value(Value::F64(f64::from_bits(*val)));
                 Ok(ExecSuccess::Next)
             }
-            Instruction::Block(_) => {
-                self.stack.push_label(Label::Block(1));
+            Instruction::Block(ty) => {
+                self.stack.push_label(Label::Block({
+                    match ty {
+                        BlockType::Value(_) => 1,
+                        BlockType::NoResult => 0,
+                    }
+                }));
                 Ok(ExecSuccess::Next)
             }
             Instruction::Loop(_) => {
                 self.stack.push_label(Label::new_loop(self.pc.inst_index()));
                 Ok(ExecSuccess::Next)
             }
-            Instruction::If(_) => {
-                self.stack.push_label(Label::If(1));
+            Instruction::If(ty) => {
+                self.stack.push_label(Label::If({
+                    match ty {
+                        BlockType::Value(_) => 1,
+                        BlockType::NoResult => 0,
+                    }
+                }));
                 let val: i32 = self.pop_as();
                 if val == 0 {
                     let mut depth = 1;
@@ -241,7 +243,7 @@ impl Executor {
                         StackValue::Value(_) => true,
                         _ => false,
                     });
-                    let label = &self.stack.pop_label();
+                    self.stack.pop_label();
                     for v in results {
                         self.stack.push_value(*v.as_value().unwrap());
                     }
@@ -271,7 +273,7 @@ impl Executor {
 
     fn branch(&mut self, depth: u32) {
         let depth = depth as usize;
-        let label = { 
+        let label = {
             let labels = self.stack.current_frame_labels();
             let labels_len = labels.len();
             assert!(depth + 1 >= labels_len);
@@ -285,12 +287,10 @@ impl Executor {
             results.push(self.stack.pop_value());
         }
 
-        for _ in 0..depth+1 {
-            self.stack.pop_while(|v| {
-                match v {
-                    StackValue::Value(_) => true,
-                    _ => false,
-                }
+        for _ in 0..depth + 1 {
+            self.stack.pop_while(|v| match v {
+                StackValue::Value(_) => true,
+                _ => false,
             });
             self.stack.pop_label();
         }
