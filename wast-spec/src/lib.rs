@@ -146,8 +146,8 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
     match &expr.instrs[0] {
         wast::Instruction::I32Const(x) => WasmValue::I32(*x),
         wast::Instruction::I64Const(x) => WasmValue::I64(*x),
-        wast::Instruction::F32Const(x) => panic!(),
-        wast::Instruction::F64Const(x) => panic!(),
+        wast::Instruction::F32Const(x) => WasmValue::F32(f32::from_bits(x.bits)),
+        wast::Instruction::F64Const(x) => WasmValue::F64(f64::from_bits(x.bits)),
         wast::Instruction::V128Const(x) => panic!(),
         _ => panic!(),
     }

@@ -131,6 +131,14 @@ impl Executor {
                 self.stack.push_value(Value::I64(*val));
                 Ok(ExecSuccess::Next)
             }
+            Instruction::F32Const(val) => {
+                self.stack.push_value(Value::F32(f32::from_bits(*val)));
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::F64Const(val) => {
+                self.stack.push_value(Value::F64(f64::from_bits(*val)));
+                Ok(ExecSuccess::Next)
+            }
             Instruction::Block(_) => {
                 self.stack.push_label(Label::Block);
                 Ok(ExecSuccess::Next)
@@ -203,6 +211,7 @@ impl Executor {
                     Ok(ExecSuccess::Next)
                 }
             }
+            Instruction::Nop => Ok(ExecSuccess::Next),
             _ => {
                 debug_assert!(false, format!("{} not supported yet", inst));
                 ExecResult::Err(ExecError::Panic(format!("{} not supported yet", inst)))
@@ -261,8 +270,8 @@ pub fn eval_const_expr(init_expr: &InitExpr) -> Value {
     match *inst {
         Instruction::I32Const(val) => Value::I32(val),
         Instruction::I64Const(val) => Value::I64(val),
-        Instruction::F32Const(_) => panic!(),
-        Instruction::F64Const(_) => panic!(),
+        Instruction::F32Const(val) => Value::F32(f32::from_bits(val)),
+        Instruction::F64Const(val) => Value::F64(f64::from_bits(val)),
         Instruction::GetGlobal(_) => panic!(),
         _ => panic!("Unsupported init_expr {}", inst),
     }
