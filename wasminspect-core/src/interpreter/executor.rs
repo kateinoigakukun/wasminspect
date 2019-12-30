@@ -116,6 +116,10 @@ impl Executor {
                 self.stack.push_value(value);
                 Ok(ExecSuccess::Next)
             }
+            Instruction::Drop => {
+                self.stack.pop_value();
+                Ok(ExecSuccess::Next)
+            }
             Instruction::I32Const(val) => {
                 self.stack.push_value(Value::I32(*val));
                 Ok(ExecSuccess::Next)

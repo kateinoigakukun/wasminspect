@@ -32,6 +32,15 @@ impl WastContext {
             parity_module,
         )));
     }
+    fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
+        let instance = self.instantiate(&bytes);
+        if let Some(module_name) = module_name {
+            self.instances
+                .insert(module_name.to_string(), instance.clone());
+        }
+        self.current = Some(instance);
+        Ok(())
+    }
 
     pub fn run_buffer(&mut self, filename: &str, wast: &[u8]) -> Result<()> {
         use wast::WastDirective::*;
@@ -55,12 +64,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let instance = self.instantiate(&bytes);
-                    if let Some(module_name) = module.name.map(|s| s.name()) {
-                        self.instances
-                            .insert(module_name.to_string(), instance.clone());
-                    }
-                    self.current = Some(instance);
+                    self.module(module.name.map(|s| s.name()), &bytes)?;
                 }
                 Register { span, name, module } => {
                     let instance = self.get_instance(module.map(|s| s.name()));
@@ -87,6 +91,27 @@ impl WastContext {
                         panic!("unexpected err: {}", e);
                     }
                 },
+                AssertInvalid {
+                    span,
+                    mut module,
+                    message,
+                } => {
+                    let bytes = module.encode().map_err(adjust_wast)?;
+                    let err = match self.module(None, &bytes) {
+                        Ok(()) => panic!("{}\nexpected module to fail to build", context(span)),
+                        Err(e) => e,
+                    };
+                    let error_message = format!("{:?}", err);
+                    if !error_message.contains(&message) {
+                        // TODO: change to bail!
+                        println!(
+                            "{}\nassert_invalid: expected {}, got {}",
+                            context(span),
+                            message,
+                            error_message
+                        )
+                    }
+                }
                 other => panic!("unsupported"),
             }
         }
@@ -116,7 +141,11 @@ impl WastContext {
         func_name: &str,
         args: &[wast::Expression],
     ) -> Vec<WasmValue> {
-        println!("Invoking \"{}.{}\"", module_name.unwrap_or("unknown"), func_name);
+        println!(
+            "Invoking \"{}.{}\"",
+            module_name.unwrap_or("unknown"),
+            func_name
+        );
         let instance = self.get_instance(module_name).clone();
         let args = args.iter().map(const_expr).collect();
         return instance
@@ -128,11 +157,9 @@ impl WastContext {
 
     fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Vec<WasmValue>> {
         match exec {
-            wast::WastExecute::Invoke(i) => Ok(self.invoke(
-                i.module.map(|s| s.name()),
-                i.name,
-                &i.args,
-            )),
+            wast::WastExecute::Invoke(i) => {
+                Ok(self.invoke(i.module.map(|s| s.name()), i.name, &i.args))
+            }
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
                 let result = self.instantiate(&binary);
