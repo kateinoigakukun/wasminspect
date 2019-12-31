@@ -7,7 +7,6 @@ use super::store::*;
 use super::value::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
-use std::rc::Rc;
 use std::convert::TryFrom;
 
 #[derive(Debug)]
@@ -134,9 +133,14 @@ impl<'a> Executor<'a> {
                 self.stack.push_value(Value::I32(*val));
                 Ok(ExecSuccess::Next)
             }
-            Instruction::I32Add => self.int_op::<i32, _>(|a, b| Value::I32(a + b)),
+            Instruction::I32Add => self.int_int_op::<i32, _>(|a, b| Value::I32(a + b)),
+            Instruction::I32Mul => self.int_int_op::<i32, _>(|a, b| Value::I32(a * b)),
             Instruction::I32LtS => {
-                self.int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+                self.int_int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            Instruction::I32Ctz => self.int_op::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
+            Instruction::I32Eqz => {
+                self.int_op::<i32, _>(|v| Value::I32(if v == 0 { 1 } else { 0 }))
             }
             Instruction::I64Const(val) => {
                 self.stack.push_value(Value::I64(*val));
@@ -377,10 +381,16 @@ impl<'a> Executor<'a> {
         Ok(ExecSuccess::Next)
     }
 
-    fn int_op<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
+    fn int_int_op<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
         let rhs = self.pop_as();
         let lhs = self.pop_as();
         self.stack.push_value(f(lhs, rhs));
+        Ok(ExecSuccess::Next)
+    }
+
+    fn int_op<T: TryFrom<Value>, F: Fn(T) -> Value>(&mut self, f: F) -> ExecResult {
+        let v: T = self.pop_as();
+        self.stack.push_value(f(v));
         Ok(ExecSuccess::Next)
     }
 
