@@ -142,6 +142,15 @@ impl<'a> Executor<'a> {
             Instruction::I32LtS => {
                 self.int_int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
             }
+            Instruction::I32LtU => {
+                self.int_int_op::<u32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            Instruction::I32LeS => {
+                self.int_int_op::<i32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::I32LeU => {
+                self.int_int_op::<u32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
             Instruction::I32Ctz => self.int_op::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
             Instruction::I32Eqz => {
                 self.int_op::<i32, _>(|v| Value::I32(if v == 0 { 1 } else { 0 }))
@@ -150,17 +159,65 @@ impl<'a> Executor<'a> {
                 self.stack.push_value(Value::I64(*val));
                 Ok(ExecSuccess::Next)
             }
+            Instruction::I64Add => self.int_int_op::<i64, _>(|a, b| Value::I64(a + b)),
+            Instruction::I64Sub => self.int_int_op::<i64, _>(|a, b| Value::I64(a - b)),
+            Instruction::I64Mul => self.int_int_op::<i64, _>(|a, b| Value::I64(a * b)),
+            Instruction::I64Eq => {
+                self.int_int_op::<i64, _>(|a, b| Value::I64(if a == b { 1 } else { 0 }))
+            }
+            Instruction::I64LtS => {
+                self.int_int_op::<i64, _>(|a, b| Value::I64(if a < b { 1 } else { 0 }))
+            }
+            Instruction::I64LeS => {
+                self.int_int_op::<i64, _>(|a, b| Value::I64(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::I64LeU => {
+                self.int_int_op::<u64, _>(|a, b| Value::I64(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::I64Ctz => self.int_op::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
+            Instruction::I64Eqz => {
+                self.int_op::<i64, _>(|v| Value::I64(if v == 0 { 1 } else { 0 }))
+            }
+
             Instruction::F32Const(val) => {
                 self.stack.push_value(Value::F32(f32::from_bits(*val)));
                 Ok(ExecSuccess::Next)
             }
+            Instruction::F32Add => self.int_int_op::<f32, _>(|a, b| Value::F32(a + b)),
+            Instruction::F32Sub => self.int_int_op::<f32, _>(|a, b| Value::F32(a - b)),
+            Instruction::F32Mul => self.int_int_op::<f32, _>(|a, b| Value::F32(a * b)),
             Instruction::F32Gt => {
                 self.int_int_op::<f32, _>(|a, b| Value::I32(if a > b { 1 } else { 0 }))
+            }
+            Instruction::F32Lt => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            Instruction::F32Le => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::F32Eq => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
             }
             Instruction::F64Const(val) => {
                 self.stack.push_value(Value::F64(f64::from_bits(*val)));
                 Ok(ExecSuccess::Next)
             }
+            Instruction::F64Add => self.int_int_op::<f64, _>(|a, b| Value::F64(a + b)),
+            Instruction::F64Sub => self.int_int_op::<f64, _>(|a, b| Value::F64(a - b)),
+            Instruction::F64Mul => self.int_int_op::<f64, _>(|a, b| Value::F64(a * b)),
+            Instruction::F64Gt => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a > b { 1 } else { 0 }))
+            }
+            Instruction::F64Lt => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            Instruction::F64Le => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::F64Eq => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
+            }
+
             Instruction::I32Load(_, offset) => self.load::<i32>(*offset as usize),
             Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize),
             Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize),

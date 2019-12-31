@@ -44,8 +44,57 @@ macro_rules! primitive_conversion {
     };
 }
 
-primitive_conversion!(Value::I32, i32);
+// primitive_conversion!(Value::I32, i32);
+impl TryFrom<Value> for i32 {
+    type Error = ValueConversionError;
+    fn try_from(input: Value) -> Result<i32, ValueConversionError> {
+        match input {
+            Value::I32(val) => Ok(val),
+            Value::I64(val) => Ok(val as i32),
+            _ => Err(ValueConversionError::InvalidType("$type".to_string())),
+        }
+    }
+}
+
+impl Into<Value> for i32 {
+    fn into(self) -> Value {
+        Value::I32(self)
+    }
+}
+
 primitive_conversion!(Value::I64, i64);
+
+impl TryFrom<Value> for u32 {
+    type Error = ValueConversionError;
+    fn try_from(input: Value) -> Result<u32, ValueConversionError> {
+        match input {
+            Value::I32(val) => Ok(val as _),
+            _ => Err(ValueConversionError::InvalidType("$type".to_string())),
+        }
+    }
+}
+
+impl Into<Value> for u32 {
+    fn into(self) -> Value {
+        Value::I32(self as _)
+    }
+}
+
+impl TryFrom<Value> for u64 {
+    type Error = ValueConversionError;
+    fn try_from(input: Value) -> Result<u64, ValueConversionError> {
+        match input {
+            Value::I64(val) => Ok(val as _),
+            _ => Err(ValueConversionError::InvalidType("$type".to_string())),
+        }
+    }
+}
+
+impl Into<Value> for u64 {
+    fn into(self) -> Value {
+        Value::I32(self as _)
+    }
+}
 primitive_conversion!(Value::F32, f32);
 primitive_conversion!(Value::F64, f64);
 

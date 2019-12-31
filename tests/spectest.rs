@@ -25,3 +25,4 @@ run_wast!("block.wast", test_wast_block);
 run_wast!("br_if.wast", test_wast_br_if);
 run_wast!("br.wast", test_wast_br);
 run_wast!("break-drop.wast", test_wast_break_drop);
+run_wast!("call_indirect.wast", test_wast_call_indirect);
