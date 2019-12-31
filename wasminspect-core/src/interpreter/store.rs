@@ -1,7 +1,7 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::eval_const_expr;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
-use super::global::GlobalInstance;
+use super::global::{GlobalInstance, DefinedGlobalInstance, ExternalGlobalInstance};
 use super::memory::{DefinedMemoryInstance, HostMemoryInstance, MemoryInstance};
 use super::module::{ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
@@ -34,8 +34,11 @@ impl Store {
     }
 
     pub fn set_global(&mut self, addr: GlobalAddr, value: Value) {
-        let instance = self.globals.get_mut(&addr.0).unwrap();
-        instance[addr.1].set_value(value);
+        let instance = &mut self.globals.get_mut(&addr.0).unwrap()[addr.1];
+        match instance {
+            GlobalInstance::Defined(instance) => instance.set_value(value),
+            GlobalInstance::External(_) => unimplemented!(),
+        }
     }
 
     pub fn global(&self, addr: GlobalAddr) -> &GlobalInstance {
@@ -82,11 +85,11 @@ impl Store {
         let data_segs = Self::get_data_segments(&parity_module);
 
         let module_index = ModuleIndex(self.modules.len() as u32);
-        let (mut func_addrs, mut mem_addrs, mut table_addrs) =
+        let (mut func_addrs, mut mem_addrs, mut table_addrs, mut global_addrs) =
             self.load_imports(&parity_module, module_index, types);
         func_addrs.append(&mut self.load_functions(&parity_module, module_index, types));
 
-        self.load_globals(&parity_module, module_index);
+        global_addrs.append(&mut self.load_globals(&parity_module, module_index));
         table_addrs.append(&mut self.load_tables(&parity_module, module_index, elem_segs));
 
         mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs));
@@ -146,7 +149,12 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> (Vec<FuncAddr>, Vec<MemoryAddr>, Vec<TableAddr>) {
+    ) -> (
+        Vec<FuncAddr>,
+        Vec<MemoryAddr>,
+        Vec<TableAddr>,
+        Vec<GlobalAddr>,
+    ) {
         let imports = parity_module
             .import_section()
             .map(|sec| sec.entries())
@@ -154,6 +162,7 @@ impl Store {
         let mut func_addrs = Vec::new();
         let mut mem_addrs = Vec::new();
         let mut table_addrs = Vec::new();
+        let mut global_addrs = Vec::new();
         for import in imports {
             match import.external() {
                 parity_wasm::elements::External::Function(type_index) => {
@@ -173,10 +182,13 @@ impl Store {
                     let addr = self.load_import_table(module_index, import, *table_ty);
                     table_addrs.push(addr);
                 }
-                _ => panic!(),
+                parity_wasm::elements::External::Global(global_ty) => {
+                    let addr = self.load_import_global(module_index, import, *global_ty);
+                    global_addrs.push(addr);
+                }
             }
         }
-        (func_addrs, mem_addrs, table_addrs)
+        (func_addrs, mem_addrs, table_addrs, global_addrs)
     }
 
     fn load_import_function(
@@ -238,6 +250,23 @@ impl Store {
         return TableAddr(module_index, table_index);
     }
 
+    fn load_import_global(
+        &mut self,
+        module_index: ModuleIndex,
+        import: &parity_wasm::elements::ImportEntry,
+        global_ty: parity_wasm::elements::GlobalType,
+    ) -> GlobalAddr {
+        let instance = ExternalGlobalInstance::new(
+            import.module().to_string(),
+            import.field().to_string(),
+            global_ty.clone(),
+        );
+        let map = self.globals.entry(module_index).or_insert(Vec::new());
+        let global_index = map.len();
+        map.push(GlobalInstance::External(instance));
+        return GlobalAddr(module_index, global_index);
+    }
+
     fn load_functions(
         &mut self,
         parity_module: &parity_wasm::elements::Module,
@@ -274,19 +303,21 @@ impl Store {
         &mut self,
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
-    ) {
+    ) -> Vec<GlobalAddr> {
         let globals = parity_module
             .global_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
+        let mut global_addrs = Vec::new();
         for entry in globals {
             let value = eval_const_expr(entry.init_expr());
-            let instance = GlobalInstance::new(value, entry.global_type().clone());
-            self.globals
-                .entry(module_index)
-                .or_insert(Vec::new())
-                .push(instance);
+            let instance = DefinedGlobalInstance::new(value, entry.global_type().clone());
+            let map = self.globals.entry(module_index).or_insert(Vec::new());
+            let global_index = map.len();
+            map.push(GlobalInstance::Defined(instance));
+            global_addrs.push(GlobalAddr(module_index, global_index));
         }
+        global_addrs
     }
 
     fn load_tables(

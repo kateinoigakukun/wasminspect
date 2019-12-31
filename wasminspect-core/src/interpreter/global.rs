@@ -1,12 +1,26 @@
 use super::value::Value;
-use parity_wasm::elements::GlobalType;
+use parity_wasm::elements::{GlobalType, ValueType};
 
-pub struct GlobalInstance {
+pub enum GlobalInstance {
+    Defined(DefinedGlobalInstance),
+    External(ExternalGlobalInstance),
+}
+
+impl GlobalInstance {
+    pub fn value(&self) -> Value {
+        match self {
+            GlobalInstance::Defined(defined) => defined.value(),
+            GlobalInstance::External(_) => unimplemented!(),
+        }
+    }
+}
+
+pub struct DefinedGlobalInstance {
     ty: GlobalType,
     value: Value,
 }
 
-impl GlobalInstance {
+impl DefinedGlobalInstance {
     pub fn new(value: Value, ty: GlobalType) -> Self {
         Self { value, ty }
     }
@@ -22,5 +36,21 @@ impl GlobalInstance {
 
     pub fn is_mutable(&self) -> bool {
         self.ty.is_mutable()
+    }
+}
+
+pub struct ExternalGlobalInstance {
+    module_name: String,
+    name: String,
+    ty: GlobalType,
+}
+
+impl ExternalGlobalInstance {
+    pub fn new(module_name: String, name: String, ty: GlobalType) -> Self {
+        Self {
+            module_name,
+            name,
+            ty,
+        }
     }
 }
