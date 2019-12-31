@@ -102,7 +102,7 @@ impl WastContext {
                         Ok(()) => {
                             println!("{}\nexpected module to fail to build", context(span));
                             break;
-                        },
+                        }
                         Err(e) => e,
                     };
                     let error_message = format!("{:?}", err);

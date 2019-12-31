@@ -195,11 +195,9 @@ impl<'a> Executor<'a> {
             }
             Instruction::If(ty) => {
                 let val: i32 = self.pop_as();
-                self.stack.push_label(Label::If({
-                    match ty {
-                        BlockType::Value(_) => 1,
-                        BlockType::NoResult => 0,
-                    }
+                self.stack.push_label(Label::If(match ty {
+                    BlockType::Value(_) => 1,
+                    BlockType::NoResult => 0,
                 }));
                 if val == 0 {
                     let mut depth = 1;

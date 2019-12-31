@@ -3,7 +3,7 @@ use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
 use super::value::Value;
 
-use std::fmt::{Display, Debug, Formatter, Result};
+use std::fmt::{Debug, Display, Formatter, Result};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Label {
@@ -127,7 +127,6 @@ pub enum StackValue {
 }
 
 impl StackValue {
-
     pub fn as_value(&self) -> Option<&Value> {
         match self {
             Self::Value(val) => Some(val),
@@ -167,8 +166,8 @@ impl Display for StackValue {
 
 #[derive(Default)]
 pub struct Stack {
-   stack: Vec<StackValue>,
-   frame_index: Vec<usize>,
+    stack: Vec<StackValue>,
+    frame_index: Vec<usize>,
 }
 
 impl Stack {
@@ -185,25 +184,28 @@ impl Stack {
     }
 
     pub fn is_func_top_level(&self) -> bool {
-        match self.stack[self.current_frame_index()..].iter().filter(|v| {
-            match v {
+        match self.stack[self.current_frame_index()..]
+            .iter()
+            .filter(|v| match v {
                 StackValue::Label(Label::Return(_)) => false,
                 StackValue::Label(_) => true,
                 _ => false,
-            }
-        }).next() {
+            })
+            .next()
+        {
             Some(_) => false,
             None => true,
         }
     }
 
     pub fn current_frame_labels(&self) -> Vec<&Label> {
-        self.stack[self.current_frame_index()..].iter().filter_map(|v| {
-            match v {
+        self.stack[self.current_frame_index()..]
+            .iter()
+            .filter_map(|v| match v {
                 StackValue::Label(label) => Some(label),
                 _ => None,
-            }
-        }).collect()
+            })
+            .collect()
     }
 
     pub fn latest(&self) -> &StackValue {
@@ -250,7 +252,7 @@ impl Stack {
             Some(StackValue::Activation(val)) => {
                 self.frame_index.pop();
                 return val;
-            },
+            }
             Some(val) => panic!("Unexpected stack value type {}", val),
             None => panic!("Stack is empty"),
         }
@@ -282,7 +284,7 @@ impl Debug for Stack {
         for v in &self.stack {
             match v {
                 StackValue::Value(value) => {
-                    writeln!(f, "| Value({})|{:?}|",value.value_type(), value)?;
+                    writeln!(f, "| Value({})|{:?}|", value.value_type(), value)?;
                 }
                 StackValue::Label(label) => {
                     writeln!(f, "| Label |{:?}|", label)?;

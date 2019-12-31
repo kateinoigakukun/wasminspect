@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr, TableAddr, MemoryAddr};
+use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::eval_const_expr;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
@@ -7,9 +7,9 @@ use super::module::{ModuleIndex, ModuleInstance};
 use super::table::TableInstance;
 use super::value::Value;
 use parity_wasm;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 /// Store
 pub struct Store {

@@ -29,11 +29,11 @@ impl MemoryInstance {
     }
 
     pub fn page_size(&self) -> usize {
-        self.data_len()/PAGE_SIZE
+        self.data_len() / PAGE_SIZE
     }
 
     pub fn load_as<T: FromLittleEndian>(&self, offset: usize) -> T {
-        let buf = &self.data[offset..offset+std::mem::size_of::<T>()];
+        let buf = &self.data[offset..offset + std::mem::size_of::<T>()];
         T::from_le(buf)
     }
 

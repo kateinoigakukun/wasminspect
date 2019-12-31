@@ -72,7 +72,7 @@ macro_rules! little_endian_conversion {
                 Self::from_le_bytes(b)
             }
         }
-    }
+    };
 }
 
 little_endian_conversion!(i32, 4);

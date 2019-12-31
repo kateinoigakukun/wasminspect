@@ -43,6 +43,7 @@
         {
             "type": "lldb",
             "request": "launch",
+            "sourceLanguages": ["rust"],
             "name": "Debug testsuite in executable 'wasminspect'",
             "cargo": {
                 "args": [
