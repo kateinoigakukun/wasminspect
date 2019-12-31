@@ -88,7 +88,7 @@ impl<'a> Executor<'a> {
             }
             println!("{}{}", indent, inst.clone());
         }
-        // println!("{:?}", self.stack);
+        println!("{:?}", self.stack);
         let result = match inst {
             Instruction::Unreachable => panic!(),
             Instruction::Nop => Ok(ExecSuccess::Next),
@@ -519,7 +519,6 @@ impl<'a> Executor<'a> {
                 StackValue::Value(_) => true,
                 _ => false,
             });
-            self.stack.pop_label();
         }
 
         for _ in 0..arity {
