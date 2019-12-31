@@ -6,6 +6,23 @@ pub enum TableInstance {
     External(ExternalTableInstance),
 }
 
+impl TableInstance {
+
+    pub fn buffer_len(&self) -> usize {
+        match self {
+            Self::Defined(defined) => defined.buffer_len(),
+            Self::External(_) => unimplemented!(),
+        }
+    }
+
+    pub fn get_at(&self, index: usize) -> Option<FuncAddr> {
+        match self {
+            Self::Defined(defined) => defined.get_at(index),
+            Self::External(_) => unimplemented!(),
+        }
+    }
+}
+
 pub struct DefinedTableInstance {
     buffer: Vec<Option<FuncAddr>>,
     max: Option<usize>,
