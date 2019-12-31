@@ -50,6 +50,10 @@ impl Store {
         &self.mems[&addr.0][addr.1]
     }
 
+    pub fn memory_mut(&mut self, addr: MemoryAddr) -> &mut MemoryInstance {
+        self.mems.get_mut(&addr.0).unwrap().get_mut(addr.1).unwrap()
+    }
+
     pub fn set_memory(&mut self, addr: MemoryAddr, offset: usize, bytes: &[u8]) {
         &mut self.mems.entry(addr.0).and_modify(|mems| {
             if let Some(mem) = mems.get_mut(addr.1) {

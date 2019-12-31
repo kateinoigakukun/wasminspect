@@ -150,6 +150,23 @@ impl Executor {
                 self.stack.push_value(Value::F64(f64::from_bits(*val)));
                 Ok(ExecSuccess::Next)
             }
+            Instruction::GrowMemory(_) => {
+                let grow_page: i32 = self.pop_as();
+                let frame = self.stack.current_frame();
+                let mem_addr = MemoryAddr(frame.module_index(), 0);
+                let mem = self.store.memory_mut(mem_addr);
+                let size = mem.page_size();
+                match mem.grow(grow_page as usize) {
+                    Ok(_) => {
+                        self.stack.push_value(Value::I32(size as i32));
+                    }
+                    Err(err) => {
+                        println!("[Debug] Failed to grow memory {:?}", err);
+                        self.stack.push_value(Value::I32(-1));
+                    }
+                }
+                Ok(ExecSuccess::Next)
+            }
             Instruction::Block(ty) => {
                 self.stack.push_label(Label::Block({
                     match ty {
@@ -440,7 +457,7 @@ impl Executor {
         }
         let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
         val.into_le(&mut buf);
-        self.store.set_memory(mem_addr, addr, &buf);
+        self.store.memory_mut(mem_addr).initialize(addr, &buf);
         Ok(ExecSuccess::Next)
     }
 }

@@ -3,6 +3,12 @@ pub struct MemoryInstance {
     max: Option<usize>,
 }
 
+#[derive(Debug)]
+pub enum Error {
+    OverMaximumSize(usize),
+    OverLimitWasmMemory,
+}
+
 static PAGE_SIZE: usize = 65536;
 impl MemoryInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
@@ -19,5 +25,25 @@ impl MemoryInstance {
     }
     pub fn data_len(&self) -> usize {
         self.data.len()
+    }
+
+    pub fn page_size(&self) -> usize {
+        self.data_len()/PAGE_SIZE
+    }
+
+    pub fn grow(&mut self, n: usize) -> Result<(), Error> {
+        let len = self.page_size() + n;
+        if len > 65536 {
+            return Err(Error::OverLimitWasmMemory);
+        }
+
+        if let Some(max) = self.max {
+            if len > max {
+                return Err(Error::OverMaximumSize(max));
+            }
+        }
+        let mut extra: Vec<u8> = std::iter::repeat(0).take(len * PAGE_SIZE).collect();
+        self.data.append(&mut extra);
+        return Ok(());
     }
 }
