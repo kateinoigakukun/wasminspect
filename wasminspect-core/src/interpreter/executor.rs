@@ -102,7 +102,8 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
             Instruction::Loop(_) => {
-                self.stack.push_label(Label::new_loop(self.pc.inst_index()));
+                let start_loop = InstIndex(self.pc.inst_index().0 - 1);
+                self.stack.push_label(Label::new_loop(start_loop));
                 Ok(ExecSuccess::Next)
             }
             Instruction::If(ty) => {
@@ -519,6 +520,7 @@ impl<'a> Executor<'a> {
                 StackValue::Value(_) => true,
                 _ => false,
             });
+            self.stack.pop_label();
         }
 
         for _ in 0..arity {
