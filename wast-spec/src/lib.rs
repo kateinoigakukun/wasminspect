@@ -105,6 +105,13 @@ impl WastContext {
                 } => {
                     println!("assert_malformed is unsupported");
                 }
+                AssertExhaustion {
+                    span: _,
+                    call: _,
+                    message: _,
+                } => {
+                    println!("assert_exhaustion is unsupported");
+                }
                 AssertInvalid {
                     span,
                     mut module,

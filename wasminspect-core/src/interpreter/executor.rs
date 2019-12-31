@@ -87,176 +87,10 @@ impl<'a> Executor<'a> {
             }
             println!("{}{}", indent, inst.clone());
         }
-        println!("{:?}", self.stack);
+        // println!("{:?}", self.stack);
         let result = match inst {
             Instruction::Unreachable => panic!(),
-            Instruction::GetGlobal(index) => {
-                let addr = GlobalAddr(module_index, *index as usize);
-                let global = self.store.global(addr);
-                self.stack.push_value(global.value());
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::SetGlobal(index) => {
-                let addr = GlobalAddr(module_index, *index as usize);
-                let value = self.stack.pop_value();
-                self.store.set_global(addr, value);
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::SetLocal(index) => self.set_local(*index as usize),
-            Instruction::GetLocal(index) => {
-                let value = self.stack.current_frame().local(*index as usize);
-                self.stack.push_value(value);
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::TeeLocal(index) => {
-                let val = self.stack.pop_value();
-                self.stack.push_value(val);
-                self.stack.push_value(val);
-                self.set_local(*index as usize)
-            }
-            Instruction::Drop => {
-                self.stack.pop_value();
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::Select => {
-                let cond: i32 = self.pop_as();
-                let val2 = self.stack.pop_value();
-                let val1 = self.stack.pop_value();
-                if cond != 0 {
-                    self.stack.push_value(val1);
-                } else {
-                    self.stack.push_value(val2);
-                }
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::I32Const(val) => {
-                self.stack.push_value(Value::I32(*val));
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::I32Add => self.int_int_op::<i32, _>(|a, b| Value::I32(a + b)),
-            Instruction::I32Sub => self.int_int_op::<i32, _>(|a, b| Value::I32(a - b)),
-            Instruction::I32Mul => self.int_int_op::<i32, _>(|a, b| Value::I32(a * b)),
-            Instruction::I32Eq => {
-                self.int_int_op::<i32, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
-            }
-            Instruction::I32LtS => {
-                self.int_int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
-            }
-            Instruction::I32LtU => {
-                self.int_int_op::<u32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
-            }
-            Instruction::I32LeS => {
-                self.int_int_op::<i32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
-            }
-            Instruction::I32LeU => {
-                self.int_int_op::<u32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
-            }
-            Instruction::I32Ctz => self.int_op::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
-            Instruction::I32Eqz => {
-                self.int_op::<i32, _>(|v| Value::I32(if v == 0 { 1 } else { 0 }))
-            }
-            Instruction::I64Const(val) => {
-                self.stack.push_value(Value::I64(*val));
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::I64Add => self.int_int_op::<i64, _>(|a, b| Value::I64(a + b)),
-            Instruction::I64Sub => self.int_int_op::<i64, _>(|a, b| Value::I64(a - b)),
-            Instruction::I64Mul => self.int_int_op::<i64, _>(|a, b| Value::I64(a * b)),
-            Instruction::I64Eq => {
-                self.int_int_op::<i64, _>(|a, b| Value::I64(if a == b { 1 } else { 0 }))
-            }
-            Instruction::I64LtS => {
-                self.int_int_op::<i64, _>(|a, b| Value::I64(if a < b { 1 } else { 0 }))
-            }
-            Instruction::I64LeS => {
-                self.int_int_op::<i64, _>(|a, b| Value::I64(if a <= b { 1 } else { 0 }))
-            }
-            Instruction::I64LeU => {
-                self.int_int_op::<u64, _>(|a, b| Value::I64(if a <= b { 1 } else { 0 }))
-            }
-            Instruction::I64Ctz => self.int_op::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
-            Instruction::I64Eqz => {
-                self.int_op::<i64, _>(|v| Value::I64(if v == 0 { 1 } else { 0 }))
-            }
-
-            Instruction::F32Const(val) => {
-                self.stack.push_value(Value::F32(f32::from_bits(*val)));
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::F32Add => self.int_int_op::<f32, _>(|a, b| Value::F32(a + b)),
-            Instruction::F32Sub => self.int_int_op::<f32, _>(|a, b| Value::F32(a - b)),
-            Instruction::F32Mul => self.int_int_op::<f32, _>(|a, b| Value::F32(a * b)),
-            Instruction::F32Gt => {
-                self.int_int_op::<f32, _>(|a, b| Value::I32(if a > b { 1 } else { 0 }))
-            }
-            Instruction::F32Lt => {
-                self.int_int_op::<f32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
-            }
-            Instruction::F32Le => {
-                self.int_int_op::<f32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
-            }
-            Instruction::F32Eq => {
-                self.int_int_op::<f32, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
-            }
-            Instruction::F64Const(val) => {
-                self.stack.push_value(Value::F64(f64::from_bits(*val)));
-                Ok(ExecSuccess::Next)
-            }
-            Instruction::F64Add => self.int_int_op::<f64, _>(|a, b| Value::F64(a + b)),
-            Instruction::F64Sub => self.int_int_op::<f64, _>(|a, b| Value::F64(a - b)),
-            Instruction::F64Mul => self.int_int_op::<f64, _>(|a, b| Value::F64(a * b)),
-            Instruction::F64Gt => {
-                self.int_int_op::<f64, _>(|a, b| Value::I32(if a > b { 1 } else { 0 }))
-            }
-            Instruction::F64Lt => {
-                self.int_int_op::<f64, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
-            }
-            Instruction::F64Le => {
-                self.int_int_op::<f64, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
-            }
-            Instruction::F64Eq => {
-                self.int_int_op::<f64, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
-            }
-
-            Instruction::I32Load(_, offset) => self.load::<i32>(*offset as usize),
-            Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize),
-            Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize),
-            Instruction::I32Load8S(_, offset) => self.load_extend::<i8, i32>(*offset as usize),
-            Instruction::I32Load16S(_, offset) => self.load_extend::<i16, i32>(*offset as usize),
-            Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize),
-
-            Instruction::I64Load(_, offset) => self.load::<i64>(*offset as usize),
-            Instruction::I64Load8U(_, offset) => self.load_extend::<u8, i64>(*offset as usize),
-            Instruction::I64Load16U(_, offset) => self.load_extend::<u16, i64>(*offset as usize),
-            Instruction::I64Load32U(_, offset) => self.load_extend::<u32, i64>(*offset as usize),
-            Instruction::I64Load8S(_, offset) => self.load_extend::<i8, i64>(*offset as usize),
-            Instruction::I64Load16S(_, offset) => self.load_extend::<i16, i64>(*offset as usize),
-            Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize),
-            Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize),
-
-            Instruction::F32Load(_, offset) => self.load::<f32>(*offset as usize),
-            Instruction::F32Store(_, offset) => self.store::<f32>(*offset as usize),
-
-            Instruction::F64Load(_, offset) => self.load::<f64>(*offset as usize),
-            Instruction::F64Store(_, offset) => self.store::<f64>(*offset as usize),
-
-            Instruction::GrowMemory(_) => {
-                let grow_page: i32 = self.pop_as();
-                let frame = self.stack.current_frame();
-                let mem_addr = MemoryAddr(frame.module_index(), 0);
-                let mem = self.store.memory_mut(mem_addr);
-                let size = mem.page_size();
-                match mem.grow(grow_page as usize) {
-                    Ok(_) => {
-                        self.stack.push_value(Value::I32(size as i32));
-                    }
-                    Err(err) => {
-                        println!("[Debug] Failed to grow memory {:?}", err);
-                        self.stack.push_value(Value::I32(-1));
-                    }
-                }
-                Ok(ExecSuccess::Next)
-            }
+            Instruction::Nop => Ok(ExecSuccess::Next),
             Instruction::Block(ty) => {
                 self.stack.push_label(Label::Block({
                     match ty {
@@ -302,6 +136,44 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
             Instruction::Else => self.branch(0),
+            Instruction::End => {
+                if self.stack.is_func_top_level() {
+                    // When the end of a function is reached without a jump
+                    let frame = self.stack.current_frame().clone();
+                    let func = self.store.func(frame.func_addr);
+                    println!("--- End of function {:?} ---", func.ty());
+                    let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
+                    let mut result = vec![];
+                    for _ in 0..arity {
+                        result.push(self.stack.pop_value());
+                    }
+                    // println!("{:?}", self.stack);
+                    self.stack.pop_label();
+                    self.stack.pop_frame();
+                    for v in result {
+                        self.stack.push_value(v);
+                    }
+                    println!("--- End of finish process ---");
+                    if let Some(ret_pc) = frame.ret_pc {
+                        self.pc = ret_pc;
+                        Ok(ExecSuccess::Next)
+                    } else {
+                        Ok(ExecSuccess::End)
+                    }
+                } else {
+                    // When the end of a block is reached without a jump
+                    let results = self.stack.pop_while(|v| match v {
+                        StackValue::Value(_) => true,
+                        _ => false,
+                    });
+                    self.stack.pop_label();
+                    for v in results {
+                        self.stack.push_value(*v.as_value().unwrap());
+                    }
+                    Ok(ExecSuccess::Next)
+                }
+            }
+            Instruction::Br(depth) => self.branch(*depth),
             Instruction::BrIf(depth) => {
                 let val = self.stack.pop_value();
                 if val != Value::I32(0) {
@@ -320,7 +192,7 @@ impl<'a> Executor<'a> {
                 };
                 self.branch(depth)
             }
-            Instruction::Br(depth) => self.branch(*depth),
+            Instruction::Return => self.do_return(),
             Instruction::Call(func_index) => {
                 let frame = self.stack.current_frame();
                 let addr = FuncAddr(frame.module_index(), *func_index as usize);
@@ -348,45 +220,185 @@ impl<'a> Executor<'a> {
                 assert_eq!(*func.ty(), ty);
                 self.invoke(func_addr)
             }
-            Instruction::Return => self.do_return(),
-            Instruction::End => {
-                if self.stack.is_func_top_level() {
-                    // When the end of a function is reached without a jump
-                    let frame = self.stack.current_frame().clone();
-                    let func = self.store.func(frame.func_addr);
-                    println!("--- End of function {:?} ---", func.ty());
-                    let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-                    let mut result = vec![];
-                    for _ in 0..arity {
-                        result.push(self.stack.pop_value());
-                    }
-                    println!("{:?}", self.stack);
-                    self.stack.pop_label();
-                    self.stack.pop_frame();
-                    for v in result {
-                        self.stack.push_value(v);
-                    }
-                    println!("--- End of finish process ---");
-                    if let Some(ret_pc) = frame.ret_pc {
-                        self.pc = ret_pc;
-                        Ok(ExecSuccess::Next)
-                    } else {
-                        Ok(ExecSuccess::End)
-                    }
-                } else {
-                    // When the end of a block is reached without a jump
-                    let results = self.stack.pop_while(|v| match v {
-                        StackValue::Value(_) => true,
-                        _ => false,
-                    });
-                    self.stack.pop_label();
-                    for v in results {
-                        self.stack.push_value(*v.as_value().unwrap());
-                    }
-                    Ok(ExecSuccess::Next)
-                }
+            Instruction::Drop => {
+                self.stack.pop_value();
+                Ok(ExecSuccess::Next)
             }
-            Instruction::Nop => Ok(ExecSuccess::Next),
+            Instruction::Select => {
+                let cond: i32 = self.pop_as();
+                let val2 = self.stack.pop_value();
+                let val1 = self.stack.pop_value();
+                if cond != 0 {
+                    self.stack.push_value(val1);
+                } else {
+                    self.stack.push_value(val2);
+                }
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::GetLocal(index) => {
+                let value = self.stack.current_frame().local(*index as usize);
+                self.stack.push_value(value);
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::SetLocal(index) => self.set_local(*index as usize),
+            Instruction::TeeLocal(index) => {
+                let val = self.stack.pop_value();
+                self.stack.push_value(val);
+                self.stack.push_value(val);
+                self.set_local(*index as usize)
+            }
+            Instruction::GetGlobal(index) => {
+                let addr = GlobalAddr(module_index, *index as usize);
+                let global = self.store.global(addr);
+                self.stack.push_value(global.value());
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::SetGlobal(index) => {
+                let addr = GlobalAddr(module_index, *index as usize);
+                let value = self.stack.pop_value();
+                self.store.set_global(addr, value);
+                Ok(ExecSuccess::Next)
+            }
+
+            Instruction::I32Load(_, offset) => self.load::<i32>(*offset as usize),
+            Instruction::I64Load(_, offset) => self.load::<i64>(*offset as usize),
+            Instruction::F32Load(_, offset) => self.load::<f32>(*offset as usize),
+            Instruction::F64Load(_, offset) => self.load::<f64>(*offset as usize),
+
+            Instruction::I32Load8S(_, offset) => self.load_extend::<i8, i32>(*offset as usize),
+            Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize),
+            Instruction::I32Load16S(_, offset) => self.load_extend::<i16, i32>(*offset as usize),
+            Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize),
+
+            Instruction::I64Load8S(_, offset) => self.load_extend::<i8, i64>(*offset as usize),
+            Instruction::I64Load8U(_, offset) => self.load_extend::<u8, i64>(*offset as usize),
+            Instruction::I64Load16S(_, offset) => self.load_extend::<i16, i64>(*offset as usize),
+            Instruction::I64Load16U(_, offset) => self.load_extend::<u16, i64>(*offset as usize),
+            Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize),
+            Instruction::I64Load32U(_, offset) => self.load_extend::<u32, i64>(*offset as usize),
+
+            Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize),
+            Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize),
+            Instruction::F32Store(_, offset) => self.store::<f32>(*offset as usize),
+            Instruction::F64Store(_, offset) => self.store::<f64>(*offset as usize),
+            // TODO 
+
+            Instruction::GrowMemory(_) => {
+                let grow_page: i32 = self.pop_as();
+                let frame = self.stack.current_frame();
+                let mem_addr = MemoryAddr(frame.module_index(), 0);
+                let mem = self.store.memory_mut(mem_addr);
+                let size = mem.page_size();
+                match mem.grow(grow_page as usize) {
+                    Ok(_) => {
+                        self.stack.push_value(Value::I32(size as i32));
+                    }
+                    Err(err) => {
+                        println!("[Debug] Failed to grow memory {:?}", err);
+                        self.stack.push_value(Value::I32(-1));
+                    }
+                }
+                Ok(ExecSuccess::Next)
+            }
+
+            Instruction::I32Const(val) => {
+                self.stack.push_value(Value::I32(*val));
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::I64Const(val) => {
+                self.stack.push_value(Value::I64(*val));
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::F32Const(val) => {
+                self.stack.push_value(Value::F32(f32::from_bits(*val)));
+                Ok(ExecSuccess::Next)
+            }
+            Instruction::F64Const(val) => {
+                self.stack.push_value(Value::F64(f64::from_bits(*val)));
+                Ok(ExecSuccess::Next)
+            }
+
+            Instruction::I32Eqz => {
+                self.int_op::<i32, _>(|v| Value::I32(if v == 0 { 1 } else { 0 }))
+            }
+            Instruction::I32Eq => {
+                self.int_int_op::<i32, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
+            }
+            Instruction::I32LtS => {
+                self.int_int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            Instruction::I32LtU => {
+                self.int_int_op::<u32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            // TODO
+
+            Instruction::I64Eqz => {
+                self.int_op::<i64, _>(|v| Value::I64(if v == 0 { 1 } else { 0 }))
+            }
+            Instruction::I64Eq => {
+                self.int_int_op::<i64, _>(|a, b| Value::I64(if a == b { 1 } else { 0 }))
+            }
+
+            Instruction::I32Add => self.int_int_op::<i32, _>(|a, b| Value::I32(a + b)),
+            Instruction::I32Sub => self.int_int_op::<i32, _>(|a, b| Value::I32(a - b)),
+            Instruction::I32Mul => self.int_int_op::<i32, _>(|a, b| Value::I32(a * b)),
+            Instruction::I32LeS => {
+                self.int_int_op::<i32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::I32LeU => {
+                self.int_int_op::<u32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::I32Ctz => self.int_op::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
+            Instruction::I64Add => self.int_int_op::<i64, _>(|a, b| Value::I64(a + b)),
+            Instruction::I64Sub => self.int_int_op::<i64, _>(|a, b| Value::I64(a - b)),
+            Instruction::I64Mul => self.int_int_op::<i64, _>(|a, b| Value::I64(a.wrapping_mul(b))),
+            Instruction::I64LtS => {
+                self.int_int_op::<i64, _>(|a, b| Value::I64(if a < b { 1 } else { 0 }))
+            }
+            Instruction::I64LeS => {
+                self.int_int_op::<i64, _>(|a, b| Value::I64(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::I64LeU => {
+                self.int_int_op::<u64, _>(|a, b| Value::I64(if a <= b { 1 } else { 0 }))
+            }
+            Instruction::I64Ctz => self.int_op::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
+
+            Instruction::F32Add => self.int_int_op::<f32, _>(|a, b| Value::F32(a + b)),
+            Instruction::F32Sub => self.int_int_op::<f32, _>(|a, b| Value::F32(a - b)),
+            Instruction::F32Mul => self.int_int_op::<f32, _>(|a, b| Value::F32(a * b)),
+
+            Instruction::F32Eq => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
+            }
+            Instruction::F32Lt => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            Instruction::F32Gt => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a > b { 1 } else { 0 }))
+            }
+            Instruction::F32Le => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
+            // TODO
+
+            Instruction::F64Eq => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
+            }
+            Instruction::F64Lt => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
+            }
+            Instruction::F64Gt => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a > b { 1 } else { 0 }))
+            }
+            Instruction::F64Le => {
+                self.int_int_op::<f64, _>(|a, b| Value::I32(if a <= b { 1 } else { 0 }))
+            }
+            // TODO
+
+            Instruction::F64Add => self.int_int_op::<f64, _>(|a, b| Value::F64(a + b)),
+            Instruction::F64Sub => self.int_int_op::<f64, _>(|a, b| Value::F64(a - b)),
+            Instruction::F64Mul => self.int_int_op::<f64, _>(|a, b| Value::F64(a * b)),
+
             _ => {
                 debug_assert!(false, format!("{} not supported yet", inst));
                 ExecResult::Err(ExecError::Panic(format!("{} not supported yet", inst)))
@@ -481,7 +493,7 @@ impl<'a> Executor<'a> {
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         println!("--- Start of Function {:?} ---", func.ty());
 
-        println!("{:?}", self.stack);
+        // println!("{:?}", self.stack);
         let mut args = Vec::new();
         for _ in func.ty().params() {
             args.push(self.stack.pop_value());
