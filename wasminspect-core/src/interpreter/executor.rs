@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr, TableAddr};
+use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::host::BuiltinPrintI32;
 use super::module::*;
@@ -133,9 +133,7 @@ impl Executor {
                 self.stack.push_value(Value::I32(*val));
                 Ok(ExecSuccess::Next)
             }
-            // Instruction::I32Store(_, offset) => {
-            //     let frame = self.stack.current_frame();
-            // }
+            Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize),
             Instruction::I32Add => self.int_op::<i32, _>(|a, b| Value::I32(a + b)),
             Instruction::I32LtS => {
                 self.int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
@@ -238,7 +236,7 @@ impl Executor {
                 let buf_index = buf_index as usize;
                 assert!(buf_index < table.buffer_len());
                 let func_addr = match table.get_at(buf_index) {
-                    Some(addr) => addr, 
+                    Some(addr) => addr,
                     None => panic!(),
                 };
                 let func = self.store.func(func_addr);
@@ -424,6 +422,25 @@ impl Executor {
         let value = self.stack.pop_value();
         self.stack.set_local(index, value);
 
+        Ok(ExecSuccess::Next)
+    }
+
+    fn store<T: TryFrom<Value> + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult {
+        let val: T = self.pop_as();
+        let raw_addr: i32 = self.pop_as();
+        let raw_addr = raw_addr as usize;
+        let addr: usize = raw_addr + offset;
+        let frame = self.stack.current_frame();
+        let mem_addr = MemoryAddr(frame.module_index(), 0);
+        let memory = { self.store.memory(mem_addr) };
+        let mem_len = memory.data_len();
+        let elem_size = std::mem::size_of::<T>();
+        if (addr + elem_size) > mem_len {
+            panic!();
+        }
+        let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
+        val.into_le(&mut buf);
+        self.store.set_memory(mem_addr, addr, &buf);
         Ok(ExecSuccess::Next)
     }
 }

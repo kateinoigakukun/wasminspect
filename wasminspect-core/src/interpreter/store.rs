@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr, TableAddr};
+use super::address::{FuncAddr, GlobalAddr, TableAddr, MemoryAddr};
 use super::executor::eval_const_expr;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
@@ -38,12 +38,24 @@ impl Store {
         instance[addr.1].set_value(value);
     }
 
-    pub fn global(&mut self, addr: GlobalAddr) -> &GlobalInstance {
+    pub fn global(&self, addr: GlobalAddr) -> &GlobalInstance {
         &self.globals[&addr.0][addr.1]
     }
 
     pub fn table(&self, addr: TableAddr) -> &TableInstance {
         &self.tables[&addr.0][addr.1]
+    }
+
+    pub fn memory(&self, addr: MemoryAddr) -> &MemoryInstance {
+        &self.mems[&addr.0][addr.1]
+    }
+
+    pub fn set_memory(&mut self, addr: MemoryAddr, offset: usize, bytes: &[u8]) {
+        &mut self.mems.entry(addr.0).and_modify(|mems| {
+            if let Some(mem) = mems.get_mut(addr.1) {
+                mem.initialize(offset, bytes)
+            }
+        });
     }
 
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {

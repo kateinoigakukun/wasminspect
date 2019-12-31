@@ -43,3 +43,13 @@ impl TryFrom<Value> for i64 {
         }
     }
 }
+
+pub trait IntoLittleEndian {
+    fn into_le(self, buf: &mut [u8]);
+}
+
+impl IntoLittleEndian for i32 {
+    fn into_le(self, buf: &mut [u8]) {
+        buf.copy_from_slice(&self.to_le_bytes());
+    }
+}
