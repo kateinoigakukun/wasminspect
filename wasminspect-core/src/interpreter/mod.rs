@@ -3,29 +3,29 @@ mod executor;
 mod export;
 mod func;
 mod global;
-mod table;
-mod memory;
 mod host;
+mod memory;
 mod module;
 mod stack;
 mod store;
-mod value;
+mod table;
 mod validator;
+mod value;
 
 use self::executor::{ExecSuccess, Executor};
 use self::export::ExternalValue;
 use self::func::InstIndex;
+use self::module::ModuleIndex;
 use self::stack::ProgramCounter;
 use self::store::Store;
-use self::module::ModuleIndex;
 pub use self::value::Value as WasmValue;
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct WasmInstance {
-    store: Rc<RefCell<Store>>,
-    module_index: ModuleIndex
+    store: Store,
+    module_index: ModuleIndex,
 }
 
 impl WasmInstance {
@@ -38,7 +38,7 @@ impl WasmInstance {
         let mut store = Store::new();
         let module_index = store.load_parity_module(parity_module);
         Self {
-            store: Rc::new(RefCell::new(store)),
+            store: store,
             module_index,
         }
     }
@@ -48,8 +48,7 @@ impl WasmInstance {
         func_name: Option<String>,
         arguments: Vec<WasmValue>,
     ) -> Result<Vec<WasmValue>, WasmError> {
-        let store = self.store.borrow();
-        let module = store.module(self.module_index);
+        let module = self.store.module(self.module_index);
         let pc = if let Some(func_name) = func_name {
             if let Some(export) = module.exported_func(func_name.clone()) {
                 if let ExternalValue::Func(func_addr) = export.value() {
@@ -67,13 +66,19 @@ impl WasmInstance {
         };
 
         let (ret_types, local_len) = {
-            let store = self.store.borrow();
-            let func = store.func(pc.func_addr()).defined().unwrap();
+            let func = self.store.func(pc.func_addr()).defined().unwrap();
             let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
             let local_len = func.ty().params().len() + func.code().locals().len();
             (ret_types, local_len)
         };
-        let mut executor = Executor::new(local_len, pc.func_addr(), arguments, ret_types.len(), pc, self.store.clone());
+        let mut executor = Executor::new(
+            local_len,
+            pc.func_addr(),
+            arguments,
+            ret_types.len(),
+            pc,
+            &mut self.store,
+        );
         loop {
             let result = executor.execute_step();
             match result {

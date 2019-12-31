@@ -7,6 +7,7 @@ use super::store::*;
 use super::value::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
+use std::rc::Rc;
 use std::convert::TryFrom;
 
 #[derive(Debug)]
@@ -31,20 +32,20 @@ pub enum ReturnValError {
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
-pub struct Executor {
-    store: Store,
+pub struct Executor<'a> {
+    store: &'a mut Store,
     pc: ProgramCounter,
     stack: Stack,
 }
 
-impl Executor {
+impl<'a> Executor<'a> {
     pub fn new(
         local_len: usize,
         func_addr: FuncAddr,
         initial_args: Vec<Value>,
         initial_arity: usize,
         pc: ProgramCounter,
-        store: Store,
+        store: &'a mut Store,
     ) -> Self {
         let mut stack = Stack::default();
         let frame = CallFrame::new(func_addr, local_len, initial_args, None);
