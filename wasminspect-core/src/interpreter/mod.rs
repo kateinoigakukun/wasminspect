@@ -17,21 +17,30 @@ use self::export::ExternalValue;
 use self::func::InstIndex;
 use self::stack::ProgramCounter;
 use self::store::Store;
+use self::module::ModuleIndex;
 pub use self::value::Value as WasmValue;
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 pub struct WasmInstance {
-    parity_module: parity_wasm::elements::Module,
+    store: Rc<RefCell<Store>>,
+    module_index: ModuleIndex
 }
 
 impl WasmInstance {
     pub fn new(module_filename: String) -> Self {
-        Self {
-            parity_module: parity_wasm::deserialize_file(module_filename).unwrap(),
-        }
+        let parity_module = parity_wasm::deserialize_file(module_filename).unwrap();
+        Self::new_from_parity_module(parity_module)
     }
 
     pub fn new_from_parity_module(parity_module: parity_wasm::elements::Module) -> Self {
-        Self { parity_module }
+        let mut store = Store::new();
+        let module_index = store.load_parity_module(parity_module);
+        Self {
+            store: Rc::new(RefCell::new(store)),
+            module_index,
+        }
     }
 
     pub fn run(
@@ -39,8 +48,8 @@ impl WasmInstance {
         func_name: Option<String>,
         arguments: Vec<WasmValue>,
     ) -> Result<Vec<WasmValue>, WasmError> {
-        let mut store = Store::new();
-        let module = store.load_parity_module(self.parity_module.clone());
+        let store = self.store.borrow();
+        let module = store.module(self.module_index);
         let pc = if let Some(func_name) = func_name {
             if let Some(export) = module.exported_func(func_name.clone()) {
                 if let ExternalValue::Func(func_addr) = export.value() {
@@ -57,10 +66,14 @@ impl WasmInstance {
             panic!()
         };
 
-        let func = store.func(pc.func_addr()).defined().unwrap();
-        let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-        let local_len = func.ty().params().len() + func.code().locals().len();
-        let mut executor = Executor::new(local_len, pc.func_addr(), arguments, ret_types.len(), pc, store);
+        let (ret_types, local_len) = {
+            let store = self.store.borrow();
+            let func = store.func(pc.func_addr()).defined().unwrap();
+            let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
+            let local_len = func.ty().params().len() + func.code().locals().len();
+            (ret_types, local_len)
+        };
+        let mut executor = Executor::new(local_len, pc.func_addr(), arguments, ret_types.len(), pc, self.store.clone());
         loop {
             let result = executor.execute_step();
             match result {

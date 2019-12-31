@@ -8,6 +8,8 @@ use super::table::TableInstance;
 use super::value::Value;
 use parity_wasm;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 /// Store
 pub struct Store {
@@ -71,7 +73,7 @@ impl Store {
     pub fn load_parity_module(
         &mut self,
         parity_module: parity_wasm::elements::Module,
-    ) -> &ModuleInstance {
+    ) -> ModuleIndex {
         let types = Self::get_types(&parity_module);
         let elem_segs = Self::get_element_segments(&parity_module);
         let data_segs = Self::get_data_segments(&parity_module);
@@ -87,8 +89,7 @@ impl Store {
         let instance =
             ModuleInstance::new_from_parity_module(parity_module, module_index, types, func_addrs);
         self.modules.push(instance);
-        // FIXME
-        &self.modules.last().unwrap()
+        return module_index;
     }
 
     fn get_types(parity_module: &parity_wasm::elements::Module) -> &[parity_wasm::elements::Type] {

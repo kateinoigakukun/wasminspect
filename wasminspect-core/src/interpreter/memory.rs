@@ -1,3 +1,4 @@
+use super::value::FromLittleEndian;
 pub struct MemoryInstance {
     data: Vec<u8>,
     max: Option<usize>,
@@ -29,6 +30,11 @@ impl MemoryInstance {
 
     pub fn page_size(&self) -> usize {
         self.data_len()/PAGE_SIZE
+    }
+
+    pub fn load_as<T: FromLittleEndian>(&self, offset: usize) -> T {
+        let buf = &self.data[offset..offset+std::mem::size_of::<T>()];
+        T::from_le(buf)
     }
 
     pub fn grow(&mut self, n: usize) -> Result<(), Error> {

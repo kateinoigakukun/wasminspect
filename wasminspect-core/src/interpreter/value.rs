@@ -44,6 +44,18 @@ impl TryFrom<Value> for i64 {
     }
 }
 
+impl Into<Value> for i32 {
+    fn into(self) -> Value {
+        Value::I32(self)
+    }
+}
+
+impl Into<Value> for i64 {
+    fn into(self) -> Value {
+        Value::I64(self)
+    }
+}
+
 pub trait IntoLittleEndian {
     fn into_le(self, buf: &mut [u8]);
 }
@@ -51,5 +63,17 @@ pub trait IntoLittleEndian {
 impl IntoLittleEndian for i32 {
     fn into_le(self, buf: &mut [u8]) {
         buf.copy_from_slice(&self.to_le_bytes());
+    }
+}
+
+pub trait FromLittleEndian {
+    fn from_le(buf: &[u8]) -> Self;
+}
+
+impl FromLittleEndian for i32 {
+    fn from_le(buf: &[u8]) -> Self {
+        let mut b: [u8; 4] = Default::default();
+        b.copy_from_slice(&buf[0..4]);
+        i32::from_le_bytes(b)
     }
 }
