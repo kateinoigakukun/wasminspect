@@ -134,7 +134,11 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
             Instruction::I32Add => self.int_int_op::<i32, _>(|a, b| Value::I32(a + b)),
+            Instruction::I32Sub => self.int_int_op::<i32, _>(|a, b| Value::I32(a - b)),
             Instruction::I32Mul => self.int_int_op::<i32, _>(|a, b| Value::I32(a * b)),
+            Instruction::I32Eq => {
+                self.int_int_op::<i32, _>(|a, b| Value::I32(if a == b { 1 } else { 0 }))
+            }
             Instruction::I32LtS => {
                 self.int_int_op::<i32, _>(|a, b| Value::I32(if a < b { 1 } else { 0 }))
             }
@@ -149,6 +153,9 @@ impl<'a> Executor<'a> {
             Instruction::F32Const(val) => {
                 self.stack.push_value(Value::F32(f32::from_bits(*val)));
                 Ok(ExecSuccess::Next)
+            }
+            Instruction::F32Gt => {
+                self.int_int_op::<f32, _>(|a, b| Value::I32(if a > b { 1 } else { 0 }))
             }
             Instruction::F64Const(val) => {
                 self.stack.push_value(Value::F64(f64::from_bits(*val)));

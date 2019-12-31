@@ -24,56 +24,56 @@ pub enum ValueConversionError {
     InvalidType(String),
 }
 
-impl TryFrom<Value> for i32 {
-    type Error = ValueConversionError;
-    fn try_from(input: Value) -> Result<i32, ValueConversionError> {
-        match input {
-            Value::I32(val) => Ok(val),
-            _ => Err(ValueConversionError::InvalidType("i32".to_string())),
+macro_rules! primitive_conversion {
+    ($case:path, $type:ty) => {
+        impl TryFrom<Value> for $type {
+            type Error = ValueConversionError;
+            fn try_from(input: Value) -> Result<$type, ValueConversionError> {
+                match input {
+                    $case(val) => Ok(val),
+                    _ => Err(ValueConversionError::InvalidType("$type".to_string())),
+                }
+            }
         }
-    }
-}
 
-impl TryFrom<Value> for i64 {
-    type Error = ValueConversionError;
-    fn try_from(input: Value) -> Result<i64, ValueConversionError> {
-        match input {
-            Value::I64(val) => Ok(val),
-            _ => Err(ValueConversionError::InvalidType("i64".to_string())),
+        impl Into<Value> for $type {
+            fn into(self) -> Value {
+                $case(self)
+            }
         }
-    }
+    };
 }
 
-impl Into<Value> for i32 {
-    fn into(self) -> Value {
-        Value::I32(self)
-    }
-}
-
-impl Into<Value> for i64 {
-    fn into(self) -> Value {
-        Value::I64(self)
-    }
-}
+primitive_conversion!(Value::I32, i32);
+primitive_conversion!(Value::I64, i64);
+primitive_conversion!(Value::F32, f32);
+primitive_conversion!(Value::F64, f64);
 
 pub trait IntoLittleEndian {
     fn into_le(self, buf: &mut [u8]);
-}
-
-impl IntoLittleEndian for i32 {
-    fn into_le(self, buf: &mut [u8]) {
-        buf.copy_from_slice(&self.to_le_bytes());
-    }
 }
 
 pub trait FromLittleEndian {
     fn from_le(buf: &[u8]) -> Self;
 }
 
-impl FromLittleEndian for i32 {
-    fn from_le(buf: &[u8]) -> Self {
-        let mut b: [u8; 4] = Default::default();
-        b.copy_from_slice(&buf[0..4]);
-        i32::from_le_bytes(b)
+macro_rules! little_endian_conversion {
+    ($type:ty, $size:expr) => {
+        impl IntoLittleEndian for $type {
+            fn into_le(self, buf: &mut [u8]) {
+                buf.copy_from_slice(&self.to_le_bytes());
+            }
+        }
+
+        impl FromLittleEndian for $type {
+            fn from_le(buf: &[u8]) -> Self {
+                let mut b: [u8; $size] = Default::default();
+                b.copy_from_slice(&buf[0..$size]);
+                Self::from_le_bytes(b)
+            }
+        }
     }
 }
+
+little_endian_conversion!(i32, 4);
+little_endian_conversion!(i64, 8);
