@@ -79,10 +79,39 @@ little_endian_conversion!(u8, 1);
 little_endian_conversion!(u16, 2);
 little_endian_conversion!(u32, 4);
 little_endian_conversion!(u64, 8);
+
 little_endian_conversion!(i8, 1);
 little_endian_conversion!(i16, 2);
 little_endian_conversion!(i32, 4);
 little_endian_conversion!(i64, 8);
+
+impl IntoLittleEndian for f32 {
+    fn into_le(self, buf: &mut [u8]) {
+        buf.copy_from_slice(&self.to_bits().to_le_bytes());
+    }
+}
+
+impl FromLittleEndian for f32 {
+    fn from_le(buf: &[u8]) -> Self {
+        let mut b: [u8; 4] = Default::default();
+        b.copy_from_slice(&buf[0..4]);
+        Self::from_bits(u32::from_le_bytes(b))
+    }
+}
+
+impl IntoLittleEndian for f64 {
+    fn into_le(self, buf: &mut [u8]) {
+        buf.copy_from_slice(&self.to_bits().to_le_bytes());
+    }
+}
+
+impl FromLittleEndian for f64 {
+    fn from_le(buf: &[u8]) -> Self {
+        let mut b: [u8; 8] = Default::default();
+        b.copy_from_slice(&buf[0..8]);
+        Self::from_bits(u64::from_le_bytes(b))
+    }
+}
 
 pub trait ExtendInto<T> {
     fn extend_into(self) -> T;

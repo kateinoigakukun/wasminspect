@@ -177,6 +177,12 @@ impl<'a> Executor<'a> {
             Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize),
             Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize),
 
+            Instruction::F32Load(_, offset) => self.load::<f32>(*offset as usize),
+            Instruction::F32Store(_, offset) => self.store::<f32>(*offset as usize),
+
+            Instruction::F64Load(_, offset) => self.load::<f64>(*offset as usize),
+            Instruction::F64Store(_, offset) => self.store::<f64>(*offset as usize),
+
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as();
                 let frame = self.stack.current_frame();

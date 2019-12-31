@@ -81,7 +81,7 @@ impl WastContext {
                     Ok(values) => {
                         for (v, e) in values.iter().zip(results.iter().map(const_expr)) {
                             let e = e;
-                            if v == &e {
+                            if is_equal_value(*v, e) {
                                 continue;
                             }
                             panic!("expected {:?}, got {:?}", e, v)
@@ -196,5 +196,15 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
         wast::Instruction::F64Const(x) => WasmValue::F64(f64::from_bits(x.bits)),
         wast::Instruction::V128Const(x) => panic!(),
         _ => panic!(),
+    }
+}
+
+fn is_equal_value(lhs: WasmValue, rhs: WasmValue) -> bool {
+    match (lhs, rhs) {
+        (WasmValue::I32(lhs), WasmValue::I32(rhs)) => (lhs == rhs),
+        (WasmValue::I64(lhs), WasmValue::I64(rhs)) => (lhs == rhs),
+        (WasmValue::F32(lhs), WasmValue::F32(rhs)) => (lhs == rhs) || (lhs.is_nan() && rhs.is_nan()),
+        (WasmValue::F64(lhs), WasmValue::F64(rhs)) => (lhs == rhs) || (lhs.is_nan() && rhs.is_nan()),
+        (_, _) => false,
     }
 }
