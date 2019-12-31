@@ -162,7 +162,21 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
             Instruction::I32Load(_, offset) => self.load::<i32>(*offset as usize),
+            Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize),
+            Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize),
+            Instruction::I32Load8S(_, offset) => self.load_extend::<i8, i32>(*offset as usize),
+            Instruction::I32Load16S(_, offset) => self.load_extend::<i16, i32>(*offset as usize),
             Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize),
+
+            Instruction::I64Load(_, offset) => self.load::<i64>(*offset as usize),
+            Instruction::I64Load8U(_, offset) => self.load_extend::<u8, i64>(*offset as usize),
+            Instruction::I64Load16U(_, offset) => self.load_extend::<u16, i64>(*offset as usize),
+            Instruction::I64Load32U(_, offset) => self.load_extend::<u32, i64>(*offset as usize),
+            Instruction::I64Load8S(_, offset) => self.load_extend::<i8, i64>(*offset as usize),
+            Instruction::I64Load16S(_, offset) => self.load_extend::<i16, i64>(*offset as usize),
+            Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize),
+            Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize),
+
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as();
                 let frame = self.stack.current_frame();
@@ -477,8 +491,9 @@ impl<'a> Executor<'a> {
         self.store.memory_mut(mem_addr).initialize(addr, &buf);
         Ok(ExecSuccess::Next)
     }
-    fn load<T: TryFrom<Value> + FromLittleEndian>(&mut self, offset: usize) -> ExecResult
+    fn load<T>(&mut self, offset: usize) -> ExecResult
     where
+        T: TryFrom<Value> + FromLittleEndian,
         T: Into<Value>,
     {
         let raw_addr: i32 = self.pop_as();
@@ -494,6 +509,28 @@ impl<'a> Executor<'a> {
             panic!();
         }
         let result: T = memory.load_as(addr);
+        self.stack.push_value(result.into());
+        Ok(ExecSuccess::Next)
+    }
+
+    fn load_extend<T: FromLittleEndian + ExtendInto<U>, U: Into<Value>>(
+        &mut self,
+        offset: usize,
+    ) -> ExecResult {
+        let raw_addr: i32 = self.pop_as();
+        let raw_addr = raw_addr as usize;
+        let addr: usize = raw_addr + offset;
+
+        let frame = self.stack.current_frame();
+        let mem_addr = MemoryAddr(frame.module_index(), 0);
+        let memory = { self.store.memory(mem_addr) };
+        let mem_len = memory.data_len();
+        let elem_size = std::mem::size_of::<T>();
+        if (addr + elem_size) > mem_len {
+            panic!();
+        }
+        let result: T = memory.load_as(addr);
+        let result = result.extend_into();
         self.stack.push_value(result.into());
         Ok(ExecSuccess::Next)
     }

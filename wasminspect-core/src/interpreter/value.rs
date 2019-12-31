@@ -75,5 +75,37 @@ macro_rules! little_endian_conversion {
     };
 }
 
+little_endian_conversion!(u8, 1);
+little_endian_conversion!(u16, 2);
+little_endian_conversion!(u32, 4);
+little_endian_conversion!(u64, 8);
+little_endian_conversion!(i8, 1);
+little_endian_conversion!(i16, 2);
 little_endian_conversion!(i32, 4);
 little_endian_conversion!(i64, 8);
+
+pub trait ExtendInto<T> {
+    fn extend_into(self) -> T;
+}
+
+macro_rules! extend_conversion {
+    ($from:ty, $to:ty) => {
+        impl ExtendInto<$to> for $from {
+            fn extend_into(self) -> $to {
+                self as $to
+            }
+        }
+    };
+}
+
+extend_conversion!(u8, i32);
+extend_conversion!(u16, i32);
+extend_conversion!(i8, i32);
+extend_conversion!(i16, i32);
+
+extend_conversion!(u8, i64);
+extend_conversion!(u16, i64);
+extend_conversion!(u32, i64);
+extend_conversion!(i8, i64);
+extend_conversion!(i16, i64);
+extend_conversion!(i32, i64);

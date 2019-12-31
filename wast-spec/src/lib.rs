@@ -91,6 +91,20 @@ impl WastContext {
                         panic!("unexpected err: {}", e);
                     }
                 },
+                AssertTrap {
+                    span: _,
+                    exec: _,
+                    message: _,
+                } => {
+                    println!("assert_trap is unsupported");
+                }
+                AssertMalformed {
+                    span: _,
+                    module: _,
+                    message: _,
+                } => {
+                    println!("assert_malformed is unsupported");
+                }
                 AssertInvalid {
                     span,
                     mut module,
