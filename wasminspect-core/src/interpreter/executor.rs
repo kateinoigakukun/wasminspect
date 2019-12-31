@@ -730,14 +730,17 @@ impl<'a> Executor<'a> {
     }
 }
 
-pub fn eval_const_expr(init_expr: &InitExpr) -> Value {
+pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: ModuleIndex) -> Value {
     let inst = &init_expr.code()[0];
     match *inst {
         Instruction::I32Const(val) => Value::I32(val),
         Instruction::I64Const(val) => Value::I64(val),
         Instruction::F32Const(val) => Value::F32(f32::from_bits(val)),
         Instruction::F64Const(val) => Value::F64(f64::from_bits(val)),
-        Instruction::GetGlobal(_) => panic!(),
+        Instruction::GetGlobal(index) => {
+            let addr = GlobalAddr(module_index, index as usize);
+            store.global(addr).value()
+        },
         _ => panic!("Unsupported init_expr {}", inst),
     }
 }

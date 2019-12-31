@@ -310,7 +310,7 @@ impl Store {
             .unwrap_or_default();
         let mut global_addrs = Vec::new();
         for entry in globals {
-            let value = eval_const_expr(entry.init_expr());
+            let value = eval_const_expr(entry.init_expr(), &self, module_index);
             let instance = DefinedGlobalInstance::new(value, entry.global_type().clone());
             let map = self.globals.entry(module_index).or_insert(Vec::new());
             let global_index = map.len();
@@ -343,7 +343,7 @@ impl Store {
                         let segs = &element_segments[&index];
                         for seg in segs {
                             let offset =
-                                match seg.offset().as_ref().map(|e| eval_const_expr(&e)).unwrap() {
+                                match seg.offset().as_ref().map(|e| eval_const_expr(&e, self, module_index)).unwrap() {
                                     Value::I32(v) => v,
                                     _ => panic!(),
                                 };
@@ -384,7 +384,7 @@ impl Store {
             if data_segments.len() > index {
                 let segs = &data_segments[&index];
                 for seg in segs {
-                    let offset = match seg.offset().as_ref().map(|e| eval_const_expr(&e)).unwrap() {
+                    let offset = match seg.offset().as_ref().map(|e| eval_const_expr(&e, self, module_index)).unwrap() {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
