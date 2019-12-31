@@ -8,6 +8,7 @@ use super::value::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::convert::TryFrom;
+use std::ops::*;
 
 #[derive(Debug)]
 pub enum ExecError {
@@ -329,42 +330,117 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
 
-            Instruction::I32Eqz => self.relop::<i32, _>(|a, b| a == b),
+            Instruction::I32Eqz => self.testop::<i32, _>(|v| v == 0),
             Instruction::I32Eq => self.relop::<i32, _>(|a, b| a == b),
             Instruction::I32Ne => self.relop::<i32, _>(|a, b| a != b),
             Instruction::I32LtS => self.relop::<i32, _>(|a, b| a < b),
             Instruction::I32LtU => self.relop::<u32, _>(|a, b| a < b),
-            // TODO
-            Instruction::I64Eqz => self.testop::<i64, _>(|v| v == 0),
-            Instruction::I64Eq => self.relop::<i64, _>(|a, b| a == b),
-
-            Instruction::I32Add => self.binop::<i32, _>(|a, b| Value::I32(a + b)),
-            Instruction::I32Sub => self.binop::<i32, _>(|a, b| Value::I32(a - b)),
-            Instruction::I32Mul => self.binop::<i32, _>(|a, b| Value::I32(a * b)),
+            Instruction::I32GtS => self.relop::<i32, _>(|a, b| a > b),
+            Instruction::I32GtU => self.relop::<u32, _>(|a, b| a > b),
             Instruction::I32LeS => self.relop::<i32, _>(|a, b| a <= b),
             Instruction::I32LeU => self.relop::<u32, _>(|a, b| a <= b),
-            Instruction::I32Ctz => self.unop::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
-            Instruction::I64Add => self.binop::<i64, _>(|a, b| Value::I64(a + b)),
-            Instruction::I64Sub => self.binop::<i64, _>(|a, b| Value::I64(a - b)),
-            Instruction::I64Mul => self.binop::<i64, _>(|a, b| Value::I64(a.wrapping_mul(b))),
+            Instruction::I32GeS => self.relop::<i32, _>(|a, b| a >= b),
+            Instruction::I32GeU => self.relop::<u32, _>(|a, b| a >= b),
+
+            Instruction::I64Eqz => self.testop::<i64, _>(|v| v == 0),
+            Instruction::I64Eq => self.relop::<i64, _>(|a, b| a == b),
+            Instruction::I64Ne => self.relop::<i64, _>(|a, b| a != b),
             Instruction::I64LtS => self.relop::<i64, _>(|a, b| a < b),
+            Instruction::I64LtU => self.relop::<u64, _>(|a, b| a < b),
+            Instruction::I64GtS => self.relop::<i64, _>(|a, b| a > b),
+            Instruction::I64GtU => self.relop::<u64, _>(|a, b| a > b),
             Instruction::I64LeS => self.relop::<i64, _>(|a, b| a <= b),
             Instruction::I64LeU => self.relop::<u64, _>(|a, b| a <= b),
-            Instruction::I64Ctz => self.unop::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
-
-            Instruction::F32Add => self.binop::<f32, _>(|a, b| Value::F32(a + b)),
-            Instruction::F32Sub => self.binop::<f32, _>(|a, b| Value::F32(a - b)),
-            Instruction::F32Mul => self.binop::<f32, _>(|a, b| Value::F32(a * b)),
+            Instruction::I64GeS => self.relop::<i64, _>(|a, b| a >= b),
+            Instruction::I64GeU => self.relop::<u64, _>(|a, b| a >= b),
 
             Instruction::F32Eq => self.relop::<f32, _>(|a, b| a == b),
+            Instruction::F32Ne => self.relop::<f32, _>(|a, b| a == b),
             Instruction::F32Lt => self.relop::<f32, _>(|a, b| a < b),
             Instruction::F32Gt => self.relop::<f32, _>(|a, b| a > b),
             Instruction::F32Le => self.relop::<f32, _>(|a, b| a <= b),
-            // TODO
+            Instruction::F32Ge => self.relop::<f32, _>(|a, b| a >= b),
+
             Instruction::F64Eq => self.relop::<f64, _>(|a, b| a == b),
+            Instruction::F64Ne => self.relop::<f64, _>(|a, b| a == b),
             Instruction::F64Lt => self.relop::<f64, _>(|a, b| a < b),
             Instruction::F64Gt => self.relop::<f64, _>(|a, b| a > b),
             Instruction::F64Le => self.relop::<f64, _>(|a, b| a <= b),
+            Instruction::F64Ge => self.relop::<f64, _>(|a, b| a >= b),
+
+            Instruction::I32Clz => self.unop::<i32, _>(|v| Value::I32(v.leading_zeros() as i32)),
+            Instruction::I32Ctz => self.unop::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
+            Instruction::I32Popcnt => self.unop::<i32, _>(|v| Value::I32(v.count_ones() as i32)),
+            Instruction::I32Add => self.binop::<i32, _>(|a, b| Value::I32(a + b)),
+            Instruction::I32Sub => self.binop::<i32, _>(|a, b| Value::I32(a - b)),
+            Instruction::I32Mul => self.binop::<i32, _>(|a, b| Value::I32(a * b)),
+            Instruction::I32DivS => self.binop::<i32, _>(|a, b| Value::I32(a / b)),
+            Instruction::I32DivU => {
+                self.binop::<i32, _>(|a, b| Value::I32(((a / b) as u32) as i32))
+            }
+            Instruction::I32RemS => self.binop::<i32, _>(|a, b| Value::I32(a.wrapping_rem(b))),
+            Instruction::I32RemU => {
+                self.binop::<i32, _>(|a, b| Value::I32(((a.wrapping_rem(b)) as u32) as i32))
+            }
+            Instruction::I32And => self.binop::<i32, _>(|a, b| Value::I32(a.bitand(b))),
+            Instruction::I32Or => self.binop::<i32, _>(|a, b| Value::I32(a.bitor(b))),
+            Instruction::I32Xor => self.binop::<i32, _>(|a, b| Value::I32(a.bitxor(b))),
+            Instruction::I32Shl => self.binop::<i32, _>(|a, b| Value::I32(a.shl(b))),
+            Instruction::I32ShrS => self.binop::<i32, _>(|a, b| Value::I32(a.shr(b))),
+            Instruction::I32ShrU => {
+                self.binop::<i32, _>(|a, b| Value::I32((a.shr(b) as u32) as i32))
+            }
+            Instruction::I32Rotl => {
+                self.binop::<i32, _>(|a, b| Value::I32(a.rotate_left(b as u32)))
+            }
+            Instruction::I32Rotr => {
+                self.binop::<i32, _>(|a, b| Value::I32(a.rotate_right(b as u32)))
+            }
+
+            Instruction::I64Clz => self.unop::<i64, _>(|v| Value::I64(v.leading_zeros() as i64)),
+            Instruction::I64Ctz => self.unop::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
+            Instruction::I64Popcnt => self.unop::<i64, _>(|v| Value::I64(v.count_ones() as i64)),
+            Instruction::I64Add => self.binop::<i64, _>(|a, b| Value::I64(a + b)),
+            Instruction::I64Sub => self.binop::<i64, _>(|a, b| Value::I64(a - b)),
+            Instruction::I64Mul => self.binop::<i64, _>(|a, b| Value::I64(a.wrapping_mul(b))),
+            Instruction::I64DivS => self.binop::<i64, _>(|a, b| Value::I64(a / b)),
+            Instruction::I64DivU => {
+                self.binop::<i64, _>(|a, b| Value::I64(((a / b) as u64) as i64))
+            }
+            Instruction::I64RemS => self.binop::<i64, _>(|a, b| Value::I64(a.wrapping_rem(b))),
+            Instruction::I64RemU => {
+                self.binop::<i64, _>(|a, b| Value::I64(((a.wrapping_rem(b)) as u64) as i64))
+            }
+            Instruction::I64And => self.binop::<i64, _>(|a, b| Value::I64(a.bitand(b))),
+            Instruction::I64Or => self.binop::<i64, _>(|a, b| Value::I64(a.bitor(b))),
+            Instruction::I64Xor => self.binop::<i64, _>(|a, b| Value::I64(a.bitxor(b))),
+            Instruction::I64Shl => self.binop::<i64, _>(|a, b| Value::I64(a.shl(b))),
+            Instruction::I64ShrS => self.binop::<i64, _>(|a, b| Value::I64(a.shr(b))),
+            Instruction::I64ShrU => {
+                self.binop::<i64, _>(|a, b| Value::I64((a.shr(b) as u64) as i64))
+            }
+            Instruction::I64Rotl => {
+                self.binop::<i64, _>(|a, b| Value::I64(a.rotate_left(b as u32)))
+            }
+            Instruction::I64Rotr => {
+                self.binop::<i64, _>(|a, b| Value::I64(a.rotate_right(b as u32)))
+            }
+
+            Instruction::F32Abs => self.unop::<f32, _>(|v| Value::F32(v.abs())),
+            Instruction::F32Neg => self.unop::<f32, _>(|v| Value::F32(-v)),
+            Instruction::F32Ceil => self.unop::<f32, _>(|v| Value::F32(v.ceil())),
+            Instruction::F32Floor => self.unop::<f32, _>(|v| Value::F32(v.floor())),
+            Instruction::F32Trunc => self.unop::<f32, _>(|v| Value::F32(v.trunc())),
+            Instruction::F32Nearest => self.unop::<f32, _>(|v| Value::F32(v.round())),
+            Instruction::F32Sqrt => self.unop::<f32, _>(|v| Value::F32(v.sqrt())),
+            Instruction::F32Add => self.binop::<f32, _>(|a, b| Value::F32(a + b)),
+            Instruction::F32Sub => self.binop::<f32, _>(|a, b| Value::F32(a - b)),
+            Instruction::F32Mul => self.binop::<f32, _>(|a, b| Value::F32(a * b)),
+            Instruction::F32Div => self.binop::<f32, _>(|a, b| Value::F32(a / b)),
+            Instruction::F32Min => self.binop::<f32, _>(|a, b| Value::F32(a.min(b))),
+            Instruction::F32Max => self.binop::<f32, _>(|a, b| Value::F32(a.max(b))),
+            Instruction::F32Copysign => unimplemented!(),
+
             // TODO
             Instruction::F64Add => self.binop::<f64, _>(|a, b| Value::F64(a + b)),
             Instruction::F64Sub => self.binop::<f64, _>(|a, b| Value::F64(a - b)),
