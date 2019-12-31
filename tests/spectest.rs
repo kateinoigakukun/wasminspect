@@ -18,6 +18,10 @@ fn run_spectest(filename: &str) {
 }
 
 run_wast!("address.wast", test_wast_address);
-run_wast!("br.wast", test_wast_br);
-run_wast!("br_if.wast", test_wast_br_if);
+run_wast!("align.wast", test_wast_align);
+run_wast!("binary-leb128.wast", test_wast_binary_leb128);
+run_wast!("binary.wast", test_wast_binary);
 run_wast!("block.wast", test_wast_block);
+run_wast!("br_if.wast", test_wast_br_if);
+run_wast!("br.wast", test_wast_br);
+run_wast!("break-drop.wast", test_wast_break_drop);

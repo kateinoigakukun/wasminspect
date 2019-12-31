@@ -256,19 +256,22 @@ impl Store {
                         entry.limits().initial() as usize,
                         entry.limits().maximum().map(|mx| mx as usize),
                     );
-                    let segs = &element_segments[&index];
-                    for seg in segs {
-                        let offset =
-                            match seg.offset().as_ref().map(|e| eval_const_expr(&e)).unwrap() {
-                                Value::I32(v) => v,
-                                _ => panic!(),
-                            };
-                        let data = seg
-                            .members()
-                            .iter()
-                            .map(|func_index| FuncAddr(module_index, *func_index as usize))
-                            .collect();
-                        instance.initialize(offset as usize, data);
+
+                    if element_segments.len() > index {
+                        let segs = &element_segments[&index];
+                        for seg in segs {
+                            let offset =
+                                match seg.offset().as_ref().map(|e| eval_const_expr(&e)).unwrap() {
+                                    Value::I32(v) => v,
+                                    _ => panic!(),
+                                };
+                            let data = seg
+                                .members()
+                                .iter()
+                                .map(|func_index| FuncAddr(module_index, *func_index as usize))
+                                .collect();
+                            instance.initialize(offset as usize, data);
+                        }
                     }
                     self.tables
                         .entry(module_index)
