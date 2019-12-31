@@ -1,10 +1,17 @@
+use parity_wasm::elements::ResizableLimits;
 use super::address::FuncAddr;
-pub struct TableInstance {
+
+pub enum TableInstance {
+    Defined(DefinedTableInstance),
+    External(ExternalTableInstance),
+}
+
+pub struct DefinedTableInstance {
     buffer: Vec<Option<FuncAddr>>,
     max: Option<usize>,
 }
 
-impl TableInstance {
+impl DefinedTableInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
             buffer: std::iter::repeat(None).take(initial).collect(),
@@ -24,5 +31,21 @@ impl TableInstance {
 
     pub fn get_at(&self, index: usize) -> Option<FuncAddr> {
         self.buffer[index]
+    }
+}
+
+pub struct ExternalTableInstance {
+    module_name: String,
+    name: String,
+    limit: ResizableLimits,
+}
+
+impl ExternalTableInstance {
+    pub fn new(module_name: String, name: String, limit: ResizableLimits) -> Self {
+        Self {
+            module_name,
+            name,
+            limit,
+        }
     }
 }

@@ -48,7 +48,7 @@
             "cargo": {
                 "args": [
                     "test",
-                    "spectest",
+                    "test_wast_data",
                     "--no-run",
                 ],
                 "filter": {

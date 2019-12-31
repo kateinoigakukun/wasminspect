@@ -11,6 +11,7 @@ mod store;
 mod table;
 mod validator;
 mod value;
+mod external;
 
 use self::executor::{ExecSuccess, Executor};
 use self::export::ExternalValue;

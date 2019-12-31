@@ -2,7 +2,7 @@ use super::value::Value;
 use parity_wasm::elements::ValueType;
 
 pub trait HostFunc {
-    fn call(args: &[Value]) -> Option<Value>;
+    fn call(&self, args: &[Value]) -> Option<Value>;
 }
 
 pub struct BuiltinPrintI32 {}
@@ -18,5 +18,3 @@ impl BuiltinPrintI32 {
         None
     }
 }
-
-// struct ModuleRegistory

@@ -1,7 +1,58 @@
 use super::value::FromLittleEndian;
-pub struct MemoryInstance {
+use parity_wasm::elements::ResizableLimits;
+
+pub enum MemoryInstance {
+    Defined(DefinedMemoryInstance),
+    External(HostMemoryInstance),
+}
+
+impl MemoryInstance {
+    pub fn grow(&mut self, n: usize) -> Result<(), Error> {
+        match self {
+            Self::Defined(defined) => defined.grow(n),
+            Self::External(_) => panic!(),
+        }
+    }
+
+    pub fn initialize(&mut self, offset: usize, data: &[u8]) {
+        match self {
+            Self::Defined(defined) => defined.initialize(offset, data),
+            Self::External(_) => unimplemented!(),
+        }
+    }
+    pub fn data_len(&self) -> usize {
+        match self {
+            Self::Defined(defined) => defined.data_len(),
+            Self::External(_) => unimplemented!(),
+        }
+    }
+    pub fn load_as<T: FromLittleEndian>(&self, offset: usize) -> T {
+        match self {
+            Self::Defined(defined) => defined.load_as(offset),
+            Self::External(_) => unimplemented!(),
+        }
+    }
+}
+
+pub struct DefinedMemoryInstance {
     data: Vec<u8>,
     max: Option<usize>,
+}
+
+pub struct HostMemoryInstance {
+    module_name: String,
+    name: String,
+    limit: ResizableLimits,
+}
+
+impl HostMemoryInstance {
+    pub fn new(module_name: String, name: String, limit: ResizableLimits) -> Self {
+        Self {
+            module_name,
+            name,
+            limit,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -11,7 +62,7 @@ pub enum Error {
 }
 
 static PAGE_SIZE: usize = 65536;
-impl MemoryInstance {
+impl DefinedMemoryInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
             data: std::iter::repeat(0).take(initial * PAGE_SIZE).collect(),
@@ -28,7 +79,7 @@ impl MemoryInstance {
         self.data.len()
     }
 
-    pub fn page_size(&self) -> usize {
+    pub fn page_count(&self) -> usize {
         self.data_len() / PAGE_SIZE
     }
 
@@ -38,7 +89,7 @@ impl MemoryInstance {
     }
 
     pub fn grow(&mut self, n: usize) -> Result<(), Error> {
-        let len = self.page_size() + n;
+        let len = self.page_count() + n;
         if len > 65536 {
             return Err(Error::OverLimitWasmMemory);
         }

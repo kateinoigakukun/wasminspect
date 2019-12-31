@@ -2,14 +2,12 @@ use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::eval_const_expr;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
-use super::memory::MemoryInstance;
+use super::memory::{DefinedMemoryInstance, HostMemoryInstance, MemoryInstance};
 use super::module::{ModuleIndex, ModuleInstance};
-use super::table::TableInstance;
+use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::value::Value;
 use parity_wasm;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 /// Store
 pub struct Store {
@@ -59,7 +57,12 @@ impl Store {
     pub fn set_memory(&mut self, addr: MemoryAddr, offset: usize, bytes: &[u8]) {
         &mut self.mems.entry(addr.0).and_modify(|mems| {
             if let Some(mem) = mems.get_mut(addr.1) {
-                mem.initialize(offset, bytes)
+                match mem {
+                    MemoryInstance::Defined(mem) => mem.initialize(offset, bytes),
+                    MemoryInstance::External(mem) => {
+                        panic!();
+                    }
+                }
             }
         });
     }
@@ -79,11 +82,14 @@ impl Store {
         let data_segs = Self::get_data_segments(&parity_module);
 
         let module_index = ModuleIndex(self.modules.len() as u32);
-        let mut func_addrs = self.load_imports(&parity_module, module_index, types);
+        let (mut func_addrs, mut mem_addrs, mut table_addrs) =
+            self.load_imports(&parity_module, module_index, types);
         func_addrs.append(&mut self.load_functions(&parity_module, module_index, types));
+
         self.load_globals(&parity_module, module_index);
-        self.load_tables(&parity_module, module_index, elem_segs);
-        self.load_mems(&parity_module, module_index, data_segs);
+        table_addrs.append(&mut self.load_tables(&parity_module, module_index, elem_segs));
+
+        mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs));
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
@@ -140,12 +146,14 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> Vec<FuncAddr> {
+    ) -> (Vec<FuncAddr>, Vec<MemoryAddr>, Vec<TableAddr>) {
         let imports = parity_module
             .import_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut func_addrs = Vec::new();
+        let mut mem_addrs = Vec::new();
+        let mut table_addrs = Vec::new();
         for import in imports {
             match import.external() {
                 parity_wasm::elements::External::Function(type_index) => {
@@ -157,10 +165,18 @@ impl Store {
                     );
                     func_addrs.push(addr);
                 }
+                parity_wasm::elements::External::Memory(memory_ty) => {
+                    let addr = self.load_import_memory(module_index, import, *memory_ty);
+                    mem_addrs.push(addr);
+                }
+                parity_wasm::elements::External::Table(table_ty) => {
+                    let addr = self.load_import_table(module_index, import, *table_ty);
+                    table_addrs.push(addr);
+                }
                 _ => panic!(),
             }
         }
-        func_addrs
+        (func_addrs, mem_addrs, table_addrs)
     }
 
     fn load_import_function(
@@ -186,6 +202,40 @@ impl Store {
         let func_index = map.len();
         map.push(FunctionInstance::Host(instance));
         return FuncAddr(module_index, func_index);
+    }
+
+    fn load_import_memory(
+        &mut self,
+        module_index: ModuleIndex,
+        import: &parity_wasm::elements::ImportEntry,
+        memory_ty: parity_wasm::elements::MemoryType,
+    ) -> MemoryAddr {
+        let instance = HostMemoryInstance::new(
+            import.module().to_string(),
+            import.field().to_string(),
+            memory_ty.limits().clone(),
+        );
+        let map = self.mems.entry(module_index).or_insert(Vec::new());
+        let mem_index = map.len();
+        map.push(MemoryInstance::External(instance));
+        return MemoryAddr(module_index, mem_index);
+    }
+
+    fn load_import_table(
+        &mut self,
+        module_index: ModuleIndex,
+        import: &parity_wasm::elements::ImportEntry,
+        table_ty: parity_wasm::elements::TableType,
+    ) -> TableAddr {
+        let instance = ExternalTableInstance::new(
+            import.module().to_string(),
+            import.field().to_string(),
+            table_ty.limits().clone(),
+        );
+        let map = self.tables.entry(module_index).or_insert(Vec::new());
+        let table_index = map.len();
+        map.push(TableInstance::External(instance));
+        return TableAddr(module_index, table_index);
     }
 
     fn load_functions(
@@ -244,15 +294,16 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         element_segments: HashMap<usize, Vec<&parity_wasm::elements::ElementSegment>>,
-    ) {
+    ) -> Vec<TableAddr> {
         let tables = parity_module
             .table_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
+        let mut table_addrs = Vec::new();
         for (index, entry) in tables.iter().enumerate() {
             match entry.elem_type() {
                 parity_wasm::elements::TableElementType::AnyFunc => {
-                    let mut instance = TableInstance::new(
+                    let mut instance = DefinedTableInstance::new(
                         entry.limits().initial() as usize,
                         entry.limits().maximum().map(|mx| mx as usize),
                     );
@@ -273,13 +324,14 @@ impl Store {
                             instance.initialize(offset as usize, data);
                         }
                     }
-                    self.tables
-                        .entry(module_index)
-                        .or_insert(Vec::new())
-                        .push(instance);
+                    let map = self.tables.entry(module_index).or_insert(Vec::new());
+                    let table_index = map.len();
+                    map.push(TableInstance::Defined(instance));
+                    table_addrs.push(TableAddr(module_index, table_index));
                 }
             }
         }
+        table_addrs
     }
 
     fn load_mems(
@@ -287,13 +339,14 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         data_segments: HashMap<usize, Vec<&parity_wasm::elements::DataSegment>>,
-    ) {
+    ) -> Vec<MemoryAddr> {
         let mem_sec = parity_module
             .memory_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
+        let mut mem_addrs = Vec::new();
         for (index, entry) in mem_sec.iter().enumerate() {
-            let mut instance = MemoryInstance::new(
+            let mut instance = DefinedMemoryInstance::new(
                 entry.limits().initial() as usize,
                 entry.limits().maximum().map(|mx| mx as usize),
             );
@@ -307,10 +360,11 @@ impl Store {
                     instance.initialize(offset as usize, seg.value());
                 }
             }
-            self.mems
-                .entry(module_index)
-                .or_insert(Vec::new())
-                .push(instance);
+            let map = self.mems.entry(module_index).or_insert(Vec::new());
+            let mem_index = map.len();
+            map.push(MemoryInstance::Defined(instance));
+            mem_addrs.push(MemoryAddr(module_index, mem_index));
         }
+        mem_addrs
     }
 }

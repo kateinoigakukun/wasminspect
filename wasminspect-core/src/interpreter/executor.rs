@@ -5,6 +5,7 @@ use super::module::*;
 use super::stack::*;
 use super::store::*;
 use super::value::*;
+use super::memory::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::convert::TryFrom;
@@ -301,7 +302,10 @@ impl<'a> Executor<'a> {
                 let frame = self.stack.current_frame();
                 let mem_addr = MemoryAddr(frame.module_index(), 0);
                 let mem = self.store.memory_mut(mem_addr);
-                let size = mem.page_size();
+                let size = match mem {
+                    MemoryInstance::Defined(mem) => mem.page_count(),
+                    MemoryInstance::External(mem) => panic!(),
+                };
                 match mem.grow(grow_page as usize) {
                     Ok(_) => {
                         self.stack.push_value(Value::I32(size as i32));
@@ -644,7 +648,10 @@ impl<'a> Executor<'a> {
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
         let memory = { self.store.memory(mem_addr) };
-        let mem_len = memory.data_len();
+        let mem_len = match memory { 
+            MemoryInstance::Defined(memory) => memory.data_len(),
+            MemoryInstance::External(_) => panic!(),
+        };
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
             panic!();
