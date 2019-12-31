@@ -329,52 +329,46 @@ impl<'a> Executor<'a> {
                 Ok(ExecSuccess::Next)
             }
 
-            Instruction::I32Eqz => {
-                self.int_op::<i32, _>(|v| Value::I32(if v == 0 { 1 } else { 0 }))
-            }
-            Instruction::I32Eq => self.int_int_rel::<i32, _>(|a, b| a == b),
-            Instruction::I32Ne => self.int_int_rel::<i32, _>(|a, b| a != b),
-            Instruction::I32LtS => self.int_int_rel::<i32, _>(|a, b| a < b),
-            Instruction::I32LtU => self.int_int_rel::<u32, _>(|a, b| a < b),
+            Instruction::I32Eqz => self.relop::<i32, _>(|a, b| a == b),
+            Instruction::I32Eq => self.relop::<i32, _>(|a, b| a == b),
+            Instruction::I32Ne => self.relop::<i32, _>(|a, b| a != b),
+            Instruction::I32LtS => self.relop::<i32, _>(|a, b| a < b),
+            Instruction::I32LtU => self.relop::<u32, _>(|a, b| a < b),
             // TODO
-            Instruction::I64Eqz => {
-                self.int_op::<i64, _>(|v| Value::I64(if v == 0 { 1 } else { 0 }))
-            }
-            Instruction::I64Eq => {
-                self.int_int_op::<i64, _>(|a, b| Value::I64(if a == b { 1 } else { 0 }))
-            }
+            Instruction::I64Eqz => self.testop::<i64, _>(|v| v == 0),
+            Instruction::I64Eq => self.relop::<i64, _>(|a, b| a == b),
 
-            Instruction::I32Add => self.int_int_op::<i32, _>(|a, b| Value::I32(a + b)),
-            Instruction::I32Sub => self.int_int_op::<i32, _>(|a, b| Value::I32(a - b)),
-            Instruction::I32Mul => self.int_int_op::<i32, _>(|a, b| Value::I32(a * b)),
-            Instruction::I32LeS => self.int_int_rel::<i32, _>(|a, b| a <= b),
-            Instruction::I32LeU => self.int_int_rel::<u32, _>(|a, b| a <= b),
-            Instruction::I32Ctz => self.int_op::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
-            Instruction::I64Add => self.int_int_op::<i64, _>(|a, b| Value::I64(a + b)),
-            Instruction::I64Sub => self.int_int_op::<i64, _>(|a, b| Value::I64(a - b)),
-            Instruction::I64Mul => self.int_int_op::<i64, _>(|a, b| Value::I64(a.wrapping_mul(b))),
-            Instruction::I64LtS => self.int_int_rel::<i64, _>(|a, b| a < b),
-            Instruction::I64LeS => self.int_int_rel::<i64, _>(|a, b| a <= b),
-            Instruction::I64LeU => self.int_int_rel::<u64, _>(|a, b| a <= b),
-            Instruction::I64Ctz => self.int_op::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
+            Instruction::I32Add => self.binop::<i32, _>(|a, b| Value::I32(a + b)),
+            Instruction::I32Sub => self.binop::<i32, _>(|a, b| Value::I32(a - b)),
+            Instruction::I32Mul => self.binop::<i32, _>(|a, b| Value::I32(a * b)),
+            Instruction::I32LeS => self.relop::<i32, _>(|a, b| a <= b),
+            Instruction::I32LeU => self.relop::<u32, _>(|a, b| a <= b),
+            Instruction::I32Ctz => self.unop::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
+            Instruction::I64Add => self.binop::<i64, _>(|a, b| Value::I64(a + b)),
+            Instruction::I64Sub => self.binop::<i64, _>(|a, b| Value::I64(a - b)),
+            Instruction::I64Mul => self.binop::<i64, _>(|a, b| Value::I64(a.wrapping_mul(b))),
+            Instruction::I64LtS => self.relop::<i64, _>(|a, b| a < b),
+            Instruction::I64LeS => self.relop::<i64, _>(|a, b| a <= b),
+            Instruction::I64LeU => self.relop::<u64, _>(|a, b| a <= b),
+            Instruction::I64Ctz => self.unop::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
 
-            Instruction::F32Add => self.int_int_op::<f32, _>(|a, b| Value::F32(a + b)),
-            Instruction::F32Sub => self.int_int_op::<f32, _>(|a, b| Value::F32(a - b)),
-            Instruction::F32Mul => self.int_int_op::<f32, _>(|a, b| Value::F32(a * b)),
+            Instruction::F32Add => self.binop::<f32, _>(|a, b| Value::F32(a + b)),
+            Instruction::F32Sub => self.binop::<f32, _>(|a, b| Value::F32(a - b)),
+            Instruction::F32Mul => self.binop::<f32, _>(|a, b| Value::F32(a * b)),
 
-            Instruction::F32Eq => self.int_int_rel::<f32, _>(|a, b| a == b),
-            Instruction::F32Lt => self.int_int_rel::<f32, _>(|a, b| a < b),
-            Instruction::F32Gt => self.int_int_rel::<f32, _>(|a, b| a > b),
-            Instruction::F32Le => self.int_int_rel::<f32, _>(|a, b| a <= b),
+            Instruction::F32Eq => self.relop::<f32, _>(|a, b| a == b),
+            Instruction::F32Lt => self.relop::<f32, _>(|a, b| a < b),
+            Instruction::F32Gt => self.relop::<f32, _>(|a, b| a > b),
+            Instruction::F32Le => self.relop::<f32, _>(|a, b| a <= b),
             // TODO
-            Instruction::F64Eq => self.int_int_rel::<f64, _>(|a, b| a == b),
-            Instruction::F64Lt => self.int_int_rel::<f64, _>(|a, b| a < b),
-            Instruction::F64Gt => self.int_int_rel::<f64, _>(|a, b| a > b),
-            Instruction::F64Le => self.int_int_rel::<f64, _>(|a, b| a <= b),
+            Instruction::F64Eq => self.relop::<f64, _>(|a, b| a == b),
+            Instruction::F64Lt => self.relop::<f64, _>(|a, b| a < b),
+            Instruction::F64Gt => self.relop::<f64, _>(|a, b| a > b),
+            Instruction::F64Le => self.relop::<f64, _>(|a, b| a <= b),
             // TODO
-            Instruction::F64Add => self.int_int_op::<f64, _>(|a, b| Value::F64(a + b)),
-            Instruction::F64Sub => self.int_int_op::<f64, _>(|a, b| Value::F64(a - b)),
-            Instruction::F64Mul => self.int_int_op::<f64, _>(|a, b| Value::F64(a * b)),
+            Instruction::F64Add => self.binop::<f64, _>(|a, b| Value::F64(a + b)),
+            Instruction::F64Sub => self.binop::<f64, _>(|a, b| Value::F64(a - b)),
+            Instruction::F64Mul => self.binop::<f64, _>(|a, b| Value::F64(a * b)),
 
             _ => {
                 debug_assert!(false, format!("{} not supported yet", inst));
@@ -452,18 +446,22 @@ impl<'a> Executor<'a> {
         Ok(ExecSuccess::Next)
     }
 
-    fn int_int_rel<T: TryFrom<Value>, F: Fn(T, T) -> bool>(&mut self, f: F) -> ExecResult {
-        self.int_int_op::<T, _>(|a, b| Value::I32(if f(a, b) { 1 } else { 0 }))
+    fn testop<T: TryFrom<Value>, F: Fn(T) -> bool>(&mut self, f: F) -> ExecResult {
+        self.unop(|a| Value::I32(if f(a) { 1 } else { 0 }))
     }
 
-    fn int_int_op<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
+    fn relop<T: TryFrom<Value>, F: Fn(T, T) -> bool>(&mut self, f: F) -> ExecResult {
+        self.binop::<T, _>(|a, b| Value::I32(if f(a, b) { 1 } else { 0 }))
+    }
+
+    fn binop<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
         let rhs = self.pop_as();
         let lhs = self.pop_as();
         self.stack.push_value(f(lhs, rhs));
         Ok(ExecSuccess::Next)
     }
 
-    fn int_op<T: TryFrom<Value>, F: Fn(T) -> Value>(&mut self, f: F) -> ExecResult {
+    fn unop<T: TryFrom<Value>, F: Fn(T) -> Value>(&mut self, f: F) -> ExecResult {
         let v: T = self.pop_as();
         self.stack.push_value(f(v));
         Ok(ExecSuccess::Next)
