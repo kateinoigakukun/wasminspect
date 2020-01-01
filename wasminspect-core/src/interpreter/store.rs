@@ -1,10 +1,10 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::eval_const_expr;
-use super::host::HostValue;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
+use super::host::HostValue;
 use super::memory::{DefinedMemoryInstance, HostMemoryInstance, MemoryInstance};
-use super::module::{ModuleIndex, ModuleInstance, DefinedModuleInstance, HostModuleInstance};
+use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::value::Value;
 use parity_wasm;
@@ -78,6 +78,11 @@ impl Store {
     }
 
     pub fn module_by_name(&self, name: String) -> &ModuleInstance {
+        assert!(
+            self.module_index_by_name.contains_key(&name),
+            "Module {} was not loaded",
+            name
+        );
         let index = self.module_index_by_name[&name];
         self.module(index)
     }
@@ -113,8 +118,12 @@ impl Store {
         mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs));
         let types = types.iter().map(|ty| ty.clone()).collect();
 
-        let instance =
-            DefinedModuleInstance::new_from_parity_module(parity_module, module_index, types, func_addrs);
+        let instance = DefinedModuleInstance::new_from_parity_module(
+            parity_module,
+            module_index,
+            types,
+            func_addrs,
+        );
         self.modules.push(ModuleInstance::Defined(instance));
         if let Some(name) = name {
             self.module_index_by_name.insert(name, module_index);

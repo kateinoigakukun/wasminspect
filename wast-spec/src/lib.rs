@@ -1,11 +1,11 @@
-pub fn spectest() {}
-
 use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
+mod spectest;
+use spectest::instantiate_spectest;
 use wasminspect_core::interpreter::{WasmInstance, WasmValue};
 
 pub struct WastContext {
@@ -28,9 +28,9 @@ impl WastContext {
     pub fn instantiate(&self, bytes: &[u8]) -> Rc<RefCell<WasmInstance>> {
         let parity_module: parity_wasm::elements::Module =
             parity_wasm::deserialize_buffer(&bytes).unwrap();
-        return Rc::new(RefCell::new(WasmInstance::new_from_parity_module(
-            parity_module,
-        )));
+        let mut instance = WasmInstance::new_from_parity_module(parity_module);
+        instance.load_host_module("spectest".to_string(), instantiate_spectest());
+        return Rc::new(RefCell::new(instance));
     }
     fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
         let instance = self.instantiate(&bytes);
@@ -210,8 +210,12 @@ fn is_equal_value(lhs: WasmValue, rhs: WasmValue) -> bool {
     match (lhs, rhs) {
         (WasmValue::I32(lhs), WasmValue::I32(rhs)) => (lhs == rhs),
         (WasmValue::I64(lhs), WasmValue::I64(rhs)) => (lhs == rhs),
-        (WasmValue::F32(lhs), WasmValue::F32(rhs)) => (lhs == rhs) || (lhs.is_nan() && rhs.is_nan()),
-        (WasmValue::F64(lhs), WasmValue::F64(rhs)) => (lhs == rhs) || (lhs.is_nan() && rhs.is_nan()),
+        (WasmValue::F32(lhs), WasmValue::F32(rhs)) => {
+            (lhs == rhs) || (lhs.is_nan() && rhs.is_nan())
+        }
+        (WasmValue::F64(lhs), WasmValue::F64(rhs)) => {
+            (lhs == rhs) || (lhs.is_nan() && rhs.is_nan())
+        }
         (_, _) => false,
     }
 }

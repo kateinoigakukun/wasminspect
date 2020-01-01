@@ -13,15 +13,15 @@ mod validator;
 mod value;
 
 use self::executor::{ExecSuccess, Executor};
-use self::export::ExternalValue;
 use self::func::InstIndex;
 use self::module::ModuleIndex;
 use self::stack::ProgramCounter;
 use self::store::Store;
-pub use self::value::Value as WasmValue;
 
-use std::cell::RefCell;
-use std::rc::Rc;
+pub use self::host::HostValue;
+pub use self::memory::HostMemoryInstance;
+pub use self::value::Value as WasmValue;
+use std::collections::HashMap;
 
 pub struct WasmInstance {
     store: Store,
@@ -41,6 +41,10 @@ impl WasmInstance {
             store: store,
             module_index,
         }
+    }
+
+    pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
+        self.store.load_host_module(name, module)
     }
 
     pub fn run(
