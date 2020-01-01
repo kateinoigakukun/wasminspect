@@ -445,12 +445,9 @@ impl<'a> Executor<'a> {
             Instruction::F32Div => self.binop(|a: f32, b: f32| Value::F32(a / b)),
             Instruction::F32Min => self.binop(|a: f32, b: f32| Value::F32(a.min(b))),
             Instruction::F32Max => self.binop(|a: f32, b: f32| Value::F32(a.max(b))),
-            Instruction::F32Copysign => self.binop(|a: f32, b: f32| {
-                let sign_mask: u32 = 1 << (std::mem::size_of::<f32>() * 8 - 1);
-                let sign = b.to_bits() & sign_mask;
-                let v = f32::from_bits((a.to_bits() & (!sign_mask)) | sign);
-                Value::from(v)
-            }),
+            Instruction::F32Copysign => {
+                self.binop(|a: f32, b: f32| Value::F32(F32::copysign(a, b)))
+            }
 
             Instruction::F64Abs => self.unop(|v: f64| Value::F64(v.abs())),
             Instruction::F64Neg => self.unop(|v: f64| Value::F64(-v)),
@@ -465,7 +462,9 @@ impl<'a> Executor<'a> {
             Instruction::F64Div => self.binop::<f64, _>(|a, b| Value::F64(a / b)),
             Instruction::F64Min => self.binop::<f64, _>(|a, b| Value::F64(a.min(b))),
             Instruction::F64Max => self.binop::<f64, _>(|a, b| Value::F64(a.max(b))),
-            Instruction::F64Copysign => unimplemented!(),
+            Instruction::F64Copysign => {
+                self.binop(|a: f64, b: f64| Value::F64(F64::copysign(a, b)))
+            }
 
             Instruction::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
             Instruction::I32TruncSF32 => self.unop(|v: f32| v as i64),

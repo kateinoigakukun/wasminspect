@@ -173,3 +173,21 @@ extend_conversion!(u32, i64);
 extend_conversion!(i8, i64);
 extend_conversion!(i16, i64);
 extend_conversion!(i32, i64);
+
+pub enum F32 {}
+pub enum F64 {}
+
+macro_rules! impl_copysign {
+    ($type:ty, $orig:ty, $size:ty) => {
+        impl $type {
+            pub fn copysign(lhs: $orig, rhs: $orig) -> $orig {
+                let sign_mask: $size = 1 << (std::mem::size_of::<$orig>() * 8 - 1);
+                let sign = rhs.to_bits() & sign_mask;
+                <$orig>::from_bits((lhs.to_bits() & (!sign_mask)) | sign)
+            }
+        }
+    };
+}
+
+impl_copysign!(F32, f32, u32);
+impl_copysign!(F64, f64, u64);
