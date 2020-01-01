@@ -581,12 +581,24 @@ impl<'a> Executor<'a> {
                 self.pc = pc;
                 Ok(ExecSuccess::Next)
             }
-            FunctionInstance::Host(host) => match &host.field_name()[..] {
-                "print_i32" => {
-                    BuiltinPrintI32::dispatch(&args);
-                    Ok(ExecSuccess::Next)
+            FunctionInstance::Host(host) => {
+                let module = self.store.module_by_name(host.module_name().clone());
+                match module {
+                    ModuleInstance::Host(host_module) => {
+                        let func = host_module.func_by_name(host.field_name().clone()).unwrap();
+                        let mut result = Vec::new();
+                        match func.call(&args, &mut result) {
+                            Ok(_) => (),
+                            Err(_) => panic!(),
+                        };
+                        assert_eq!(result.len(), arity);
+                        for v in result {
+                            self.stack.push_value(v);
+                        }
+                    }
+                    _ => panic!(),
                 }
-                _ => panic!(),
+                panic!()
             },
         }
     }

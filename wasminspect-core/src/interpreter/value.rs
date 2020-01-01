@@ -18,6 +18,34 @@ impl Value {
             Value::F64(_) => ValueType::F64,
         }
     }
+
+    pub fn as_i32(self) -> Option<i32> {
+        match self {
+            Value::I32(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_i64(self) -> Option<i64> {
+        match self {
+            Value::I64(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_f32(self) -> Option<f32> {
+        match self {
+            Value::F32(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_f64(self) -> Option<f64> {
+        match self {
+            Value::F64(v) => Some(v),
+            _ => None,
+        }
+    }
 }
 
 pub enum ValueConversionError {
@@ -74,7 +102,7 @@ macro_rules! impl_native_value {
                 }
             }
         }
-    }
+    };
 }
 
 impl_native_value!(i32, I32);

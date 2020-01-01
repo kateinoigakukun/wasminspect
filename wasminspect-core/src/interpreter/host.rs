@@ -15,8 +15,8 @@ impl BuiltinPrintI32 {
     }
 }
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use super::stack::Stack;
 use parity_wasm::elements::FunctionType;
@@ -30,6 +30,27 @@ pub enum HostValue {
 }
 
 pub struct HostFunc {
-    code: Box<dyn Fn(&Stack) + 'static>,
     ty: FunctionType,
+    code: Box<dyn Fn(&[Value], &mut [Value]) -> Result<(), ()>>,
+}
+
+impl HostFunc {
+    pub fn new<F>(ty: FunctionType, code: F) -> Self
+    where
+        F: Fn(&[Value], &mut [Value]) -> Result<(), ()>,
+        F: 'static
+    {
+        Self {
+            ty,
+            code: Box::new(code),
+        }
+    }
+
+    pub fn call(&self, param: &[Value], results: &mut [Value]) -> Result<(), ()> {
+        (self.code)(param, results)
+    }
+
+    pub fn ty(&self) -> &FunctionType {
+        &self.ty
+    }
 }

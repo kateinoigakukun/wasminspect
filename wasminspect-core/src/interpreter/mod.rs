@@ -18,7 +18,7 @@ use self::module::ModuleIndex;
 use self::stack::{ProgramCounter, CallFrame};
 use self::store::Store;
 
-pub use self::host::HostValue;
+pub use self::host::{HostValue, HostFunc};
 pub use self::memory::HostMemoryInstance;
 pub use self::value::Value as WasmValue;
 use std::collections::HashMap;

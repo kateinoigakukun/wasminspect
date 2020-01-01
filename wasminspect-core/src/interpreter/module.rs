@@ -1,6 +1,6 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
-use super::host::HostValue;
+use super::host::{HostValue, HostFunc};
 use super::value::Value;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -99,6 +99,18 @@ impl HostModuleInstance {
         );
         match self.values[&name] {
             HostValue::Global(global) => Some(global.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn func_by_name(&self, name: String) -> Option<HostFunc> {
+        assert!(
+            self.values.contains_key(&name),
+            "Func {} was not loaded",
+            name
+        );
+        match self.values[&name] {
+            HostValue::Func(func) => Some(func),
             _ => None,
         }
     }
