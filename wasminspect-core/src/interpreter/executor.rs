@@ -41,17 +41,13 @@ pub struct Executor<'a> {
 
 impl<'a> Executor<'a> {
     pub fn new(
-        local_len: usize,
-        func_addr: FuncAddr,
-        initial_args: Vec<Value>,
+        initial_frame: CallFrame,
         initial_arity: usize,
         pc: ProgramCounter,
         store: &'a mut Store,
     ) -> Self {
         let mut stack = Stack::default();
-        let frame = CallFrame::new(func_addr, local_len, initial_args, None);
-        let f = CallFrame::new(func_addr, local_len, vec![], None);
-        stack.set_frame(frame);
+        stack.set_frame(initial_frame);
         stack.push_label(Label::Return(initial_arity));
         Self { store, pc, stack }
     }

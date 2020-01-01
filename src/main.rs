@@ -43,7 +43,7 @@ fn main() {
                 .collect(),
         ) {
             Ok(result) => println!("1 + 2 = {:?}", result[0]),
-            Err(err) => panic!(err.message()),
+            Err(err) => panic!("{}", err),
         }
     } else {
         eprintln!("error: wasm file is required");

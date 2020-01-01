@@ -104,6 +104,7 @@ impl Store {
         parity_module: parity_wasm::elements::Module,
     ) -> ModuleIndex {
         let types = Self::get_types(&parity_module);
+        println!("len of types {}", types.len());
         let elem_segs = Self::get_element_segments(&parity_module);
         let data_segs = Self::get_data_segments(&parity_module);
 

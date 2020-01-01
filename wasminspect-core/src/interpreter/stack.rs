@@ -2,6 +2,7 @@ use super::address::FuncAddr;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
 use super::value::{Value, NativeValue};
+use parity_wasm::elements::{FunctionType, ValueType};
 
 use std::fmt::{Debug, Display, Formatter, Result};
 
@@ -74,11 +75,21 @@ pub struct CallFrame {
 impl CallFrame {
     pub fn new(
         func_addr: FuncAddr,
-        local_len: usize,
+        local_tys: &[ValueType],
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        let mut locals: Vec<Value> = std::iter::repeat(Value::I32(0)).take(local_len).collect();
+        let mut locals = Vec::new();
+        for ty in local_tys {
+            let v = match ty {
+                ValueType::I32 => Value::I32(0),
+                ValueType::I64 => Value::I64(0),
+                ValueType::F32 => Value::F32(0.0),
+                ValueType::F64 => Value::F64(0.0),
+            };
+            locals.push(v);
+        }
+
         for (i, arg) in args.into_iter().enumerate() {
             locals[i] = arg;
         }

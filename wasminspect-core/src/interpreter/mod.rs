@@ -15,13 +15,14 @@ mod value;
 use self::executor::{ExecSuccess, Executor};
 use self::func::InstIndex;
 use self::module::ModuleIndex;
-use self::stack::ProgramCounter;
+use self::stack::{ProgramCounter, CallFrame};
 use self::store::Store;
 
 pub use self::host::HostValue;
 pub use self::memory::HostMemoryInstance;
 pub use self::value::Value as WasmValue;
 use std::collections::HashMap;
+use std::fmt;
 
 pub struct WasmInstance {
     store: Store,
@@ -74,16 +75,16 @@ impl WasmInstance {
             panic!()
         };
 
-        let (ret_types, local_len) = {
+        let (frame, ret_types) = {
             let func = self.store.func(pc.func_addr()).defined().unwrap();
             let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-            let local_len = func.ty().params().len() + func.code().locals().len();
-            (ret_types, local_len)
+            let mut local_tys = func.ty().params().to_vec();
+            local_tys.append(&mut func.code().locals().clone());
+            let frame = CallFrame::new(pc.func_addr(), &local_tys, arguments, None);
+            (frame, ret_types)
         };
         let mut executor = Executor::new(
-            local_len,
-            pc.func_addr(),
-            arguments,
+            frame,
             ret_types.len(),
             pc,
             &mut self.store,
@@ -108,14 +109,14 @@ pub enum WasmError {
     ReturnValueError(executor::ReturnValError),
 }
 
-impl WasmError {
-    pub fn message(&self) -> String {
+impl std::fmt::Display for WasmError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WasmError::ExecutionError(err) => format!("Failed to execute: {:?}", err),
+            WasmError::ExecutionError(err) => write!(f, "Failed to execute: {:?}", err),
             WasmError::EntryFunctionNotFound(func_name) => {
-                format!("Entry function \"{}\" not found", func_name)
+                write!(f, "Entry function \"{}\" not found", func_name)
             }
-            WasmError::ReturnValueError(err) => format!("Failed to get returned value: {:?}", err),
+            WasmError::ReturnValueError(err) => write!(f, "Failed to get returned value: {:?}", err),
         }
     }
 }

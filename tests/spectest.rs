@@ -33,7 +33,7 @@ fn run_spectest(filename: &str) {
 // run_wast!("custom.wast", test_wast_custom);
 // run_wast!("data.wast", test_wast_data);
 // run_wast!("elem.wast", test_wast_elem);
-run_wast!("endianness.wast", test_wast_endianness);
+// run_wast!("endianness.wast", test_wast_endianness);
 // run_wast!("exports.wast", test_wast_exports);
 // run_wast!("f32.wast", test_wast_f32);
 // run_wast!("f32_bitwise.wast", test_wast_f32_bitwise);
@@ -47,7 +47,7 @@ run_wast!("endianness.wast", test_wast_endianness);
 // run_wast!("float_memory.wast", test_wast_float_memory);
 // run_wast!("float_misc.wast", test_wast_float_misc);
 // run_wast!("forward.wast", test_wast_forward);
-// run_wast!("func.wast", test_wast_func);
+run_wast!("func.wast", test_wast_func);
 // run_wast!("func_ptrs.wast", test_wast_func_ptrs);
 // run_wast!("globals.wast", test_wast_globals);
 // run_wast!("i32.wast", test_wast_i32);

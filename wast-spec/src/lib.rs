@@ -125,25 +125,26 @@ impl WastContext {
                     mut module,
                     message,
                 } => {
-                    let bytes = module.encode().map_err(adjust_wast)?;
-                    // TODO Fix type-check
-                    let err = match self.module(None, &bytes) {
-                        Ok(()) => {
-                            println!("{}\nexpected module to fail to build", context(span));
-                            break;
-                        }
-                        Err(e) => e,
-                    };
-                    let error_message = format!("{:?}", err);
-                    if !error_message.contains(&message) {
-                        // TODO: change to bail!
-                        println!(
-                            "{}\nassert_invalid: expected {}, got {}",
-                            context(span),
-                            message,
-                            error_message
-                        )
-                    }
+                    println!("assert_invalid is unsupported");
+                    // let bytes = module.encode().map_err(adjust_wast)?;
+                    // // TODO Fix type-check
+                    // let err = match self.module(None, &bytes) {
+                    //     Ok(()) => {
+                    //         println!("{}\nexpected module to fail to build", context(span));
+                    //         break;
+                    //     }
+                    //     Err(e) => e,
+                    // };
+                    // let error_message = format!("{:?}", err);
+                    // if !error_message.contains(&message) {
+                    //     // TODO: change to bail!
+                    //     println!(
+                    //         "{}\nassert_invalid: expected {}, got {}",
+                    //         context(span),
+                    //         message,
+                    //         error_message
+                    //     )
+                    // }
                 }
                 other => panic!("unsupported"),
             }
@@ -181,11 +182,13 @@ impl WastContext {
         );
         let instance = self.get_instance(module_name).clone();
         let args = args.iter().map(const_expr).collect();
-        return instance
+        return instance.clone()
             .borrow_mut()
             .run(Some(func_name.to_string()), args)
-            .ok()
-            .expect("func invocation");
+            .unwrap_or_else(|err| {
+                panic!("{}", err);
+            })
+            // .expect("func invocation");
     }
 
     fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Vec<WasmValue>> {
