@@ -28,7 +28,7 @@ pub enum HostValue {
     Func(HostFunc),
     Mem(),
     Global(Value),
-    Table(DefinedTableInstance),
+    Table(Ref<DefinedTableInstance>),
 }
 
 pub struct HostFunc {

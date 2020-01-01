@@ -210,8 +210,8 @@ impl<'a> Executor<'a> {
                 let buf_index: i32 = self.pop_as();
                 let table = self.store.table(addr);
                 let buf_index = buf_index as usize;
-                assert!(buf_index < table.buffer_len(self.store));
-                let func_addr = match table.get_at(buf_index, self.store) {
+                assert!(buf_index < table.borrow().buffer_len(self.store));
+                let func_addr = match table.borrow().get_at(buf_index, self.store) {
                     Some(addr) => addr,
                     None => panic!(),
                 };

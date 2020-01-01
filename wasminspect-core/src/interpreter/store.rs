@@ -9,11 +9,13 @@ use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::value::Value;
 use parity_wasm;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 /// Store
 pub struct Store {
     funcs: HashMap<ModuleIndex, Vec<FunctionInstance>>,
-    tables: HashMap<ModuleIndex, Vec<TableInstance>>,
+    tables: HashMap<ModuleIndex, Vec<Rc<RefCell<TableInstance>>>>,
     mems: HashMap<ModuleIndex, Vec<MemoryInstance>>,
     globals: HashMap<ModuleIndex, Vec<GlobalInstance>>,
     modules: Vec<ModuleInstance>,
@@ -48,12 +50,8 @@ impl Store {
         &self.globals[&addr.0][addr.1]
     }
 
-    pub fn table(&self, addr: TableAddr) -> &TableInstance {
-        &self.tables[&addr.0][addr.1]
-    }
-
-    pub fn table_mut(&self, addr: TableAddr) -> &mut TableInstance {
-        self.tables.get_mut(&addr.0).unwrap().get_mut(addr.1).unwrap()
+    pub fn table(&self, addr: TableAddr) -> Rc<RefCell<TableInstance>> {
+        self.tables[&addr.0][addr.1].clone()
     }
 
     pub fn memory(&self, addr: MemoryAddr) -> &MemoryInstance {
@@ -277,7 +275,7 @@ impl Store {
         );
         let map = self.tables.entry(module_index).or_insert(Vec::new());
         let table_index = map.len();
-        map.push(TableInstance::External(instance));
+        map.push(Rc::new(RefCell::new(TableInstance::External(instance))));
         return TableAddr(module_index, table_index);
     }
 
@@ -371,16 +369,16 @@ impl Store {
                     );
                     let map = self.tables.entry(module_index).or_insert(Vec::new());
                     let table_index = map.len();
-                    map.push(TableInstance::Defined(instance));
+                    map.push(Rc::new(RefCell::new(TableInstance::Defined(instance))));
                     table_addrs.push(TableAddr(module_index, table_index));
                 }
             }
         }
 
-        let tables = self.tables.get_mut(&module_index).unwrap_or(&mut vec![]);
+        let tables = self.tables[&module_index].clone();
 
         for (index, table) in tables.iter().enumerate() {
-            let segs = element_segments[&index];
+            let segs = &element_segments[&index];
             for seg in segs {
                 let offset = match seg
                     .offset()
@@ -396,7 +394,7 @@ impl Store {
                     .iter()
                     .map(|func_index| FuncAddr(module_index, *func_index as usize))
                     .collect();
-                table.initialize(offset as usize, data, self);
+                table.borrow_mut().initialize(offset as usize, data, self);
             }
         }
         table_addrs

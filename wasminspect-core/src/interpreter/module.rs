@@ -5,6 +5,8 @@ use super::host::*;
 use super::value::Value;
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ModuleIndex(pub u32);
@@ -124,14 +126,14 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn table_by_name(&self, name: String) -> Option<&DefinedTableInstance> {
+    pub fn table_by_name(&self, name: String) -> Option<&Rc<RefCell<DefinedTableInstance>>> {
         assert!(
             self.values.contains_key(&name),
             "Table {} was not loaded",
             name
         );
-        match self.values[&name] {
-            HostValue::Table(ref table) => Some(table),
+        match &self.values[&name] {
+            HostValue::Table(table) => Some(table),
             _ => None,
         }
     }
