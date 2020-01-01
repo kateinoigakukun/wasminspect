@@ -360,7 +360,7 @@ impl Store {
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut table_addrs = Vec::new();
-        if tables.is_empty() {
+        if tables.is_empty() && self.tables.is_empty() {
             return table_addrs;
         }
         for (index, entry) in tables.iter().enumerate() {
@@ -378,7 +378,11 @@ impl Store {
             }
         }
 
-        let tables = self.tables[&module_index].clone();
+        let tables = self
+            .tables
+            .entry(module_index)
+            .or_insert(Vec::new())
+            .clone();
 
         for (index, table) in tables.iter().enumerate() {
             if let Some(segs) = element_segments.get(&index) {
