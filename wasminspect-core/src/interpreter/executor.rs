@@ -297,6 +297,7 @@ impl<'a> Executor<'a> {
                 self.store_with_width::<i64>(*offset as usize, 32)
             }
 
+            Instruction::CurrentMemory(_) => unimplemented!(),
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as();
                 let frame = self.stack.current_frame();
@@ -485,10 +486,10 @@ impl<'a> Executor<'a> {
             Instruction::F64ConvertUI64 => unimplemented!(),
             Instruction::F64PromoteF32 => unimplemented!(),
 
-            _ => {
-                debug_assert!(false, format!("{} not supported yet", inst));
-                ExecResult::Err(ExecError::Panic(format!("{} not supported yet", inst)))
-            }
+            Instruction::I32ReinterpretF32 => unimplemented!(),
+            Instruction::I64ReinterpretF64 => unimplemented!(),
+            Instruction::F32ReinterpretI32 => unimplemented!(),
+            Instruction::F64ReinterpretI64 => unimplemented!(),
         };
         if self.stack.is_over_top_level() {
             return Ok(ExecSuccess::End);
