@@ -28,8 +28,9 @@ impl WastContext {
     pub fn instantiate(&self, bytes: &[u8]) -> Rc<RefCell<WasmInstance>> {
         let parity_module: parity_wasm::elements::Module =
             parity_wasm::deserialize_buffer(&bytes).unwrap();
-        let mut instance = WasmInstance::new_from_parity_module(parity_module);
-        instance.load_host_module("spectest".to_string(), instantiate_spectest());
+        let instance = WasmInstance::new()
+            .load_host_module("spectest".to_string(), instantiate_spectest())
+            .load_main_module_from_parity_module(parity_module);
         return Rc::new(RefCell::new(instance));
     }
     fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
@@ -99,6 +100,13 @@ impl WastContext {
                     println!("assert_trap is unsupported");
                 }
                 AssertMalformed {
+                    span: _,
+                    module: _,
+                    message: _,
+                } => {
+                    println!("assert_malformed is unsupported");
+                }
+                AssertUnlinkable {
                     span: _,
                     module: _,
                     message: _,

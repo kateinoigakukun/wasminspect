@@ -92,6 +92,11 @@ impl HostModuleInstance {
     }
 
     pub fn global_by_name(&self, name: String) -> Option<Value> {
+        assert!(
+            self.values.contains_key(&name),
+            "Global {} was not loaded",
+            name
+        );
         match self.values[&name] {
             HostValue::Global(global) => Some(global.clone()),
             _ => None,

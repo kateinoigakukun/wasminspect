@@ -28,23 +28,32 @@ pub struct WasmInstance {
     module_index: ModuleIndex,
 }
 
-impl WasmInstance {
-    pub fn new(module_filename: String) -> Self {
-        let parity_module = parity_wasm::deserialize_file(module_filename).unwrap();
-        Self::new_from_parity_module(parity_module)
-    }
+pub struct WasmInstanceBuilder {
+    store: Store,
+}
 
-    pub fn new_from_parity_module(parity_module: parity_wasm::elements::Module) -> Self {
-        let mut store = Store::new();
+impl WasmInstanceBuilder {
+    pub fn load_main_module_from_file(self, module_filename: String) -> WasmInstance {
+        let parity_module = parity_wasm::deserialize_file(module_filename).unwrap();
+        self.load_main_module_from_parity_module(parity_module)
+    }
+    pub fn load_main_module_from_parity_module(self, parity_module: parity_wasm::elements::Module) -> WasmInstance {
+        let mut store = self.store;
         let module_index = store.load_parity_module(None, parity_module);
-        Self {
-            store: store,
+        WasmInstance {
+            store,
             module_index,
         }
     }
+    pub fn load_host_module(mut self, name: String, module: HashMap<String, HostValue>) -> Self {
+        self.store.load_host_module(name, module);
+        self
+    }
+}
 
-    pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
-        self.store.load_host_module(name, module)
+impl WasmInstance {
+    pub fn new() -> WasmInstanceBuilder {
+        WasmInstanceBuilder { store: Store::new() }
     }
 
     pub fn run(
