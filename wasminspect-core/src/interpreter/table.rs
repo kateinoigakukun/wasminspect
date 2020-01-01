@@ -1,4 +1,6 @@
 use super::address::FuncAddr;
+use super::module::ModuleInstance;
+use super::store::Store;
 use parity_wasm::elements::ResizableLimits;
 
 pub enum TableInstance {
@@ -7,17 +9,37 @@ pub enum TableInstance {
 }
 
 impl TableInstance {
-    pub fn buffer_len(&self) -> usize {
+    pub fn buffer_len(&self, store: &Store) -> usize {
         match self {
             Self::Defined(defined) => defined.buffer_len(),
-            Self::External(_) => unimplemented!(),
+            Self::External(external) => {
+                let table = Self::external_instance(external, store);
+                table.buffer_len(store)
+            }
         }
     }
 
-    pub fn get_at(&self, index: usize) -> Option<FuncAddr> {
+    pub fn get_at(&self, index: usize, store: &Store) -> Option<FuncAddr> {
         match self {
             Self::Defined(defined) => defined.get_at(index),
-            Self::External(_) => unimplemented!(),
+            Self::External(external) => {
+                let table = Self::external_instance(external, store);
+                table.get_at(index, store)
+            }
+        }
+    }
+
+    pub fn external_instance<'a>(
+        external: &ExternalTableInstance,
+        store: &'a Store,
+    ) -> &'a TableInstance {
+        let module = store.module_by_name(external.module_name.clone());
+        match module {
+            ModuleInstance::Defined(defined) => {
+                let addr = defined.exported_table(external.name.clone());
+                store.table(addr.unwrap())
+            }
+            ModuleInstance::Host(_) => panic!(),
         }
     }
 }

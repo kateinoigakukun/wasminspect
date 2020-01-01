@@ -27,6 +27,7 @@ pub enum HostValue {
     Func(HostFunc),
     Mem(),
     Global(Value),
+    Table(HostTable)
 }
 
 pub struct HostFunc {
@@ -53,4 +54,8 @@ impl HostFunc {
     pub fn ty(&self) -> &FunctionType {
         &self.ty
     }
+}
+
+pub struct HostTable {
+
 }

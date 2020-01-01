@@ -1,6 +1,6 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
-use super::host::{HostFunc, HostValue};
+use super::host::*;
 use super::value::Value;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -73,6 +73,14 @@ impl DefinedModuleInstance {
         })
     }
 
+    pub fn exported_table(&self, name: String) -> Option<TableAddr> {
+        let export = self.exported_by_name(name);
+        export.and_then(|e| match e.value() {
+            ExternalValue::Table(addr) => Some(addr.clone()),
+            _ => None,
+        })
+    }
+
     pub fn start_func_addr(&self) -> &Option<FuncAddr> {
         &self.start_func
     }
@@ -113,5 +121,9 @@ impl HostModuleInstance {
             HostValue::Func(ref func) => Some(func),
             _ => None,
         }
+    }
+
+    pub fn table_by_name(&self, name: String) -> Option<&HostTable> {
+        panic!()
     }
 }
