@@ -38,7 +38,7 @@ impl HostFunc {
     pub fn new<F>(ty: FunctionType, code: F) -> Self
     where
         F: Fn(&[Value], &mut [Value]) -> Result<(), ()>,
-        F: 'static
+        F: 'static,
     {
         Self {
             ty,

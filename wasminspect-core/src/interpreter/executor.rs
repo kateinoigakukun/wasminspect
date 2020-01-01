@@ -599,7 +599,7 @@ impl<'a> Executor<'a> {
                     _ => panic!(),
                 }
                 panic!()
-            },
+            }
         }
     }
     fn do_return(&mut self) -> ExecResult {

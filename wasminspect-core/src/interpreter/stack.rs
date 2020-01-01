@@ -1,7 +1,7 @@
 use super::address::FuncAddr;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
-use super::value::{Value, NativeValue};
+use super::value::{NativeValue, Value};
 use parity_wasm::elements::{FunctionType, ValueType};
 
 use std::fmt::{Debug, Display, Formatter, Result};

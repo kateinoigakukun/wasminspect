@@ -182,13 +182,13 @@ impl WastContext {
         );
         let instance = self.get_instance(module_name).clone();
         let args = args.iter().map(const_expr).collect();
-        return instance.clone()
+        return instance
+            .clone()
             .borrow_mut()
             .run(Some(func_name.to_string()), args)
             .unwrap_or_else(|err| {
                 panic!("{}", err);
-            })
-            // .expect("func invocation");
+            });
     }
 
     fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Vec<WasmValue>> {

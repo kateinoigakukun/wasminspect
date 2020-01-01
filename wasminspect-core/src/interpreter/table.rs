@@ -1,5 +1,5 @@
-use parity_wasm::elements::ResizableLimits;
 use super::address::FuncAddr;
+use parity_wasm::elements::ResizableLimits;
 
 pub enum TableInstance {
     Defined(DefinedTableInstance),
@@ -7,7 +7,6 @@ pub enum TableInstance {
 }
 
 impl TableInstance {
-
     pub fn buffer_len(&self) -> usize {
         match self {
             Self::Defined(defined) => defined.buffer_len(),

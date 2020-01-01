@@ -1,6 +1,6 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
-use super::host::{HostValue, HostFunc};
+use super::host::{HostFunc, HostValue};
 use super::value::Value;
 use std::collections::HashMap;
 use std::hash::Hash;

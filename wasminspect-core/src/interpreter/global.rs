@@ -1,7 +1,7 @@
-use super::value::Value;
-use super::store::Store;
 use super::module::ModuleInstance;
-use parity_wasm::elements::{GlobalType};
+use super::store::Store;
+use super::value::Value;
+use parity_wasm::elements::GlobalType;
 
 pub enum GlobalInstance {
     Defined(DefinedGlobalInstance),
@@ -15,13 +15,15 @@ impl GlobalInstance {
             GlobalInstance::External(external) => {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
-                    ModuleInstance::Host(host) => host.global_by_name(external.name.clone()).unwrap(),
+                    ModuleInstance::Host(host) => {
+                        host.global_by_name(external.name.clone()).unwrap()
+                    }
                     ModuleInstance::Defined(defined) => {
                         let addr = defined.exported_global(external.name.clone());
                         store.global(addr.unwrap()).value(store)
                     }
                 }
-            },
+            }
         }
     }
 }
