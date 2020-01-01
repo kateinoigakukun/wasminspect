@@ -42,13 +42,3 @@ fn test_calc_call() {
         vec![WasmValue::I32(7)],
     );
 }
-
-#[test]
-fn test_call_imported_func() {
-    run_wasm(
-        "calc.wasm",
-        "print_added",
-        vec![WasmValue::I32(3), WasmValue::I32(4)],
-        vec![],
-    );
-}

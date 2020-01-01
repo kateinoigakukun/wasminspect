@@ -78,13 +78,11 @@ impl Store {
     }
 
     pub fn module_by_name(&self, name: String) -> &ModuleInstance {
-        assert!(
-            self.module_index_by_name.contains_key(&name),
-            "Module {} was not loaded",
-            name
-        );
-        let index = self.module_index_by_name[&name];
-        self.module(index)
+        if let Some(index) = self.module_index_by_name.get(&name) {
+            self.module(*index)
+        } else {
+            panic!("Module {} was not loaded", name);
+        }
     }
 }
 

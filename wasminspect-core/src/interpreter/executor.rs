@@ -571,10 +571,10 @@ impl<'a> Executor<'a> {
         for _ in func.ty().params() {
             args.push(self.stack.pop_value());
         }
+        args.reverse();
         match func {
             FunctionInstance::Defined(defined) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
-                args.reverse();
                 let frame = CallFrame::new_from_func(addr, &defined, args, Some(self.pc));
                 self.stack.set_frame(frame);
                 self.stack.push_label(Label::Return(arity));
