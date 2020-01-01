@@ -82,6 +82,7 @@ impl<'a> Executor<'a> {
 
     fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult {
         self.pc.inc_inst_index();
+        println!("{:?}", self.stack);
         {
             let mut indent = String::new();
             for _ in 0..self.stack.current_frame_labels().len() {
@@ -89,7 +90,6 @@ impl<'a> Executor<'a> {
             }
             println!("{}{}", indent, inst.clone());
         }
-        println!("{:?}", self.stack);
         let result = match inst {
             Instruction::Unreachable => panic!(),
             Instruction::Nop => Ok(ExecSuccess::Next),
@@ -445,7 +445,12 @@ impl<'a> Executor<'a> {
             Instruction::F32Div => self.binop(|a: f32, b: f32| Value::F32(a / b)),
             Instruction::F32Min => self.binop(|a: f32, b: f32| Value::F32(a.min(b))),
             Instruction::F32Max => self.binop(|a: f32, b: f32| Value::F32(a.max(b))),
-            Instruction::F32Copysign => unimplemented!(),
+            Instruction::F32Copysign => self.binop(|a: f32, b: f32| {
+                let sign_mask: u32 = 1 << (std::mem::size_of::<f32>() * 8 - 1);
+                let sign = b.to_bits() & sign_mask;
+                let v = f32::from_bits((a.to_bits() & (!sign_mask)) | sign);
+                Value::from(v)
+            }),
 
             Instruction::F64Abs => self.unop(|v: f64| Value::F64(v.abs())),
             Instruction::F64Neg => self.unop(|v: f64| Value::F64(-v)),
