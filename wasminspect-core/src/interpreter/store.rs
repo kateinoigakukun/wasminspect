@@ -8,9 +8,9 @@ use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, Modu
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::value::Value;
 use parity_wasm;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 /// Store
 pub struct Store {
@@ -360,6 +360,9 @@ impl Store {
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut table_addrs = Vec::new();
+        if tables.is_empty() {
+            return table_addrs;
+        }
         for (index, entry) in tables.iter().enumerate() {
             match entry.elem_type() {
                 parity_wasm::elements::TableElementType::AnyFunc => {
@@ -378,23 +381,24 @@ impl Store {
         let tables = self.tables[&module_index].clone();
 
         for (index, table) in tables.iter().enumerate() {
-            let segs = &element_segments[&index];
-            for seg in segs {
-                let offset = match seg
-                    .offset()
-                    .as_ref()
-                    .map(|e| eval_const_expr(&e, self, module_index))
-                    .unwrap()
-                {
-                    Value::I32(v) => v,
-                    _ => panic!(),
-                };
-                let data = seg
-                    .members()
-                    .iter()
-                    .map(|func_index| FuncAddr(module_index, *func_index as usize))
-                    .collect();
-                table.borrow_mut().initialize(offset as usize, data, self);
+            if let Some(segs) = element_segments.get(&index) {
+                for seg in segs {
+                    let offset = match seg
+                        .offset()
+                        .as_ref()
+                        .map(|e| eval_const_expr(&e, self, module_index))
+                        .unwrap()
+                    {
+                        Value::I32(v) => v,
+                        _ => panic!(),
+                    };
+                    let data = seg
+                        .members()
+                        .iter()
+                        .map(|func_index| FuncAddr(module_index, *func_index as usize))
+                        .collect();
+                    table.borrow_mut().initialize(offset as usize, data, self);
+                }
             }
         }
         table_addrs
