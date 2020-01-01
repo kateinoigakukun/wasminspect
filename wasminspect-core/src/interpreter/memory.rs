@@ -99,7 +99,7 @@ impl DefinedMemoryInstance {
                 return Err(Error::OverMaximumSize(max));
             }
         }
-        let mut extra: Vec<u8> = std::iter::repeat(0).take(len * PAGE_SIZE).collect();
+        let mut extra: Vec<u8> = std::iter::repeat(0).take(n * PAGE_SIZE).collect();
         self.data.append(&mut extra);
         return Ok(());
     }
