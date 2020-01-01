@@ -595,10 +595,10 @@ impl<'a> Executor<'a> {
                         for v in result {
                             self.stack.push_value(v);
                         }
+                        Ok(ExecSuccess::Next)
                     }
                     _ => panic!(),
                 }
-                panic!()
             }
         }
     }

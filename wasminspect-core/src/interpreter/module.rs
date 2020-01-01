@@ -103,14 +103,14 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn func_by_name(&self, name: String) -> Option<HostFunc> {
+    pub fn func_by_name(&self, name: String) -> Option<&HostFunc> {
         assert!(
             self.values.contains_key(&name),
             "Func {} was not loaded",
             name
         );
         match self.values[&name] {
-            HostValue::Func(func) => Some(func),
+            HostValue::Func(ref func) => Some(func),
             _ => None,
         }
     }
