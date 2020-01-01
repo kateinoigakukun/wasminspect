@@ -1,5 +1,6 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
+use super::table::DefinedTableInstance;
 use super::host::*;
 use super::value::Value;
 use std::collections::HashMap;
@@ -123,7 +124,15 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn table_by_name(&self, name: String) -> Option<&HostTable> {
-        panic!()
+    pub fn table_by_name(&self, name: String) -> Option<&DefinedTableInstance> {
+        assert!(
+            self.values.contains_key(&name),
+            "Table {} was not loaded",
+            name
+        );
+        match self.values[&name] {
+            HostValue::Table(ref table) => Some(table),
+            _ => None,
+        }
     }
 }

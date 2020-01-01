@@ -52,6 +52,10 @@ impl Store {
         &self.tables[&addr.0][addr.1]
     }
 
+    pub fn table_mut(&self, addr: TableAddr) -> &mut TableInstance {
+        self.tables.get_mut(&addr.0).unwrap().get_mut(addr.1).unwrap()
+    }
+
     pub fn memory(&self, addr: MemoryAddr) -> &MemoryInstance {
         &self.mems[&addr.0][addr.1]
     }
@@ -365,32 +369,34 @@ impl Store {
                         entry.limits().initial() as usize,
                         entry.limits().maximum().map(|mx| mx as usize),
                     );
-
-                    if element_segments.len() > index {
-                        let segs = &element_segments[&index];
-                        for seg in segs {
-                            let offset = match seg
-                                .offset()
-                                .as_ref()
-                                .map(|e| eval_const_expr(&e, self, module_index))
-                                .unwrap()
-                            {
-                                Value::I32(v) => v,
-                                _ => panic!(),
-                            };
-                            let data = seg
-                                .members()
-                                .iter()
-                                .map(|func_index| FuncAddr(module_index, *func_index as usize))
-                                .collect();
-                            instance.initialize(offset as usize, data);
-                        }
-                    }
                     let map = self.tables.entry(module_index).or_insert(Vec::new());
                     let table_index = map.len();
                     map.push(TableInstance::Defined(instance));
                     table_addrs.push(TableAddr(module_index, table_index));
                 }
+            }
+        }
+
+        let tables = self.tables.get_mut(&module_index).unwrap_or(&mut vec![]);
+
+        for (index, table) in tables.iter().enumerate() {
+            let segs = element_segments[&index];
+            for seg in segs {
+                let offset = match seg
+                    .offset()
+                    .as_ref()
+                    .map(|e| eval_const_expr(&e, self, module_index))
+                    .unwrap()
+                {
+                    Value::I32(v) => v,
+                    _ => panic!(),
+                };
+                let data = seg
+                    .members()
+                    .iter()
+                    .map(|func_index| FuncAddr(module_index, *func_index as usize))
+                    .collect();
+                table.initialize(offset as usize, data, self);
             }
         }
         table_addrs

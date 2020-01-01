@@ -9,12 +9,43 @@ pub enum TableInstance {
 }
 
 impl TableInstance {
+
+    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>, store: &mut Store) {
+        match self {
+            Self::Defined(defined) => defined.initialize(offset, data),
+            Self::External(external) => {
+                let module = store.module_by_name(external.module_name.clone());
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_table(external.name.clone());
+                        let table = store.table(addr.unwrap());
+                        table.initialize(offset, data, store)
+                    }
+                    ModuleInstance::Host(host) => {
+                        let table = host.table_by_name(external.name.clone()).unwrap();
+                        table.initialize(offset, data)
+                    }
+                }
+            }
+        }
+    }
+
     pub fn buffer_len(&self, store: &Store) -> usize {
         match self {
             Self::Defined(defined) => defined.buffer_len(),
             Self::External(external) => {
-                let table = Self::external_instance(external, store);
-                table.buffer_len(store)
+                let module = store.module_by_name(external.module_name.clone());
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_table(external.name.clone());
+                        let table = store.table(addr.unwrap());
+                        table.buffer_len(store)
+                    }
+                    ModuleInstance::Host(host) => {
+                        let table = host.table_by_name(external.name.clone()).unwrap();
+                        table.buffer_len()
+                    }
+                }
             }
         }
     }
@@ -23,23 +54,19 @@ impl TableInstance {
         match self {
             Self::Defined(defined) => defined.get_at(index),
             Self::External(external) => {
-                let table = Self::external_instance(external, store);
-                table.get_at(index, store)
+                let module = store.module_by_name(external.module_name.clone());
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_table(external.name.clone());
+                        let table = store.table(addr.unwrap());
+                        table.get_at(index, store)
+                    }
+                    ModuleInstance::Host(host) => {
+                        let table = host.table_by_name(external.name.clone()).unwrap();
+                        table.get_at(index)
+                    }
+                }
             }
-        }
-    }
-
-    pub fn external_instance<'a>(
-        external: &ExternalTableInstance,
-        store: &'a Store,
-    ) -> &'a TableInstance {
-        let module = store.module_by_name(external.module_name.clone());
-        match module {
-            ModuleInstance::Defined(defined) => {
-                let addr = defined.exported_table(external.name.clone());
-                store.table(addr.unwrap())
-            }
-            ModuleInstance::Host(_) => panic!(),
         }
     }
 }
@@ -84,6 +111,17 @@ impl ExternalTableInstance {
             module_name,
             name,
             limit,
+        }
+    }
+
+    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>, store: &mut Store) {
+        let module = store.module_by_name(self.module_name.clone());
+        match module {
+            ModuleInstance::Defined(defined) => {
+                let addr = defined.exported_table(self.name.clone()).unwrap();
+                let table = store.table_mut(addr);
+                table.initialize(store)
+            }
         }
     }
 }

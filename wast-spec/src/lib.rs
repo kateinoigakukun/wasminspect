@@ -116,7 +116,7 @@ impl WastContext {
                     module: _,
                     message: _,
                 } => {
-                    println!("assert_malformed is unsupported");
+                    println!("assert_unlinkable is unsupported");
                 }
                 AssertExhaustion {
                     span: _,

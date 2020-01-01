@@ -1,6 +1,6 @@
 use parity_wasm::elements::{FunctionType, ValueType};
 use std::collections::HashMap;
-use wasminspect_core::interpreter::{HostFunc, HostValue, WasmValue};
+use wasminspect_core::interpreter::*;
 
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();
@@ -68,6 +68,11 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         "global_f64".to_string(),
         HostValue::Global(WasmValue::F64(f64::from_bits(0x4084d00000000000))),
     );
+
+    let mut table = HostTable::new(10, Some(20));
+    let init_func_addr = FuncAddr(ModuleIndex(0), 0);
+    table.initialize(0, std::iter::repeat(init_func_addr).take(10).collect());
+    module.insert("table".to_string(), HostValue::Table(table));
 
     module.insert("memory".to_string(), HostValue::Mem());
     module
