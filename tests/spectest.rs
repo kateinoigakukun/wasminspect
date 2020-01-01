@@ -52,8 +52,8 @@ fn run_spectest(filename: &str) {
 // run_wast!("globals.wast", test_wast_globals);
 // run_wast!("i32.wast", test_wast_i32);
 // run_wast!("i64.wast", test_wast_i64);
-run_wast!("if.wast", test_wast_if);
-// run_wast!("imports.wast", test_wast_imports);
+// run_wast!("if.wast", test_wast_if);
+run_wast!("imports.wast", test_wast_imports);
 // run_wast!("inline-module.wast", test_wast_inline_module);
 // run_wast!("int_exprs.wast", test_wast_int_exprs);
 // run_wast!("int_literals.wast", test_wast_int_literals);
