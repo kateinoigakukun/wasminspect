@@ -361,14 +361,14 @@ impl<'a> Executor<'a> {
             Instruction::I64GeU => self.relop::<u64, _>(|a, b| a >= b),
 
             Instruction::F32Eq => self.relop::<f32, _>(|a, b| a == b),
-            Instruction::F32Ne => self.relop::<f32, _>(|a, b| a == b),
+            Instruction::F32Ne => self.relop::<f32, _>(|a, b| a != b),
             Instruction::F32Lt => self.relop::<f32, _>(|a, b| a < b),
             Instruction::F32Gt => self.relop::<f32, _>(|a, b| a > b),
             Instruction::F32Le => self.relop::<f32, _>(|a, b| a <= b),
             Instruction::F32Ge => self.relop::<f32, _>(|a, b| a >= b),
 
             Instruction::F64Eq => self.relop::<f64, _>(|a, b| a == b),
-            Instruction::F64Ne => self.relop::<f64, _>(|a, b| a == b),
+            Instruction::F64Ne => self.relop::<f64, _>(|a, b| a != b),
             Instruction::F64Lt => self.relop::<f64, _>(|a, b| a < b),
             Instruction::F64Gt => self.relop::<f64, _>(|a, b| a > b),
             Instruction::F64Le => self.relop::<f64, _>(|a, b| a <= b),
