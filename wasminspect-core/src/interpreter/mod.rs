@@ -11,7 +11,6 @@ mod store;
 mod table;
 mod validator;
 mod value;
-mod external;
 
 use self::executor::{ExecSuccess, Executor};
 use self::export::ExternalValue;
@@ -37,7 +36,7 @@ impl WasmInstance {
 
     pub fn new_from_parity_module(parity_module: parity_wasm::elements::Module) -> Self {
         let mut store = Store::new();
-        let module_index = store.load_parity_module(parity_module);
+        let module_index = store.load_parity_module(None, parity_module);
         Self {
             store: store,
             module_index,
@@ -49,14 +48,10 @@ impl WasmInstance {
         func_name: Option<String>,
         arguments: Vec<WasmValue>,
     ) -> Result<Vec<WasmValue>, WasmError> {
-        let module = self.store.module(self.module_index);
+        let module = self.store.module(self.module_index).defined().unwrap();
         let pc = if let Some(func_name) = func_name {
-            if let Some(export) = module.exported_func(func_name.clone()) {
-                if let ExternalValue::Func(func_addr) = export.value() {
-                    ProgramCounter::new(*func_addr, InstIndex::zero())
-                } else {
-                    return Err(WasmError::EntryFunctionNotFound(func_name.clone()));
-                }
+            if let Some(func_addr) = module.exported_func(func_name.clone()) {
+                ProgramCounter::new(func_addr, InstIndex::zero())
             } else {
                 return Err(WasmError::EntryFunctionNotFound(func_name.clone()));
             }

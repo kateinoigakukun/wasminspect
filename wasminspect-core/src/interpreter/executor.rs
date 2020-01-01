@@ -1,11 +1,11 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::host::BuiltinPrintI32;
+use super::memory::*;
 use super::module::*;
 use super::stack::*;
 use super::store::*;
 use super::value::*;
-use super::memory::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::convert::TryFrom;
@@ -205,7 +205,7 @@ impl<'a> Executor<'a> {
                 let (ty, addr) = {
                     let frame = self.stack.current_frame();
                     let addr = TableAddr(frame.module_index(), 0);
-                    let module = self.store.module(frame.module_index());
+                    let module = self.store.module(frame.module_index()).defined().unwrap();
                     let ty = match module.get_type(*type_index as usize) {
                         parity_wasm::elements::Type::Function(ty) => ty,
                     };
@@ -253,7 +253,7 @@ impl<'a> Executor<'a> {
             Instruction::GetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
                 let global = self.store.global(addr);
-                self.stack.push_value(global.value());
+                self.stack.push_value(global.value(self.store));
                 Ok(ExecSuccess::Next)
             }
             Instruction::SetGlobal(index) => {
@@ -461,7 +461,9 @@ impl<'a> Executor<'a> {
             Instruction::F64Max => self.binop::<f64, _>(|a, b| Value::F64(a.max(b))),
             Instruction::F64Copysign => unimplemented!(),
 
-            Instruction::I32WrapI64 => self.unop::<i32, _>(|v| Value::I64((f64::from(v) as i32).into())),
+            Instruction::I32WrapI64 => {
+                self.unop::<i32, _>(|v| Value::I64((f64::from(v) as i32).into()))
+            }
             Instruction::I32TruncSF32 => self.unop::<f32, _>(|v| Value::I64(v as i64)),
             Instruction::I32TruncUF32 => self.unop::<f32, _>(|v| Value::F32((v as f32).trunc())),
             Instruction::I32TruncSF64 => self.unop::<f32, _>(|v| Value::F64(v as f64)),
@@ -648,7 +650,7 @@ impl<'a> Executor<'a> {
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
         let memory = { self.store.memory(mem_addr) };
-        let mem_len = match memory { 
+        let mem_len = match memory {
             MemoryInstance::Defined(memory) => memory.data_len(),
             MemoryInstance::External(_) => panic!(),
         };
@@ -739,8 +741,8 @@ pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: Module
         Instruction::F64Const(val) => Value::F64(f64::from_bits(val)),
         Instruction::GetGlobal(index) => {
             let addr = GlobalAddr(module_index, index as usize);
-            store.global(addr).value()
-        },
+            store.global(addr).value(store)
+        }
         _ => panic!("Unsupported init_expr {}", inst),
     }
 }

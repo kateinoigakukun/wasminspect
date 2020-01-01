@@ -1,10 +1,6 @@
 use super::value::Value;
 use parity_wasm::elements::ValueType;
 
-pub trait HostFunc {
-    fn call(&self, args: &[Value]) -> Option<Value>;
-}
-
 pub struct BuiltinPrintI32 {}
 
 impl BuiltinPrintI32 {
@@ -17,4 +13,24 @@ impl BuiltinPrintI32 {
         }
         None
     }
+}
+
+use std::rc::Rc;
+use std::cell::RefCell;
+
+use super::memory::MemoryInstance;
+use super::stack::Stack;
+use parity_wasm::elements::FunctionType;
+
+type Ref<T> = Rc<RefCell<T>>;
+
+pub enum HostValue {
+    Func(HostFunc),
+    Mem(MemoryInstance),
+    Global(Value),
+}
+
+pub struct HostFunc {
+    code: Box<dyn Fn(&Stack) + 'static>,
+    ty: FunctionType,
 }

@@ -1,9 +1,10 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::eval_const_expr;
+use super::host::HostValue;
 use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
-use super::global::{GlobalInstance, DefinedGlobalInstance, ExternalGlobalInstance};
+use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
 use super::memory::{DefinedMemoryInstance, HostMemoryInstance, MemoryInstance};
-use super::module::{ModuleIndex, ModuleInstance};
+use super::module::{ModuleIndex, ModuleInstance, DefinedModuleInstance, HostModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::value::Value;
 use parity_wasm;
@@ -16,6 +17,7 @@ pub struct Store {
     mems: HashMap<ModuleIndex, Vec<MemoryInstance>>,
     globals: HashMap<ModuleIndex, Vec<GlobalInstance>>,
     modules: Vec<ModuleInstance>,
+    module_index_by_name: HashMap<String, ModuleIndex>,
 }
 
 impl Store {
@@ -26,6 +28,7 @@ impl Store {
             mems: HashMap::new(),
             globals: HashMap::new(),
             modules: Vec::new(),
+            module_index_by_name: HashMap::new(),
         }
     }
 
@@ -73,11 +76,26 @@ impl Store {
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
         &self.modules[module_index.0 as usize]
     }
+
+    pub fn module_by_name(&self, name: String) -> &ModuleInstance {
+        let index = self.module_index_by_name[&name];
+        self.module(index)
+    }
+}
+
+impl Store {
+    pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
+        let module_index = ModuleIndex(self.modules.len() as u32);
+        let instance = HostModuleInstance::new(module);
+        self.modules.push(ModuleInstance::Host(instance));
+        self.module_index_by_name.insert(name, module_index);
+    }
 }
 
 impl Store {
     pub fn load_parity_module(
         &mut self,
+        name: Option<String>,
         parity_module: parity_wasm::elements::Module,
     ) -> ModuleIndex {
         let types = Self::get_types(&parity_module);
@@ -96,8 +114,11 @@ impl Store {
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
-            ModuleInstance::new_from_parity_module(parity_module, module_index, types, func_addrs);
-        self.modules.push(instance);
+            DefinedModuleInstance::new_from_parity_module(parity_module, module_index, types, func_addrs);
+        self.modules.push(ModuleInstance::Defined(instance));
+        if let Some(name) = name {
+            self.module_index_by_name.insert(name, module_index);
+        }
         return module_index;
     }
 
@@ -342,11 +363,15 @@ impl Store {
                     if element_segments.len() > index {
                         let segs = &element_segments[&index];
                         for seg in segs {
-                            let offset =
-                                match seg.offset().as_ref().map(|e| eval_const_expr(&e, self, module_index)).unwrap() {
-                                    Value::I32(v) => v,
-                                    _ => panic!(),
-                                };
+                            let offset = match seg
+                                .offset()
+                                .as_ref()
+                                .map(|e| eval_const_expr(&e, self, module_index))
+                                .unwrap()
+                            {
+                                Value::I32(v) => v,
+                                _ => panic!(),
+                            };
                             let data = seg
                                 .members()
                                 .iter()
@@ -384,7 +409,12 @@ impl Store {
             if data_segments.len() > index {
                 let segs = &data_segments[&index];
                 for seg in segs {
-                    let offset = match seg.offset().as_ref().map(|e| eval_const_expr(&e, self, module_index)).unwrap() {
+                    let offset = match seg
+                        .offset()
+                        .as_ref()
+                        .map(|e| eval_const_expr(&e, self, module_index))
+                        .unwrap()
+                    {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };

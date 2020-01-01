@@ -1,18 +1,35 @@
 use super::address::*;
-use super::export::ExportInstance;
+use super::export::{ExportInstance, ExternalValue};
+use super::host::HostValue;
+use super::value::Value;
+use std::collections::HashMap;
 use std::hash::Hash;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ModuleIndex(pub u32);
 
-pub struct ModuleInstance {
+pub enum ModuleInstance {
+    Defined(DefinedModuleInstance),
+    Host(HostModuleInstance),
+}
+
+impl ModuleInstance {
+    pub fn defined(&self) -> Option<&DefinedModuleInstance> {
+        match self {
+            ModuleInstance::Defined(defined) => Some(defined),
+            _ => None,
+        }
+    }
+}
+
+pub struct DefinedModuleInstance {
     types: Vec<parity_wasm::elements::Type>,
     func_addrs: Vec<FuncAddr>,
     exports: Vec<ExportInstance>,
     start_func: Option<FuncAddr>,
 }
 
-impl ModuleInstance {
+impl DefinedModuleInstance {
     pub fn new_from_parity_module(
         module: parity_wasm::elements::Module,
         module_index: ModuleIndex,
@@ -36,8 +53,24 @@ impl ModuleInstance {
         }
     }
 
-    pub fn exported_func(&self, name: String) -> Option<&ExportInstance> {
+    pub fn exported_by_name(&self, name: String) -> Option<&ExportInstance> {
         self.exports.iter().filter(|e| *e.name() == name).next()
+    }
+
+    pub fn exported_global(&self, name: String) -> Option<GlobalAddr> {
+        let export = self.exported_by_name(name);
+        export.and_then(|e| match e.value() {
+            ExternalValue::Global(addr) => Some(addr.clone()),
+            _ => None,
+        })
+    }
+
+    pub fn exported_func(&self, name: String) -> Option<FuncAddr> {
+        let export = self.exported_by_name(name);
+        export.and_then(|e| match e.value() {
+            ExternalValue::Func(addr) => Some(addr.clone()),
+            _ => None,
+        })
     }
 
     pub fn start_func_addr(&self) -> &Option<FuncAddr> {
@@ -46,5 +79,22 @@ impl ModuleInstance {
 
     pub fn get_type(&self, index: usize) -> &parity_wasm::elements::Type {
         &self.types[index]
+    }
+}
+
+pub struct HostModuleInstance {
+    values: HashMap<String, HostValue>,
+}
+
+impl HostModuleInstance {
+    pub fn new(values: HashMap<String, HostValue>) -> Self {
+        Self { values }
+    }
+
+    pub fn global_by_name(&self, name: String) -> Option<Value> {
+        match self.values[&name] {
+            HostValue::Global(global) => Some(global.clone()),
+            _ => None,
+        }
     }
 }
