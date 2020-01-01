@@ -46,8 +46,8 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
 
     let ty = FunctionType::new(vec![ValueType::F64, ValueType::F64], None);
     let func = HostValue::Func(HostFunc::new(ty, |params, _| {
-        println!("{}: f64", params[0].as_f32().unwrap());
-        println!("{}: f64", params[1].as_f32().unwrap());
+        println!("{}: f64", params[0].as_f64().unwrap());
+        println!("{}: f64", params[1].as_f64().unwrap());
         Ok(())
     }));
     module.insert("print_f64_f64".to_string(), func);

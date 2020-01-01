@@ -49,6 +49,10 @@ impl WasmInstanceBuilder {
             module_index,
         }
     }
+    pub fn load_module(mut self, name: String, module: parity_wasm::elements::Module) -> Self {
+        self.store.load_parity_module(Some(name), module);
+        self
+    }
     pub fn load_host_module(mut self, name: String, module: HashMap<String, HostValue>) -> Self {
         self.store.load_host_module(name, module);
         self

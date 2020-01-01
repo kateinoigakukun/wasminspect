@@ -563,7 +563,6 @@ impl<'a> Executor<'a> {
 
     fn invoke(&mut self, addr: FuncAddr) -> ExecResult {
         let func = self.store.func(addr);
-        let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         println!("--- Start of Function {:?} ---", func.ty());
 
         // println!("{:?}", self.stack);
@@ -572,6 +571,12 @@ impl<'a> Executor<'a> {
             args.push(self.stack.pop_value());
         }
         args.reverse();
+        self.invoke_with_args(addr, args)
+    }
+
+    fn invoke_with_args(&mut self, addr: FuncAddr, args: Vec<Value>) -> ExecResult {
+        let func = self.store.func(addr);
+        let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         match func {
             FunctionInstance::Defined(defined) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
@@ -581,11 +586,13 @@ impl<'a> Executor<'a> {
                 self.pc = pc;
                 Ok(ExecSuccess::Next)
             }
-            FunctionInstance::Host(host) => {
-                let module = self.store.module_by_name(host.module_name().clone());
+            FunctionInstance::Host(external) => {
+                let module = self.store.module_by_name(external.module_name().clone());
                 match module {
                     ModuleInstance::Host(host_module) => {
-                        let func = host_module.func_by_name(host.field_name().clone()).unwrap();
+                        let func = host_module
+                            .func_by_name(external.field_name().clone())
+                            .unwrap();
                         let mut result = Vec::new();
                         match func.call(&args, &mut result) {
                             Ok(_) => (),
@@ -597,7 +604,12 @@ impl<'a> Executor<'a> {
                         }
                         Ok(ExecSuccess::Next)
                     }
-                    _ => panic!(),
+                    ModuleInstance::Defined(defined_module) => {
+                        let addr = defined_module
+                            .exported_func(external.field_name().clone())
+                            .unwrap();
+                        self.invoke_with_args(addr, args)
+                    }
                 }
             }
         }

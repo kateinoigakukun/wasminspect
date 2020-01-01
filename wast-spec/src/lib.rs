@@ -9,8 +9,8 @@ use spectest::instantiate_spectest;
 use wasminspect_core::interpreter::{WasmInstance, WasmValue};
 
 pub struct WastContext {
-    instances: HashMap<String, Rc<RefCell<WasmInstance>>>,
-    current: Option<Rc<RefCell<WasmInstance>>>,
+    instances: HashMap<String, (Rc<RefCell<WasmInstance>>, parity_wasm::elements::Module)>,
+    current: Option<(Rc<RefCell<WasmInstance>>, parity_wasm::elements::Module)>,
 }
 
 impl WastContext {
@@ -25,21 +25,26 @@ impl WastContext {
         self.run_buffer(path.to_str().unwrap(), &bytes)
     }
 
-    pub fn instantiate(&self, bytes: &[u8]) -> Rc<RefCell<WasmInstance>> {
+    pub fn instantiate(&self, bytes: &[u8]) -> (Rc<RefCell<WasmInstance>>, parity_wasm::elements::Module) {
         let parity_module: parity_wasm::elements::Module =
             parity_wasm::deserialize_buffer(&bytes).unwrap();
-        let instance = WasmInstance::new()
-            .load_host_module("spectest".to_string(), instantiate_spectest())
-            .load_main_module_from_parity_module(parity_module);
-        return Rc::new(RefCell::new(instance));
+        let mut instance = WasmInstance::new()
+            .load_host_module("spectest".to_string(), instantiate_spectest());
+        for (name, (_, module)) in &self.instances {
+            instance = instance.load_module(name.clone(), module.clone());
+        }
+        let instance = instance
+            .load_main_module_from_parity_module(parity_module.clone());
+        let instance = Rc::new(RefCell::new(instance));
+        (instance, parity_module)
     }
     fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
-        let instance = self.instantiate(&bytes);
+        let (instance, module) = self.instantiate(&bytes);
         if let Some(module_name) = module_name {
             self.instances
-                .insert(module_name.to_string(), instance.clone());
+                .insert(module_name.to_string(), (instance.clone(), module.clone()));
         }
-        self.current = Some(instance);
+        self.current = Some((instance, module));
         Ok(())
     }
 
@@ -152,7 +157,7 @@ impl WastContext {
         Ok(())
     }
 
-    fn get_instance(&self, name: Option<&str>) -> Rc<RefCell<WasmInstance>> {
+    fn get_instance(&self, name: Option<&str>) -> (Rc<RefCell<WasmInstance>>, parity_wasm::elements::Module) {
         match name {
             Some(name) => self.instances.get(name).unwrap().clone(),
             None => match self.current.clone() {
@@ -164,7 +169,7 @@ impl WastContext {
 
     /// Get the value of an exported global from an instance.
     fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Vec<WasmValue>> {
-        let instance = self.get_instance(instance_name.as_ref().map(|x| &**x));
+        let (instance, module) = self.get_instance(instance_name.as_ref().map(|x| &**x));
         let instance = instance.borrow();
         panic!();
     }
@@ -180,7 +185,7 @@ impl WastContext {
             module_name.unwrap_or("unknown"),
             func_name
         );
-        let instance = self.get_instance(module_name).clone();
+        let (instance, _) = self.get_instance(module_name).clone();
         let args = args.iter().map(const_expr).collect();
         return instance
             .clone()
