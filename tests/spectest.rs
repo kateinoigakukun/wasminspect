@@ -49,7 +49,7 @@ fn run_spectest(filename: &str) {
 // run_wast!("forward.wast", test_wast_forward);
 // run_wast!("func.wast", test_wast_func);
 // run_wast!("func_ptrs.wast", test_wast_func_ptrs);
-run_wast!("globals.wast", test_wast_globals);
+// run_wast!("globals.wast", test_wast_globals);
 // run_wast!("i32.wast", test_wast_i32);
 // run_wast!("i64.wast", test_wast_i64);
 // run_wast!("if.wast", test_wast_if);

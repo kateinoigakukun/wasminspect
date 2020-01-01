@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr};
+use super::address::*;
 use super::module::ModuleIndex;
 use parity_wasm::elements::Internal;
 
@@ -31,6 +31,14 @@ impl ExportInstance {
                     let addr = GlobalAddr(module_index, *global_index as usize);
                     ExternalValue::Global(addr)
                 }
+                Internal::Memory(memory_index) => {
+                    let addr = MemoryAddr(module_index, *memory_index as usize);
+                    ExternalValue::Memory(addr)
+                }
+                Internal::Table(table_index) => {
+                    let addr = TableAddr(module_index, *table_index as usize);
+                    ExternalValue::Table(addr)
+                }
                 _ => panic!(),
             },
         }
@@ -40,4 +48,6 @@ impl ExportInstance {
 pub enum ExternalValue {
     Func(FuncAddr),
     Global(GlobalAddr),
+    Memory(MemoryAddr),
+    Table(TableAddr),
 }
