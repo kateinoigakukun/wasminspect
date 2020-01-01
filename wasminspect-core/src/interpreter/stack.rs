@@ -1,7 +1,7 @@
 use super::address::FuncAddr;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
-use super::value::Value;
+use super::value::{Value, NativeValue};
 
 use std::fmt::{Debug, Display, Formatter, Result};
 

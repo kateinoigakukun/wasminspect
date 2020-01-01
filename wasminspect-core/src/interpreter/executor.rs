@@ -374,13 +374,13 @@ impl<'a> Executor<'a> {
             Instruction::F64Le => self.relop::<f64, _>(|a, b| a <= b),
             Instruction::F64Ge => self.relop::<f64, _>(|a, b| a >= b),
 
-            Instruction::I32Clz => self.unop::<i32, _>(|v| Value::I32(v.leading_zeros() as i32)),
-            Instruction::I32Ctz => self.unop::<i32, _>(|v| Value::I32(v.trailing_zeros() as i32)),
-            Instruction::I32Popcnt => self.unop::<i32, _>(|v| Value::I32(v.count_ones() as i32)),
-            Instruction::I32Add => self.binop::<i32, _>(|a, b| Value::I32(a + b)),
-            Instruction::I32Sub => self.binop::<i32, _>(|a, b| Value::I32(a - b)),
-            Instruction::I32Mul => self.binop::<i32, _>(|a, b| Value::I32(a * b)),
-            Instruction::I32DivS => self.binop::<i32, _>(|a, b| Value::I32(a / b)),
+            Instruction::I32Clz => self.unop(|v: i32| Value::I32(v.leading_zeros() as i32)),
+            Instruction::I32Ctz => self.unop(|v: i32| Value::I32(v.trailing_zeros() as i32)),
+            Instruction::I32Popcnt => self.unop(|v: i32| Value::I32(v.count_ones() as i32)),
+            Instruction::I32Add => self.binop (|a: i32, b: i32| Value::I32(a + b)),
+            Instruction::I32Sub => self.binop (|a: i32, b: i32| Value::I32(a - b)),
+            Instruction::I32Mul => self.binop (|a: i32, b: i32| Value::I32(a * b)),
+            Instruction::I32DivS => self.binop(|a: i32, b: i32| Value::I32(a / b)),
             Instruction::I32DivU => {
                 self.binop::<i32, _>(|a, b| Value::I32(((a / b) as u32) as i32))
             }
@@ -403,9 +403,9 @@ impl<'a> Executor<'a> {
                 self.binop::<i32, _>(|a, b| Value::I32(a.rotate_right(b as u32)))
             }
 
-            Instruction::I64Clz => self.unop::<i64, _>(|v| Value::I64(v.leading_zeros() as i64)),
-            Instruction::I64Ctz => self.unop::<i64, _>(|v| Value::I64(v.trailing_zeros() as i64)),
-            Instruction::I64Popcnt => self.unop::<i64, _>(|v| Value::I64(v.count_ones() as i64)),
+            Instruction::I64Clz => self.unop(|v: i64| v.leading_zeros() as i64),
+            Instruction::I64Ctz => self.unop(|v: i64| v.trailing_zeros() as i64),
+            Instruction::I64Popcnt => self.unop(|v: i64| Value::I64(v.count_ones() as i64)),
             Instruction::I64Add => self.binop::<i64, _>(|a, b| Value::I64(a + b)),
             Instruction::I64Sub => self.binop::<i64, _>(|a, b| Value::I64(a - b)),
             Instruction::I64Mul => self.binop::<i64, _>(|a, b| Value::I64(a.wrapping_mul(b))),
@@ -432,28 +432,28 @@ impl<'a> Executor<'a> {
                 self.binop::<i64, _>(|a, b| Value::I64(a.rotate_right(b as u32)))
             }
 
-            Instruction::F32Abs => self.unop::<f32, _>(|v| Value::F32(v.abs())),
-            Instruction::F32Neg => self.unop::<f32, _>(|v| Value::F32(-v)),
-            Instruction::F32Ceil => self.unop::<f32, _>(|v| Value::F32(v.ceil())),
-            Instruction::F32Floor => self.unop::<f32, _>(|v| Value::F32(v.floor())),
-            Instruction::F32Trunc => self.unop::<f32, _>(|v| Value::F32(v.trunc())),
-            Instruction::F32Nearest => self.unop::<f32, _>(|v| Value::F32(v.round())),
-            Instruction::F32Sqrt => self.unop::<f32, _>(|v| Value::F32(v.sqrt())),
-            Instruction::F32Add => self.binop::<f32, _>(|a, b| Value::F32(a + b)),
-            Instruction::F32Sub => self.binop::<f32, _>(|a, b| Value::F32(a - b)),
-            Instruction::F32Mul => self.binop::<f32, _>(|a, b| Value::F32(a * b)),
-            Instruction::F32Div => self.binop::<f32, _>(|a, b| Value::F32(a / b)),
-            Instruction::F32Min => self.binop::<f32, _>(|a, b| Value::F32(a.min(b))),
-            Instruction::F32Max => self.binop::<f32, _>(|a, b| Value::F32(a.max(b))),
+            Instruction::F32Abs => self.unop(|v: f32| v.abs()),
+            Instruction::F32Neg => self.unop(|v: f32| -v),
+            Instruction::F32Ceil => self.unop(|v: f32|  v.ceil()),
+            Instruction::F32Floor => self.unop(|v: f32| v.floor()),
+            Instruction::F32Trunc => self.unop(|v: f32| v.trunc()),
+            Instruction::F32Nearest => self.unop(|v: f32| v.round()),
+            Instruction::F32Sqrt => self.unop(|v: f32| Value::F32(v.sqrt())),
+            Instruction::F32Add => self.binop(|a: f32, b: f32| Value::F32(a + b)),
+            Instruction::F32Sub => self.binop(|a: f32, b: f32| Value::F32(a - b)),
+            Instruction::F32Mul => self.binop(|a: f32, b: f32| Value::F32(a * b)),
+            Instruction::F32Div => self.binop(|a: f32, b: f32| Value::F32(a / b)),
+            Instruction::F32Min => self.binop(|a: f32, b: f32| Value::F32(a.min(b))),
+            Instruction::F32Max => self.binop(|a: f32, b: f32| Value::F32(a.max(b))),
             Instruction::F32Copysign => unimplemented!(),
 
-            Instruction::F64Abs => self.unop::<f64, _>(|v| Value::F64(v.abs())),
-            Instruction::F64Neg => self.unop::<f64, _>(|v| Value::F64(-v)),
-            Instruction::F64Ceil => self.unop::<f64, _>(|v| Value::F64(v.ceil())),
-            Instruction::F64Floor => self.unop::<f64, _>(|v| Value::F64(v.floor())),
-            Instruction::F64Trunc => self.unop::<f64, _>(|v| Value::F64(v.trunc())),
-            Instruction::F64Nearest => self.unop::<f64, _>(|v| Value::F64(v.round())),
-            Instruction::F64Sqrt => self.unop::<f64, _>(|v| Value::F64(v.sqrt())),
+            Instruction::F64Abs => self.unop(|v: f64| Value::F64(v.abs())),
+            Instruction::F64Neg => self.unop(|v: f64| Value::F64(-v)),
+            Instruction::F64Ceil => self.unop(|v: f64| Value::F64(v.ceil())),
+            Instruction::F64Floor => self.unop(|v: f64| Value::F64(v.floor())),
+            Instruction::F64Trunc => self.unop(|v: f64| Value::F64(v.trunc())),
+            Instruction::F64Nearest => self.unop(|v: f64| Value::F64(v.round())),
+            Instruction::F64Sqrt => self.unop(|v: f64| Value::F64(v.sqrt())),
             Instruction::F64Add => self.binop::<f64, _>(|a, b| Value::F64(a + b)),
             Instruction::F64Sub => self.binop::<f64, _>(|a, b| Value::F64(a - b)),
             Instruction::F64Mul => self.binop::<f64, _>(|a, b| Value::F64(a * b)),
@@ -463,14 +463,14 @@ impl<'a> Executor<'a> {
             Instruction::F64Copysign => unimplemented!(),
 
             Instruction::I32WrapI64 => {
-                self.unop::<i32, _>(|v| Value::I64((f64::from(v) as i32).into()))
+                self.unop(|v: i32| Value::I64((f64::from(v) as i32).into()))
             }
-            Instruction::I32TruncSF32 => self.unop::<f32, _>(|v| Value::I64(v as i64)),
-            Instruction::I32TruncUF32 => self.unop::<f32, _>(|v| Value::F32((v as f32).trunc())),
-            Instruction::I32TruncSF64 => self.unop::<f32, _>(|v| Value::F64(v as f64)),
-            Instruction::I32TruncUF64 => self.unop::<f32, _>(|v| Value::F64(v as f64)),
-            Instruction::I64ExtendSI32 => self.unop::<i32, _>(|v| Value::I64(v as i64)),
-            Instruction::I64ExtendUI32 => self.unop::<i32, _>(|v| Value::I64((v as u64) as i64)),
+            Instruction::I32TruncSF32 => self.unop(|v: f32| v as i64),
+            Instruction::I32TruncUF32 => self.unop(|v: f32| (v as f32).trunc()),
+            Instruction::I32TruncSF64 => self.unop(|v: f64| v as f64),
+            Instruction::I32TruncUF64 => self.unop(|v: f64| v as f64),
+            Instruction::I64ExtendSI32 => self.unop(|v: i32| Value::I64(v as i64)),
+            Instruction::I64ExtendUI32 => self.unop(|v: i32| Value::I64((v as u64) as i64)),
             Instruction::I64TruncSF32 => unimplemented!(),
             Instruction::I64TruncUF32 => unimplemented!(),
             Instruction::I64TruncSF64 => unimplemented!(),
@@ -486,8 +486,8 @@ impl<'a> Executor<'a> {
             Instruction::F64ConvertUI64 => unimplemented!(),
             Instruction::F64PromoteF32 => unimplemented!(),
 
-            Instruction::I32ReinterpretF32 => unimplemented!(),
-            Instruction::I64ReinterpretF64 => unimplemented!(),
+            Instruction::I32ReinterpretF32 => self.unop(|v: f32| v.to_bits() as i32),
+            Instruction::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
             Instruction::F32ReinterpretI32 => unimplemented!(),
             Instruction::F64ReinterpretI64 => unimplemented!(),
         };
@@ -498,11 +498,11 @@ impl<'a> Executor<'a> {
         }
     }
 
-    fn pop_as<T: TryFrom<Value>>(&mut self) -> T {
+    fn pop_as<T: NativeValue>(&mut self) -> T {
         let value = self.stack.pop_value();
-        match T::try_from(value) {
-            Ok(val) => val,
-            Err(_) => panic!(),
+        match T::from_value(value) {
+            Some(val) => val,
+            None => panic!(),
         }
     }
 
@@ -562,24 +562,24 @@ impl<'a> Executor<'a> {
         Ok(ExecSuccess::Next)
     }
 
-    fn testop<T: TryFrom<Value>, F: Fn(T) -> bool>(&mut self, f: F) -> ExecResult {
+    fn testop<T: NativeValue, F: Fn(T) -> bool>(&mut self, f: F) -> ExecResult {
         self.unop(|a| Value::I32(if f(a) { 1 } else { 0 }))
     }
 
-    fn relop<T: TryFrom<Value>, F: Fn(T, T) -> bool>(&mut self, f: F) -> ExecResult {
+    fn relop<T: NativeValue, F: Fn(T, T) -> bool>(&mut self, f: F) -> ExecResult {
         self.binop::<T, _>(|a, b| Value::I32(if f(a, b) { 1 } else { 0 }))
     }
 
-    fn binop<T: TryFrom<Value>, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
+    fn binop<T: NativeValue, F: Fn(T, T) -> Value>(&mut self, f: F) -> ExecResult {
         let rhs = self.pop_as();
         let lhs = self.pop_as();
         self.stack.push_value(f(lhs, rhs));
         Ok(ExecSuccess::Next)
     }
 
-    fn unop<T: TryFrom<Value>, F: Fn(T) -> Value>(&mut self, f: F) -> ExecResult {
-        let v: T = self.pop_as();
-        self.stack.push_value(f(v));
+    fn unop<From: NativeValue, To: Into<Value>, F: Fn(From) -> To>(&mut self, f: F) -> ExecResult {
+        let v: From = self.pop_as();
+        self.stack.push_value(f(v).into());
         Ok(ExecSuccess::Next)
     }
 
@@ -643,7 +643,7 @@ impl<'a> Executor<'a> {
         Ok(ExecSuccess::Next)
     }
 
-    fn store<T: TryFrom<Value> + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult {
+    fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult {
         let val: T = self.pop_as();
         let raw_addr: i32 = self.pop_as();
         let raw_addr = raw_addr as usize;
@@ -665,7 +665,7 @@ impl<'a> Executor<'a> {
         Ok(ExecSuccess::Next)
     }
 
-    fn store_with_width<T: TryFrom<Value> + IntoLittleEndian>(
+    fn store_with_width<T: NativeValue + IntoLittleEndian>(
         &mut self,
         offset: usize,
         width: usize,
@@ -692,7 +692,7 @@ impl<'a> Executor<'a> {
 
     fn load<T>(&mut self, offset: usize) -> ExecResult
     where
-        T: TryFrom<Value> + FromLittleEndian,
+        T: NativeValue + FromLittleEndian,
         T: Into<Value>,
     {
         let raw_addr: i32 = self.pop_as();
@@ -732,6 +732,11 @@ impl<'a> Executor<'a> {
         let result = result.extend_into();
         self.stack.push_value(result.into());
         Ok(ExecSuccess::Next)
+    }
+
+    fn reinterpret<From, To>(&mut self) -> ExecResult {
+        // let v = self.stack.pop_
+        panic!()
     }
 }
 

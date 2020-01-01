@@ -24,79 +24,65 @@ pub enum ValueConversionError {
     InvalidType(String),
 }
 
-macro_rules! primitive_conversion {
-    ($case:path, $type:ty) => {
-        impl TryFrom<Value> for $type {
-            type Error = ValueConversionError;
-            fn try_from(input: Value) -> Result<$type, ValueConversionError> {
-                match input {
-                    $case(val) => Ok(val),
-                    _ => Err(ValueConversionError::InvalidType("$type".to_string())),
+impl From<i32> for Value {
+    fn from(val: i32) -> Self {
+        Self::I32(val)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(val: i64) -> Self {
+        Self::I64(val as i64)
+    }
+}
+
+impl From<u32> for Value {
+    fn from(val: u32) -> Self {
+        Self::I32(val as i32)
+    }
+}
+
+impl From<u64> for Value {
+    fn from(val: u64) -> Self {
+        Self::I64(val as i64)
+    }
+}
+
+impl From<f32> for Value {
+    fn from(val: f32) -> Self {
+        Self::F32(val)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(val: f64) -> Self {
+        Self::F64(val)
+    }
+}
+
+pub trait NativeValue: Sized {
+    fn from_value(val: Value) -> Option<Self>;
+}
+
+macro_rules! impl_native_value {
+    ($type:ty, $case:ident) => {
+        impl NativeValue for $type {
+            fn from_value(val: Value) -> Option<Self> {
+                match val {
+                    Value::$case(val) => Some(val as $type),
+                    _ => None,
                 }
             }
         }
-
-        impl Into<Value> for $type {
-            fn into(self) -> Value {
-                $case(self)
-            }
-        }
-    };
-}
-
-// primitive_conversion!(Value::I32, i32);
-impl TryFrom<Value> for i32 {
-    type Error = ValueConversionError;
-    fn try_from(input: Value) -> Result<i32, ValueConversionError> {
-        match input {
-            Value::I32(val) => Ok(val),
-            Value::I64(val) => Ok(val as i32),
-            _ => Err(ValueConversionError::InvalidType("$type".to_string())),
-        }
     }
 }
 
-impl Into<Value> for i32 {
-    fn into(self) -> Value {
-        Value::I32(self)
-    }
-}
-
-primitive_conversion!(Value::I64, i64);
-
-impl TryFrom<Value> for u32 {
-    type Error = ValueConversionError;
-    fn try_from(input: Value) -> Result<u32, ValueConversionError> {
-        match input {
-            Value::I32(val) => Ok(val as _),
-            _ => Err(ValueConversionError::InvalidType("$type".to_string())),
-        }
-    }
-}
-
-impl Into<Value> for u32 {
-    fn into(self) -> Value {
-        Value::I32(self as _)
-    }
-}
-
-impl TryFrom<Value> for u64 {
-    type Error = ValueConversionError;
-    fn try_from(input: Value) -> Result<u64, ValueConversionError> {
-        match input {
-            Value::I64(val) => Ok(val as _),
-            _ => Err(ValueConversionError::InvalidType("$type".to_string())),
-        }
-    }
-}
-
-impl Into<Value> for u64 {
-    fn into(self) -> Value {
-        Value::I32(self as _)
-    }
-}
-primitive_conversion!(Value::F32, f32);
-primitive_conversion!(Value::F64, f64);
+impl_native_value!(i32, I32);
+impl_native_value!(i64, I64);
+impl_native_value!(u32, I32);
+impl_native_value!(u64, I64);
+impl_native_value!(f32, F32);
+impl_native_value!(f64, F64);
 
 pub trait IntoLittleEndian {
     fn into_le(self, buf: &mut [u8]);
