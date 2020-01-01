@@ -27,6 +27,10 @@ impl ExportInstance {
                     let addr = FuncAddr(module_index, *func_index as usize);
                     ExternalValue::Func(addr)
                 }
+                Internal::Global(global_index) => {
+                    let addr = GlobalAddr(module_index, *global_index as usize);
+                    ExternalValue::Global(addr)
+                }
                 _ => panic!(),
             },
         }
