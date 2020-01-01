@@ -377,9 +377,9 @@ impl<'a> Executor<'a> {
             Instruction::I32Clz => self.unop(|v: i32| Value::I32(v.leading_zeros() as i32)),
             Instruction::I32Ctz => self.unop(|v: i32| Value::I32(v.trailing_zeros() as i32)),
             Instruction::I32Popcnt => self.unop(|v: i32| Value::I32(v.count_ones() as i32)),
-            Instruction::I32Add => self.binop (|a: i32, b: i32| Value::I32(a + b)),
-            Instruction::I32Sub => self.binop (|a: i32, b: i32| Value::I32(a - b)),
-            Instruction::I32Mul => self.binop (|a: i32, b: i32| Value::I32(a * b)),
+            Instruction::I32Add => self.binop(|a: i32, b: i32| Value::I32(a + b)),
+            Instruction::I32Sub => self.binop(|a: i32, b: i32| Value::I32(a - b)),
+            Instruction::I32Mul => self.binop(|a: i32, b: i32| Value::I32(a * b)),
             Instruction::I32DivS => self.binop(|a: i32, b: i32| Value::I32(a / b)),
             Instruction::I32DivU => {
                 self.binop::<i32, _>(|a, b| Value::I32(((a / b) as u32) as i32))
@@ -434,7 +434,7 @@ impl<'a> Executor<'a> {
 
             Instruction::F32Abs => self.unop(|v: f32| v.abs()),
             Instruction::F32Neg => self.unop(|v: f32| -v),
-            Instruction::F32Ceil => self.unop(|v: f32|  v.ceil()),
+            Instruction::F32Ceil => self.unop(|v: f32| v.ceil()),
             Instruction::F32Floor => self.unop(|v: f32| v.floor()),
             Instruction::F32Trunc => self.unop(|v: f32| v.trunc()),
             Instruction::F32Nearest => self.unop(|v: f32| v.round()),
@@ -462,15 +462,13 @@ impl<'a> Executor<'a> {
             Instruction::F64Max => self.binop::<f64, _>(|a, b| Value::F64(a.max(b))),
             Instruction::F64Copysign => unimplemented!(),
 
-            Instruction::I32WrapI64 => {
-                self.unop(|v: i32| Value::I64((f64::from(v) as i32).into()))
-            }
+            Instruction::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
             Instruction::I32TruncSF32 => self.unop(|v: f32| v as i64),
             Instruction::I32TruncUF32 => self.unop(|v: f32| (v as f32).trunc()),
             Instruction::I32TruncSF64 => self.unop(|v: f64| v as f64),
             Instruction::I32TruncUF64 => self.unop(|v: f64| v as f64),
-            Instruction::I64ExtendSI32 => self.unop(|v: i32| Value::I64(v as i64)),
-            Instruction::I64ExtendUI32 => self.unop(|v: i32| Value::I64((v as u64) as i64)),
+            Instruction::I64ExtendSI32 => self.unop(|v: i32| Value::from(v as u64)),
+            Instruction::I64ExtendUI32 => self.unop(|v: u32| Value::from(v as u64)),
             Instruction::I64TruncSF32 => unimplemented!(),
             Instruction::I64TruncUF32 => unimplemented!(),
             Instruction::I64TruncSF64 => unimplemented!(),
@@ -488,8 +486,8 @@ impl<'a> Executor<'a> {
 
             Instruction::I32ReinterpretF32 => self.unop(|v: f32| v.to_bits() as i32),
             Instruction::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
-            Instruction::F32ReinterpretI32 => unimplemented!(),
-            Instruction::F64ReinterpretI64 => unimplemented!(),
+            Instruction::F32ReinterpretI32 => self.unop(f32::from_bits),
+            Instruction::F64ReinterpretI64 => self.unop(f64::from_bits),
         };
         if self.stack.is_over_top_level() {
             return Ok(ExecSuccess::End);
