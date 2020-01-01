@@ -681,7 +681,9 @@ impl<'a> Executor<'a> {
         if (addr + elem_size) > mem_len {
             panic!();
         }
-        let mut buf: Vec<u8> = std::iter::repeat(0).take(0).collect();
+        let mut buf: Vec<u8> = std::iter::repeat(0)
+            .take(std::mem::size_of::<T>())
+            .collect();
         val.into_le(&mut buf);
         self.store.memory_mut(mem_addr).initialize(addr, &buf);
         Ok(ExecSuccess::Next)
