@@ -59,11 +59,11 @@ fn run_spectest(filename: &str) {
 // run_wast!("int_literals.wast", test_wast_int_literals);
 // run_wast!("labels.wast", test_wast_labels);
 // run_wast!("left-to-right.wast", test_wast_left_to_right);
-run_wast!("linking.wast", test_wast_linking);
+// run_wast!("linking.wast", test_wast_linking);
 // run_wast!("load.wast", test_wast_load);
 // run_wast!("local_get.wast", test_wast_local_get);
-// run_wast!("local_set.wast", test_wast_local_set);
-// run_wast!("local_tee.wast", test_wast_local_tee);
+run_wast!("local_set.wast", test_wast_local_set);
+run_wast!("local_tee.wast", test_wast_local_tee);
 // run_wast!("loop.wast", test_wast_loop);
 // run_wast!("memory.wast", test_wast_memory);
 // run_wast!("memory_grow.wast", test_wast_memory_grow);
