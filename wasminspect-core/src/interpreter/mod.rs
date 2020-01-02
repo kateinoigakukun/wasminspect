@@ -12,7 +12,7 @@ mod table;
 mod validator;
 mod value;
 
-use self::executor::{ExecSuccess, Executor};
+use self::executor::{ExecSuccess, Executor, invoke_func, WasmError};
 use self::func::{FunctionInstance, InstIndex};
 use self::module::ModuleInstance;
 use self::stack::{CallFrame, ProgramCounter};
@@ -55,11 +55,6 @@ impl WasmInstance {
     }
 }
 
-enum Either<L, R> {
-    Left(L),
-    Right(R),
-}
-
 impl WasmInstance {
     pub fn new() -> Self {
         Self {
@@ -69,28 +64,6 @@ impl WasmInstance {
 
     pub fn get_global(&self, module_index: ModuleIndex, field: &str) -> Option<WasmValue> {
         self.store.scan_global_by_name(module_index, field).map(|g| g.value(&self.store))
-    }
-
-    fn resolve_func(addr: FuncAddr, store: &Store) -> Either<FuncAddr, &HostFuncBody> {
-        let func = store.func(addr);
-        match func {
-            FunctionInstance::Defined(_) => Either::Left(addr),
-            FunctionInstance::Host(func) => {
-                let module = store.module_by_name(func.module_name().clone());
-                match module {
-                    ModuleInstance::Host(host_module) => {
-                        let func = host_module.func_by_name(func.field_name().clone()).unwrap();
-                        return Either::Right(func);
-                    }
-                    ModuleInstance::Defined(defined_module) => {
-                        let addr = defined_module
-                            .exported_func(func.field_name().clone())
-                            .unwrap();
-                        return Self::resolve_func(addr, store);
-                    }
-                }
-            }
-        }
     }
 
     pub fn run(
@@ -111,62 +84,7 @@ impl WasmInstance {
         } else {
             panic!()
         };
-
-        match Self::resolve_func(func_addr, &self.store) {
-            Either::Right(host_func_body) => {
-                let mut results = Vec::new();
-                match host_func_body.call(&arguments, &mut results) {
-                    Ok(_) => Ok(results),
-                    Err(_) => Err(WasmError::HostExecutionError)
-                }
-            }
-            Either::Left(func_addr) => {
-                let (frame, ret_types) = {
-                    let func = self.store.func(func_addr).defined().unwrap();
-                    let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-                    let mut local_tys = func.ty().params().to_vec();
-                    local_tys.append(&mut func.code().locals().clone());
-                    let frame = CallFrame::new(func_addr, &local_tys, arguments, None);
-                    (frame, ret_types)
-                };
-                let pc = ProgramCounter::new(func_addr, InstIndex::zero());
-                let mut executor = Executor::new(frame, ret_types.len(), pc, &mut self.store);
-                loop {
-                    let result = executor.execute_step();
-                    match result {
-                        Ok(ExecSuccess::Next) => continue,
-                        Ok(ExecSuccess::End) => match executor.pop_result(ret_types) {
-                            Ok(values) => return Ok(values),
-                            Err(err) => return Err(WasmError::ReturnValueError(err)),
-                        },
-                        Err(err) => return Err(WasmError::ExecutionError(err)),
-                    }
-                }
-            }
-        }
+        invoke_func(func_addr, arguments, &mut self.store)
     }
 }
 
-pub enum WasmError {
-    ExecutionError(executor::ExecError),
-    EntryFunctionNotFound(String),
-    ReturnValueError(executor::ReturnValError),
-    HostExecutionError,
-}
-
-impl std::fmt::Display for WasmError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WasmError::ExecutionError(err) => write!(f, "Failed to execute: {:?}", err),
-            WasmError::EntryFunctionNotFound(func_name) => {
-                write!(f, "Entry function \"{}\" not found", func_name)
-            }
-            WasmError::ReturnValueError(err) => {
-                write!(f, "Failed to get returned value: {:?}", err)
-            }
-            WasmError::HostExecutionError => {
-                write!(f, "Failed to execute host func")
-            }
-        }
-    }
-}

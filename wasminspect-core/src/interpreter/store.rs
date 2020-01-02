@@ -1,5 +1,5 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
-use super::executor::eval_const_expr;
+use super::executor::{eval_const_expr, invoke_func};
 use super::func::{
     DefinedFuncBody, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
 };
@@ -119,6 +119,8 @@ impl Store {
         mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs));
         let types = types.iter().map(|ty| ty.clone()).collect();
 
+        let start_section = parity_module.start_section().clone();
+
         let instance = DefinedModuleInstance::new_from_parity_module(
             parity_module,
             module_index,
@@ -128,6 +130,12 @@ impl Store {
         self.modules.push(ModuleInstance::Defined(instance));
         if let Some(name) = name {
             self.module_index_by_name.insert(name, module_index);
+        }
+
+        if let Some(start_section) = start_section {
+            let func_addr = FuncAddr(module_index, start_section as usize);
+            // TODO: Handle result
+            invoke_func(func_addr, vec![], self);
         }
         return module_index;
     }

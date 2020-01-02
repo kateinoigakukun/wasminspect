@@ -1,6 +1,6 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
-use super::host::BuiltinPrintI32;
+use super::host::*;
 use super::memory::*;
 use super::module::*;
 use super::stack::*;
@@ -750,5 +750,91 @@ pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: Module
             store.global(addr).value(store)
         }
         _ => panic!("Unsupported init_expr {}", inst),
+    }
+}
+
+pub enum WasmError {
+    ExecutionError(ExecError),
+    EntryFunctionNotFound(String),
+    ReturnValueError(ReturnValError),
+    HostExecutionError,
+}
+
+impl std::fmt::Display for WasmError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WasmError::ExecutionError(err) => write!(f, "Failed to execute: {:?}", err),
+            WasmError::EntryFunctionNotFound(func_name) => {
+                write!(f, "Entry function \"{}\" not found", func_name)
+            }
+            WasmError::ReturnValueError(err) => {
+                write!(f, "Failed to get returned value: {:?}", err)
+            }
+            WasmError::HostExecutionError => {
+                write!(f, "Failed to execute host func")
+            }
+        }
+    }
+}
+
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
+fn resolve_func_addr(addr: FuncAddr, store: &Store) -> Either<FuncAddr, &HostFuncBody> {
+    let func = store.func(addr);
+    match func {
+        FunctionInstance::Defined(_) => Either::Left(addr),
+        FunctionInstance::Host(func) => {
+            let module = store.module_by_name(func.module_name().clone());
+            match module {
+                ModuleInstance::Host(host_module) => {
+                    let func = host_module.func_by_name(func.field_name().clone()).unwrap();
+                    return Either::Right(func);
+                }
+                ModuleInstance::Defined(defined_module) => {
+                    let addr = defined_module
+                        .exported_func(func.field_name().clone())
+                        .unwrap();
+                    return resolve_func_addr(addr, store);
+                }
+            }
+        }
+    }
+}
+
+pub fn invoke_func(func_addr: FuncAddr, arguments: Vec<Value>, store: &mut Store) -> Result<Vec<Value>, WasmError> {
+    match resolve_func_addr(func_addr, &store) {
+        Either::Right(host_func_body) => {
+            let mut results = Vec::new();
+            match host_func_body.call(&arguments, &mut results) {
+                Ok(_) => Ok(results),
+                Err(_) => Err(WasmError::HostExecutionError)
+            }
+        }
+        Either::Left(func_addr) => {
+            let (frame, ret_types) = {
+                let func = store.func(func_addr).defined().unwrap();
+                let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
+                let mut local_tys = func.ty().params().to_vec();
+                local_tys.append(&mut func.code().locals().clone());
+                let frame = CallFrame::new(func_addr, &local_tys, arguments, None);
+                (frame, ret_types)
+            };
+            let pc = ProgramCounter::new(func_addr, InstIndex::zero());
+            let mut executor = Executor::new(frame, ret_types.len(), pc, store);
+            loop {
+                let result = executor.execute_step();
+                match result {
+                    Ok(ExecSuccess::Next) => continue,
+                    Ok(ExecSuccess::End) => match executor.pop_result(ret_types) {
+                        Ok(values) => return Ok(values),
+                        Err(err) => return Err(WasmError::ReturnValueError(err)),
+                    },
+                    Err(err) => return Err(WasmError::ExecutionError(err)),
+                }
+            }
+        }
     }
 }

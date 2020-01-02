@@ -65,7 +65,7 @@ fn run_spectest(filename: &str) {
 // run_wast!("local_set.wast", test_wast_local_set);
 // run_wast!("local_tee.wast", test_wast_local_tee);
 // run_wast!("loop.wast", test_wast_loop);
-run_wast!("memory.wast", test_wast_memory);
+// run_wast!("memory.wast", test_wast_memory);
 // run_wast!("memory_grow.wast", test_wast_memory_grow);
 // run_wast!("memory_redundancy.wast", test_wast_memory_redundancy);
 // run_wast!("memory_size.wast", test_wast_memory_size);
@@ -76,7 +76,7 @@ run_wast!("memory.wast", test_wast_memory);
 // run_wast!("select.wast", test_wast_select);
 // run_wast!("skip-stack-guard-page.wast", test_wast_skip_stack_guard_page);
 // run_wast!("stack.wast", test_wast_stack);
-// run_wast!("start.wast", test_wast_start);
+run_wast!("start.wast", test_wast_start);
 // run_wast!("store.wast", test_wast_store);
 // run_wast!("switch.wast", test_wast_switch);
 // run_wast!("token.wast", test_wast_token);
