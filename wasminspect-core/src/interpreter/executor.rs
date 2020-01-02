@@ -281,16 +281,16 @@ impl<'a> Executor<'a> {
             Instruction::F32Store(_, offset) => self.store::<f32>(*offset as usize),
             Instruction::F64Store(_, offset) => self.store::<f64>(*offset as usize),
 
-            Instruction::I32Store8(_, offset) => self.store_with_width::<i32>(*offset as usize, 8),
+            Instruction::I32Store8(_, offset) => self.store_with_width::<i32>(*offset as usize, 1),
             Instruction::I32Store16(_, offset) => {
-                self.store_with_width::<i32>(*offset as usize, 16)
+                self.store_with_width::<i32>(*offset as usize, 2)
             }
-            Instruction::I64Store8(_, offset) => self.store_with_width::<i64>(*offset as usize, 8),
+            Instruction::I64Store8(_, offset) => self.store_with_width::<i64>(*offset as usize, 1),
             Instruction::I64Store16(_, offset) => {
-                self.store_with_width::<i64>(*offset as usize, 16)
+                self.store_with_width::<i64>(*offset as usize, 2)
             }
             Instruction::I64Store32(_, offset) => {
-                self.store_with_width::<i64>(*offset as usize, 32)
+                self.store_with_width::<i64>(*offset as usize, 4)
             }
 
             Instruction::CurrentMemory(_) => unimplemented!(),
@@ -682,6 +682,7 @@ impl<'a> Executor<'a> {
             .take(std::mem::size_of::<T>())
             .collect();
         val.into_le(&mut buf);
+        let buf: Vec<u8> = buf.into_iter().take(width).collect();
         self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf, self.store);
         Ok(ExecSuccess::Next)
     }
