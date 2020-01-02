@@ -13,10 +13,7 @@ mod validator;
 mod value;
 mod utils;
 
-use self::executor::{invoke_func, Signal, Executor, WasmError};
-use self::func::{FunctionInstance, InstIndex};
-use self::module::ModuleInstance;
-use self::stack::{CallFrame, ProgramCounter};
+use self::executor::{invoke_func, WasmError};
 use self::store::Store;
 
 pub use self::address::*;
@@ -26,12 +23,6 @@ pub use self::module::ModuleIndex;
 pub use self::table::DefinedTableInstance as HostTable;
 pub use self::value::Value as WasmValue;
 use std::collections::HashMap;
-use std::fmt;
-
-enum Either<L, R> {
-    Left(L),
-    Right(R),
-}
 
 pub struct WasmInstance {
     store: Store,

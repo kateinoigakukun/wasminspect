@@ -4,7 +4,7 @@ use super::func::{
     DefinedFuncBody, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
 };
 use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
-use super::host::{HostFuncBody, HostValue};
+use super::host::HostValue;
 use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
 use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
@@ -376,10 +376,10 @@ impl Store {
         if tables.is_empty() && self.tables.is_empty() {
             return table_addrs;
         }
-        for (index, entry) in tables.iter().enumerate() {
+        for entry in tables.iter() {
             match entry.elem_type() {
                 parity_wasm::elements::TableElementType::AnyFunc => {
-                    let mut instance = DefinedTableInstance::new(
+                    let instance = DefinedTableInstance::new(
                         entry.limits().initial() as usize,
                         entry.limits().maximum().map(|mx| mx as usize),
                     );
@@ -435,8 +435,8 @@ impl Store {
         if mem_sec.is_empty() && self.mems.is_empty() {
             return mem_addrs;
         }
-        for (index, entry) in mem_sec.iter().enumerate() {
-            let mut instance = DefinedMemoryInstance::new(
+        for entry in mem_sec.iter() {
+            let instance = DefinedMemoryInstance::new(
                 entry.limits().initial() as usize,
                 entry.limits().maximum().map(|mx| mx as usize),
             );
