@@ -37,7 +37,10 @@ impl MemoryInstance {
                 match module {
                     ModuleInstance::Defined(defined) => {
                         let addr = defined.exported_memory(external.name.clone());
-                        store.memory(addr.unwrap()).borrow_mut().initialize(offset, data, store)
+                        store
+                            .memory(addr.unwrap())
+                            .borrow_mut()
+                            .initialize(offset, data, store)
                     }
                     ModuleInstance::Host(host) => host
                         .memory_by_name(external.name.clone())
@@ -45,7 +48,7 @@ impl MemoryInstance {
                         .borrow_mut()
                         .initialize(offset, data),
                 }
-            },
+            }
         }
     }
     pub fn data_len(&self, store: &Store) -> usize {
@@ -66,6 +69,9 @@ impl MemoryInstance {
                 }
             }
         }
+    }
+    pub fn page_count(&self, store: &Store) -> usize {
+        self.data_len(store) / PAGE_SIZE
     }
 
     pub fn load_as<T: FromLittleEndian>(&self, offset: usize, store: &Store) -> T {
@@ -134,13 +140,13 @@ impl DefinedMemoryInstance {
         self.data.len()
     }
 
-    pub fn page_count(&self) -> usize {
-        self.data_len() / PAGE_SIZE
-    }
-
     pub fn load_as<T: FromLittleEndian>(&self, offset: usize) -> T {
         let buf = &self.data[offset..offset + std::mem::size_of::<T>()];
         T::from_le(buf)
+    }
+
+    fn page_count(&self) -> usize {
+        self.data_len() / PAGE_SIZE
     }
 
     pub fn grow(&mut self, n: usize) -> Result<(), Error> {

@@ -299,10 +299,7 @@ impl<'a> Executor<'a> {
                 let frame = self.stack.current_frame();
                 let mem_addr = MemoryAddr(frame.module_index(), 0);
                 let mem = self.store.memory(mem_addr);
-                let size = match &*mem.borrow() {
-                    MemoryInstance::Defined(mem) => mem.page_count(),
-                    MemoryInstance::External(mem) => panic!(),
-                };
+                let size = mem.borrow().page_count(self.store);
                 match mem.borrow_mut().grow(grow_page as usize, self.store) {
                     Ok(_) => {
                         self.stack.push_value(Value::I32(size as i32));
@@ -653,10 +650,7 @@ impl<'a> Executor<'a> {
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
         let memory = self.store.memory(mem_addr);
-        let mem_len = match &*memory.borrow() {
-            MemoryInstance::Defined(memory) => memory.data_len(),
-            MemoryInstance::External(_) => panic!(),
-        };
+        let mem_len = memory.borrow().data_len(self.store);
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
             panic!();
