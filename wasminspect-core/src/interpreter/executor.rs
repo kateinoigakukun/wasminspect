@@ -8,27 +8,26 @@ use super::store::*;
 use super::value::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
-use std::convert::TryFrom;
 use std::ops::*;
 
 #[derive(Debug)]
-pub enum ExecError {
-    Panic(String),
-    NoCallFrame,
+pub enum Trap {
+    Unreachable,
+    TableAccessOutOfBounds,
+    UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
 }
 
-pub enum ExecSuccess {
+pub enum Signal {
     Next,
     End,
 }
 
-pub type ExecResult = Result<ExecSuccess, ExecError>;
+pub type ExecResult<T> = std::result::Result<T, Trap>;
 
 #[derive(Debug)]
 pub enum ReturnValError {
     TypeMismatchReturnValue(Value, ValueType),
     NoValue(ValueType),
-    NoCallFrame,
 }
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
@@ -69,14 +68,14 @@ impl<'a> Executor<'a> {
         &func.defined().unwrap().code().instructions()
     }
 
-    pub fn execute_step(&mut self) -> ExecResult {
+    pub fn execute_step(&mut self) -> ExecResult<Signal> {
         let func = self.store.func(self.pc.func_addr()).defined().unwrap();
         let module_index = func.module_index().clone();
         let inst = func.code().inst(self.pc.inst_index()).clone();
         return self.execute_inst(&inst, module_index);
     }
 
-    fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult {
+    fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
         println!("{:?}", self.stack);
         {
@@ -87,8 +86,8 @@ impl<'a> Executor<'a> {
             println!("{}{}", indent, inst.clone());
         }
         let result = match inst {
-            Instruction::Unreachable => panic!(),
-            Instruction::Nop => Ok(ExecSuccess::Next),
+            Instruction::Unreachable => Err(Trap::Unreachable),
+            Instruction::Nop => Ok(Signal::Next),
             Instruction::Block(ty) => {
                 self.stack.push_label(Label::Block({
                     match ty {
@@ -96,12 +95,12 @@ impl<'a> Executor<'a> {
                         BlockType::NoResult => 0,
                     }
                 }));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::Loop(_) => {
                 let start_loop = InstIndex(self.pc.inst_index().0 - 1);
                 self.stack.push_label(Label::new_loop(start_loop));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::If(ty) => {
                 let val: i32 = self.pop_as();
@@ -132,7 +131,7 @@ impl<'a> Executor<'a> {
                         self.pc.inc_inst_index();
                     }
                 }
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::Else => self.branch(0),
             Instruction::End => {
@@ -155,9 +154,9 @@ impl<'a> Executor<'a> {
                     println!("--- End of finish process ---");
                     if let Some(ret_pc) = frame.ret_pc {
                         self.pc = ret_pc;
-                        Ok(ExecSuccess::Next)
+                        Ok(Signal::Next)
                     } else {
-                        Ok(ExecSuccess::End)
+                        Ok(Signal::End)
                     }
                 } else {
                     // When the end of a block is reached without a jump
@@ -169,7 +168,7 @@ impl<'a> Executor<'a> {
                     for v in results {
                         self.stack.push_value(*v.as_value().unwrap());
                     }
-                    Ok(ExecSuccess::Next)
+                    Ok(Signal::Next)
                 }
             }
             Instruction::Br(depth) => self.branch(*depth),
@@ -178,7 +177,7 @@ impl<'a> Executor<'a> {
                 if val != Value::I32(0) {
                     self.branch(*depth)
                 } else {
-                    Ok(ExecSuccess::Next)
+                    Ok(Signal::Next)
                 }
             }
             Instruction::BrTable(ref payload) => {
@@ -213,7 +212,7 @@ impl<'a> Executor<'a> {
                 assert!(buf_index < table.borrow().buffer_len(self.store));
                 let func_addr = match table.borrow().get_at(buf_index, self.store) {
                     Some(addr) => addr,
-                    None => panic!(),
+                    None => return Err(Trap::TableAccessOutOfBounds),
                 };
                 let func = self.store.func(func_addr);
                 assert_eq!(*func.ty(), ty);
@@ -221,7 +220,7 @@ impl<'a> Executor<'a> {
             }
             Instruction::Drop => {
                 self.stack.pop_value();
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::Select => {
                 let cond: i32 = self.pop_as();
@@ -232,12 +231,12 @@ impl<'a> Executor<'a> {
                 } else {
                     self.stack.push_value(val2);
                 }
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::GetLocal(index) => {
                 let value = self.stack.current_frame().local(*index as usize);
                 self.stack.push_value(value);
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::SetLocal(index) => self.set_local(*index as usize),
             Instruction::TeeLocal(index) => {
@@ -250,13 +249,13 @@ impl<'a> Executor<'a> {
                 let addr = GlobalAddr(module_index, *index as usize);
                 let global = self.store.global(addr);
                 self.stack.push_value(global.value(self.store));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::SetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
                 let value = self.stack.pop_value();
                 self.store.set_global(addr, value);
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
 
             Instruction::I32Load(_, offset) => self.load::<i32>(*offset as usize),
@@ -293,7 +292,7 @@ impl<'a> Executor<'a> {
                 let mem = self.store.memory(mem_addr);
                 self.stack
                     .push_value(Value::I32(mem.borrow().page_count(self.store) as i32));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as();
@@ -310,24 +309,24 @@ impl<'a> Executor<'a> {
                         self.stack.push_value(Value::I32(-1));
                     }
                 }
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
 
             Instruction::I32Const(val) => {
                 self.stack.push_value(Value::I32(*val));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::I64Const(val) => {
                 self.stack.push_value(Value::I64(*val));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::F32Const(val) => {
                 self.stack.push_value(Value::F32(f32::from_bits(*val)));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             Instruction::F64Const(val) => {
                 self.stack.push_value(Value::F64(f64::from_bits(*val)));
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
 
             Instruction::I32Eqz => self.testop::<i32, _>(|v| v == 0),
@@ -468,7 +467,7 @@ impl<'a> Executor<'a> {
             Instruction::F64ReinterpretI64 => self.unop(f64::from_bits),
         };
         if self.stack.is_over_top_level() {
-            return Ok(ExecSuccess::End);
+            return Ok(Signal::End);
         } else {
             return result;
         }
@@ -535,7 +534,7 @@ impl<'a> Executor<'a> {
                 }
             }
         }
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn testop<T: NativeValue, F: Fn(T) -> bool>(&mut self, f: F) -> ExecResult {
@@ -550,13 +549,13 @@ impl<'a> Executor<'a> {
         let rhs = self.pop_as();
         let lhs = self.pop_as();
         self.stack.push_value(f(lhs, rhs).into());
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn unop<From: NativeValue, To: Into<Value>, F: Fn(From) -> To>(&mut self, f: F) -> ExecResult {
         let v: From = self.pop_as();
         self.stack.push_value(f(v).into());
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn invoke(&mut self, addr: FuncAddr) -> ExecResult {
@@ -582,7 +581,7 @@ impl<'a> Executor<'a> {
                 self.stack.set_frame(frame);
                 self.stack.push_label(Label::Return(arity));
                 self.pc = pc;
-                Ok(ExecSuccess::Next)
+                Ok(Signal::Next)
             }
             FunctionInstance::Host(external) => {
                 let module = self.store.module_by_name(external.module_name().clone());
@@ -600,7 +599,7 @@ impl<'a> Executor<'a> {
                         for v in result {
                             self.stack.push_value(v);
                         }
-                        Ok(ExecSuccess::Next)
+                        Ok(Signal::Next)
                     }
                     ModuleInstance::Defined(defined_module) => {
                         let addr = defined_module
@@ -633,14 +632,14 @@ impl<'a> Executor<'a> {
         if let Some(ret_pc) = frame.ret_pc {
             self.pc = ret_pc;
         }
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn set_local(&mut self, index: usize) -> ExecResult {
         let value = self.stack.pop_value();
         self.stack.set_local(index, value);
 
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult {
@@ -662,7 +661,7 @@ impl<'a> Executor<'a> {
             .memory(mem_addr)
             .borrow_mut()
             .initialize(addr, &buf, self.store);
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn store_with_width<T: NativeValue + IntoLittleEndian>(
@@ -691,7 +690,7 @@ impl<'a> Executor<'a> {
             .memory(mem_addr)
             .borrow_mut()
             .initialize(addr, &buf, self.store);
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn load<T>(&mut self, offset: usize) -> ExecResult
@@ -713,7 +712,7 @@ impl<'a> Executor<'a> {
         }
         let result: T = memory.borrow_mut().load_as(addr, self.store);
         self.stack.push_value(result.into());
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 
     fn load_extend<T: FromLittleEndian + ExtendInto<U>, U: Into<Value>>(
@@ -735,7 +734,7 @@ impl<'a> Executor<'a> {
         let result: T = memory.borrow_mut().load_as(addr, self.store);
         let result = result.extend_into();
         self.stack.push_value(result.into());
-        Ok(ExecSuccess::Next)
+        Ok(Signal::Next)
     }
 }
 
@@ -755,7 +754,7 @@ pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: Module
 }
 
 pub enum WasmError {
-    ExecutionError(ExecError),
+    ExecutionError(Trap),
     EntryFunctionNotFound(String),
     ReturnValueError(ReturnValError),
     HostExecutionError,
@@ -830,8 +829,8 @@ pub fn invoke_func(
             loop {
                 let result = executor.execute_step();
                 match result {
-                    Ok(ExecSuccess::Next) => continue,
-                    Ok(ExecSuccess::End) => match executor.pop_result(ret_types) {
+                    Ok(Signal::Next) => continue,
+                    Ok(Signal::End) => match executor.pop_result(ret_types) {
                         Ok(values) => return Ok(values),
                         Err(err) => return Err(WasmError::ReturnValueError(err)),
                     },
