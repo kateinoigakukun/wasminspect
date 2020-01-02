@@ -18,7 +18,7 @@ use self::stack::{CallFrame, ProgramCounter};
 use self::store::Store;
 
 pub use self::host::{HostFunc, HostValue};
-pub use self::memory::HostMemoryInstance;
+pub use self::memory::DefinedMemoryInstance as HostMemory;
 pub use self::table::DefinedTableInstance as HostTable;
 pub use self::value::Value as WasmValue;
 pub use self::address::*;

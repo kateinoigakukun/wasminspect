@@ -74,6 +74,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let table = Rc::new(RefCell::new(HostTable::new(10, Some(20))));
     module.insert("table".to_string(), HostValue::Table(table));
 
-    module.insert("memory".to_string(), HostValue::Mem());
+    let mem = Rc::new(RefCell::new(HostMemory::new(1, Some(2))));
+    module.insert("memory".to_string(), HostValue::Mem(mem));
     module
 }

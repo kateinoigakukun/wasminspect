@@ -1,6 +1,7 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
 use super::table::DefinedTableInstance;
+use super::memory::DefinedMemoryInstance;
 use super::host::*;
 use super::value::Value;
 use std::collections::HashMap;
@@ -84,6 +85,14 @@ impl DefinedModuleInstance {
         })
     }
 
+    pub fn exported_memory(&self, name: String) -> Option<MemoryAddr> {
+        let export = self.exported_by_name(name);
+        export.and_then(|e| match e.value() {
+            ExternalValue::Memory(addr) => Some(addr.clone()),
+            _ => None,
+        })
+    }
+
     pub fn start_func_addr(&self) -> &Option<FuncAddr> {
         &self.start_func
     }
@@ -134,6 +143,18 @@ impl HostModuleInstance {
         );
         match &self.values[&name] {
             HostValue::Table(table) => Some(table),
+            _ => None,
+        }
+    }
+
+    pub fn memory_by_name(&self, name: String) -> Option<&Rc<RefCell<DefinedMemoryInstance>>> {
+        assert!(
+            self.values.contains_key(&name),
+            "Memory {} was not loaded",
+            name
+        );
+        match &self.values[&name] {
+            HostValue::Mem(mem) => Some(mem),
             _ => None,
         }
     }

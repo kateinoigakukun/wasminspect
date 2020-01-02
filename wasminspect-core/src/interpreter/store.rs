@@ -16,7 +16,7 @@ use std::rc::Rc;
 pub struct Store {
     funcs: HashMap<ModuleIndex, Vec<FunctionInstance>>,
     tables: HashMap<ModuleIndex, Vec<Rc<RefCell<TableInstance>>>>,
-    mems: HashMap<ModuleIndex, Vec<MemoryInstance>>,
+    mems: HashMap<ModuleIndex, Vec<Rc<RefCell<MemoryInstance>>>>,
     globals: HashMap<ModuleIndex, Vec<GlobalInstance>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -54,26 +54,22 @@ impl Store {
         self.tables[&addr.0][addr.1].clone()
     }
 
-    pub fn memory(&self, addr: MemoryAddr) -> &MemoryInstance {
-        &self.mems[&addr.0][addr.1]
+    pub fn memory(&self, addr: MemoryAddr) -> Rc<RefCell<MemoryInstance>> {
+        self.mems[&addr.0][addr.1].clone()
     }
 
-    pub fn memory_mut(&mut self, addr: MemoryAddr) -> &mut MemoryInstance {
-        self.mems.get_mut(&addr.0).unwrap().get_mut(addr.1).unwrap()
-    }
-
-    pub fn set_memory(&mut self, addr: MemoryAddr, offset: usize, bytes: &[u8]) {
-        &mut self.mems.entry(addr.0).and_modify(|mems| {
-            if let Some(mem) = mems.get_mut(addr.1) {
-                match mem {
-                    MemoryInstance::Defined(mem) => mem.initialize(offset, bytes),
-                    MemoryInstance::External(mem) => {
-                        panic!();
-                    }
-                }
-            }
-        });
-    }
+    // pub fn set_memory(&mut self, addr: MemoryAddr, offset: usize, bytes: &[u8]) {
+    //     &mut self.mems.entry(addr.0).and_modify(|mems| {
+    //         if let Some(mem) = mems.get_mut(addr.1) {
+    //             match mem {
+    //                 MemoryInstance::Defined(mem) => mem.initialize(offset, bytes),
+    //                 MemoryInstance::External(mem) => {
+    //                     panic!();
+    //                 }
+    //             }
+    //         }
+    //     });
+    // }
 
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
         &self.modules[module_index.0 as usize]
@@ -258,7 +254,7 @@ impl Store {
         );
         let map = self.mems.entry(module_index).or_insert(Vec::new());
         let mem_index = map.len();
-        map.push(MemoryInstance::External(instance));
+        map.push(Rc::new(RefCell::new(MemoryInstance::External(instance))));
         return MemoryAddr(module_index, mem_index);
     }
 
@@ -441,7 +437,7 @@ impl Store {
             }
             let map = self.mems.entry(module_index).or_insert(Vec::new());
             let mem_index = map.len();
-            map.push(MemoryInstance::Defined(instance));
+            map.push(Rc::new(RefCell::new(MemoryInstance::Defined(instance))));
             mem_addrs.push(MemoryAddr(module_index, mem_index));
         }
         mem_addrs

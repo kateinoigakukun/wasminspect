@@ -298,12 +298,12 @@ impl<'a> Executor<'a> {
                 let grow_page: i32 = self.pop_as();
                 let frame = self.stack.current_frame();
                 let mem_addr = MemoryAddr(frame.module_index(), 0);
-                let mem = self.store.memory_mut(mem_addr);
-                let size = match mem {
+                let mem = self.store.memory(mem_addr);
+                let size = match &*mem.borrow() {
                     MemoryInstance::Defined(mem) => mem.page_count(),
                     MemoryInstance::External(mem) => panic!(),
                 };
-                match mem.grow(grow_page as usize) {
+                match mem.borrow_mut().grow(grow_page as usize, self.store) {
                     Ok(_) => {
                         self.stack.push_value(Value::I32(size as i32));
                     }
@@ -652,8 +652,8 @@ impl<'a> Executor<'a> {
         let addr: usize = raw_addr + offset;
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = { self.store.memory(mem_addr) };
-        let mem_len = match memory {
+        let memory = self.store.memory(mem_addr);
+        let mem_len = match &*memory.borrow() {
             MemoryInstance::Defined(memory) => memory.data_len(),
             MemoryInstance::External(_) => panic!(),
         };
@@ -663,7 +663,7 @@ impl<'a> Executor<'a> {
         }
         let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
         val.into_le(&mut buf);
-        self.store.memory_mut(mem_addr).initialize(addr, &buf);
+        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf);
         Ok(ExecSuccess::Next)
     }
 
@@ -678,8 +678,8 @@ impl<'a> Executor<'a> {
         let addr: usize = raw_addr + offset;
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = { self.store.memory(mem_addr) };
-        let mem_len = memory.data_len();
+        let memory = self.store.memory(mem_addr);
+        let mem_len = memory.borrow().data_len();
         let elem_size = width;
         if (addr + elem_size) > mem_len {
             panic!();
@@ -688,7 +688,7 @@ impl<'a> Executor<'a> {
             .take(std::mem::size_of::<T>())
             .collect();
         val.into_le(&mut buf);
-        self.store.memory_mut(mem_addr).initialize(addr, &buf);
+        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf);
         Ok(ExecSuccess::Next)
     }
 
@@ -703,13 +703,13 @@ impl<'a> Executor<'a> {
 
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = { self.store.memory(mem_addr) };
-        let mem_len = memory.data_len();
+        let memory = self.store.memory(mem_addr);
+        let mem_len = memory.borrow().data_len().clone();
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
             panic!();
         }
-        let result: T = memory.load_as(addr);
+        let result: T = memory.borrow_mut().load_as(addr);
         self.stack.push_value(result.into());
         Ok(ExecSuccess::Next)
     }
@@ -724,13 +724,13 @@ impl<'a> Executor<'a> {
 
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = { self.store.memory(mem_addr) };
-        let mem_len = memory.data_len();
+        let memory = self.store.memory(mem_addr);
+        let mem_len = memory.borrow().data_len();
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
             panic!();
         }
-        let result: T = memory.load_as(addr);
+        let result: T = memory.borrow_mut().load_as(addr);
         let result = result.extend_into();
         self.stack.push_value(result.into());
         Ok(ExecSuccess::Next)

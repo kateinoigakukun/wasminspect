@@ -1,3 +1,5 @@
+use super::module::ModuleInstance;
+use super::store::Store;
 use super::value::FromLittleEndian;
 use parity_wasm::elements::ResizableLimits;
 
@@ -7,10 +9,23 @@ pub enum MemoryInstance {
 }
 
 impl MemoryInstance {
-    pub fn grow(&mut self, n: usize) -> Result<(), Error> {
+    pub fn grow(&mut self, n: usize, store: &Store) -> Result<(), Error> {
         match self {
             Self::Defined(defined) => defined.grow(n),
-            Self::External(_) => panic!(),
+            Self::External(external) => {
+                let module = store.module_by_name(external.module_name.clone());
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_memory(external.name.clone());
+                        store.memory(addr.unwrap()).borrow_mut().grow(n, store)
+                    }
+                    ModuleInstance::Host(host) => host
+                        .memory_by_name(external.name.clone())
+                        .unwrap()
+                        .borrow_mut()
+                        .grow(n),
+                }
+            }
         }
     }
 

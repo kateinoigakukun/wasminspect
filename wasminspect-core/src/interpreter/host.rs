@@ -20,14 +20,15 @@ use std::rc::Rc;
 
 use super::stack::Stack;
 use super::table::DefinedTableInstance;
+use super::memory::DefinedMemoryInstance;
 use parity_wasm::elements::FunctionType;
 
 type Ref<T> = Rc<RefCell<T>>;
 
 pub enum HostValue {
     Func(HostFunc),
-    Mem(),
     Global(Value),
+    Mem(Ref<DefinedMemoryInstance>),
     Table(Ref<DefinedTableInstance>),
 }
 
