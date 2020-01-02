@@ -73,7 +73,7 @@ pub struct CallFrame {
 }
 
 impl CallFrame {
-    pub fn new(
+    fn new(
         func_addr: FuncAddr,
         local_tys: &[ValueType],
         args: Vec<Value>,
@@ -106,16 +106,9 @@ impl CallFrame {
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        let local_len = func.ty().params().len() + func.code().locals().len();
-        let mut locals: Vec<Value> = std::iter::repeat(Value::I32(0)).take(local_len).collect();
-        for (i, arg) in args.into_iter().enumerate() {
-            locals[i] = arg;
-        }
-        Self {
-            func_addr,
-            locals,
-            ret_pc: pc,
-        }
+        let mut local_tys = func.ty().params().to_vec();
+        local_tys.append(&mut func.code().locals().clone());
+        Self::new(func_addr, &local_tys, args, pc)
     }
 
     pub fn set_local(&mut self, index: usize, value: Value) {

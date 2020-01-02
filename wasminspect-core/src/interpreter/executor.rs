@@ -550,14 +550,20 @@ impl<'a> Executor<'a> {
         self.binop(|a: T, b: T| Value::I32(if f(a, b) { 1 } else { 0 }))
     }
 
-    fn binop<T: NativeValue, To: Into<Value>, F: Fn(T, T) -> To>(&mut self, f: F) -> ExecResult<Signal> {
+    fn binop<T: NativeValue, To: Into<Value>, F: Fn(T, T) -> To>(
+        &mut self,
+        f: F,
+    ) -> ExecResult<Signal> {
         let rhs = self.pop_as()?;
         let lhs = self.pop_as()?;
         self.stack.push_value(f(lhs, rhs).into());
         Ok(Signal::Next)
     }
 
-    fn unop<From: NativeValue, To: Into<Value>, F: Fn(From) -> To>(&mut self, f: F) -> ExecResult<Signal> {
+    fn unop<From: NativeValue, To: Into<Value>, F: Fn(From) -> To>(
+        &mut self,
+        f: F,
+    ) -> ExecResult<Signal> {
         let v: From = self.pop_as()?;
         self.stack.push_value(f(v).into());
         Ok(Signal::Next)
@@ -573,46 +579,29 @@ impl<'a> Executor<'a> {
             args.push(self.stack.pop_value());
         }
         args.reverse();
-        self.invoke_with_args(addr, args)
-    }
 
-    pub fn invoke_with_args(&mut self, addr: FuncAddr, args: Vec<Value>) -> ExecResult<Signal> {
         let func = self.store.func(addr);
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        match func {
-            FunctionInstance::Defined(defined) => {
+        match resolve_func_addr(addr, self.store) {
+            Either::Left((addr, func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
-                let frame = CallFrame::new_from_func(addr, &defined, args, Some(self.pc));
+                let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
                 self.stack.set_frame(frame);
                 self.stack.push_label(Label::Return(arity));
                 self.pc = pc;
                 Ok(Signal::Next)
             }
-            FunctionInstance::Host(external) => {
-                let module = self.store.module_by_name(external.module_name().clone());
-                match module {
-                    ModuleInstance::Host(host_module) => {
-                        let func = host_module
-                            .func_by_name(external.field_name().clone())
-                            .unwrap();
-                        let mut result = Vec::new();
-                        match func.call(&args, &mut result) {
-                            Ok(_) => (),
-                            Err(_) => panic!(),
-                        };
-                        assert_eq!(result.len(), arity);
-                        for v in result {
-                            self.stack.push_value(v);
-                        }
-                        Ok(Signal::Next)
-                    }
-                    ModuleInstance::Defined(defined_module) => {
-                        let addr = defined_module
-                            .exported_func(external.field_name().clone())
-                            .unwrap();
-                        self.invoke_with_args(addr, args)
-                    }
+            Either::Right(host_func_body) => {
+                let mut result = Vec::new();
+                match host_func_body.call(&args, &mut result) {
+                    Ok(_) => (),
+                    Err(_) => panic!(),
+                };
+                assert_eq!(result.len(), arity);
+                for v in result {
+                    self.stack.push_value(v);
                 }
+                Ok(Signal::Next)
             }
         }
     }
@@ -785,10 +774,10 @@ enum Either<L, R> {
     Right(R),
 }
 
-fn resolve_func_addr(addr: FuncAddr, store: &Store) -> Either<FuncAddr, &HostFuncBody> {
+fn resolve_func_addr(addr: FuncAddr, store: &Store) -> Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody> {
     let func = store.func(addr);
     match func {
-        FunctionInstance::Defined(_) => Either::Left(addr),
+        FunctionInstance::Defined(defined) => Either::Left((addr, defined)),
         FunctionInstance::Host(func) => {
             let module = store.module_by_name(func.module_name().clone());
             match module {
@@ -820,13 +809,10 @@ pub fn invoke_func(
                 Err(_) => Err(WasmError::HostExecutionError),
             }
         }
-        Either::Left(func_addr) => {
+        Either::Left((func_addr, func)) => {
             let (frame, ret_types) = {
-                let func = store.func(func_addr).defined().unwrap();
                 let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-                let mut local_tys = func.ty().params().to_vec();
-                local_tys.append(&mut func.code().locals().clone());
-                let frame = CallFrame::new(func_addr, &local_tys, arguments, None);
+                let frame = CallFrame::new_from_func(func_addr, func, arguments, None);
                 (frame, ret_types)
             };
             let pc = ProgramCounter::new(func_addr, InstIndex::zero());
