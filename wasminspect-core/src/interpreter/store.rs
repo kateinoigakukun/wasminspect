@@ -1,13 +1,16 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::eval_const_expr;
-use super::func::{DefinedFunc, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
+use super::func::{
+    DefinedFuncBody, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
+};
 use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
-use super::host::HostValue;
+use super::host::{HostFuncBody, HostValue};
 use super::memory::{DefinedMemoryInstance, HostMemoryInstance, MemoryInstance};
 use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::value::Value;
 use parity_wasm;
+use parity_wasm::elements::FunctionType;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -36,6 +39,11 @@ impl Store {
 
     pub fn func(&self, addr: FuncAddr) -> &FunctionInstance {
         &self.funcs[&addr.0][addr.1]
+    }
+
+    pub fn func_ty(&self, addr: FuncAddr) -> &FunctionType {
+        let func = &self.funcs[&addr.0][addr.1];
+        func.ty()
     }
 
     pub fn set_global(&mut self, addr: GlobalAddr, value: Value) {
@@ -300,7 +308,7 @@ impl Store {
             let defined = DefinedFunctionInstance::new(
                 func_type,
                 module_index,
-                DefinedFunc::new(*func, body.clone(), module_index),
+                DefinedFuncBody::new(*func, body.clone(), module_index),
             );
             let instance = FunctionInstance::Defined(defined);
             let map = self.funcs.entry(module_index).or_insert(Vec::new());
@@ -416,8 +424,7 @@ impl Store {
             mem_addrs.push(MemoryAddr(module_index, mem_index));
         }
 
-        let mems = self.mems.entry(module_index).or_insert(Vec::new())
-        .clone();
+        let mems = self.mems.entry(module_index).or_insert(Vec::new()).clone();
 
         for (index, mem) in mems.iter().enumerate() {
             if let Some(segs) = data_segments.get(&index) {
@@ -431,10 +438,17 @@ impl Store {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
-                    mem.borrow_mut().initialize(offset as usize, seg.value(), self);
+                    mem.borrow_mut()
+                        .initialize(offset as usize, seg.value(), self);
                 }
             }
         }
         mem_addrs
+    }
+}
+
+impl std::fmt::Debug for Store {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
     }
 }

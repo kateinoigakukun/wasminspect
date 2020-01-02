@@ -26,18 +26,18 @@ use parity_wasm::elements::FunctionType;
 type Ref<T> = Rc<RefCell<T>>;
 
 pub enum HostValue {
-    Func(HostFunc),
+    Func(HostFuncBody),
     Global(Value),
     Mem(Ref<DefinedMemoryInstance>),
     Table(Ref<DefinedTableInstance>),
 }
 
-pub struct HostFunc {
+pub struct HostFuncBody {
     ty: FunctionType,
     code: Box<dyn Fn(&[Value], &mut [Value]) -> Result<(), ()>>,
 }
 
-impl HostFunc {
+impl HostFuncBody {
     pub fn new<F>(ty: FunctionType, code: F) -> Self
     where
         F: Fn(&[Value], &mut [Value]) -> Result<(), ()>,

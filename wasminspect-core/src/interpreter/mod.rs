@@ -13,16 +13,17 @@ mod validator;
 mod value;
 
 use self::executor::{ExecSuccess, Executor};
-use self::func::InstIndex;
+use self::func::{FunctionInstance, InstIndex};
+use self::module::ModuleInstance;
 use self::stack::{CallFrame, ProgramCounter};
 use self::store::Store;
 
-pub use self::host::{HostFunc, HostValue};
+pub use self::address::*;
+pub use self::host::{HostFuncBody, HostValue};
 pub use self::memory::DefinedMemoryInstance as HostMemory;
+pub use self::module::ModuleIndex;
 pub use self::table::DefinedTableInstance as HostTable;
 pub use self::value::Value as WasmValue;
-pub use self::address::*;
-pub use self::module::ModuleIndex;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -68,6 +69,22 @@ impl WasmInstance {
         }
     }
 
+    fn resolve_func(addr: FuncAddr, store: &Store) {
+        let func = store.func(addr);
+        let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
+        let mut local_tys = func.ty().params().to_vec();
+        match func {
+            FunctionInstance::Defined(func) => {
+                local_tys.append(&mut func.code().locals().clone());
+            }
+            FunctionInstance::Host(func) => {
+
+            }
+        }
+        if let Some(defined_func) = func.defined() {
+        }
+    }
+
     pub fn run(
         &mut self,
         func_name: Option<String>,
@@ -87,10 +104,12 @@ impl WasmInstance {
         };
 
         let (frame, ret_types) = {
-            let func = self.store.func(pc.func_addr()).defined().unwrap();
+            let func = self.store.func(pc.func_addr());
             let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
             let mut local_tys = func.ty().params().to_vec();
-            local_tys.append(&mut func.code().locals().clone());
+            if let Some(defined_func) = func.defined() {
+                local_tys.append(&mut defined_func.code().locals().clone());
+            }
             let frame = CallFrame::new(pc.func_addr(), &local_tys, arguments, None);
             (frame, ret_types)
         };

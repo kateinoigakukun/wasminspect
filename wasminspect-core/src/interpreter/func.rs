@@ -41,11 +41,11 @@ impl FunctionInstance {
 pub struct DefinedFunctionInstance {
     ty: FunctionType,
     module_index: ModuleIndex,
-    code: DefinedFunc,
+    code: DefinedFuncBody,
 }
 
 impl DefinedFunctionInstance {
-    pub fn new(ty: FunctionType, module_index: ModuleIndex, code: DefinedFunc) -> Self {
+    pub fn new(ty: FunctionType, module_index: ModuleIndex, code: DefinedFuncBody) -> Self {
         Self {
             ty,
             module_index,
@@ -56,7 +56,7 @@ impl DefinedFunctionInstance {
         &self.ty
     }
 
-    pub fn code(&self) -> &DefinedFunc {
+    pub fn code(&self) -> &DefinedFuncBody {
         &self.code
     }
     pub fn module_index(&self) -> ModuleIndex {
@@ -64,13 +64,13 @@ impl DefinedFunctionInstance {
     }
 }
 
-pub struct DefinedFunc {
+pub struct DefinedFuncBody {
     type_index: TypeIndex,
     locals: Vec<ValueType>,
     instructions: Vec<Instruction>,
 }
 
-impl DefinedFunc {
+impl DefinedFuncBody {
     pub fn new(
         func: parity_wasm::elements::Func,
         body: parity_wasm::elements::FuncBody,

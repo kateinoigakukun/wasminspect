@@ -123,7 +123,7 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn func_by_name(&self, name: String) -> Option<&HostFunc> {
+    pub fn func_by_name(&self, name: String) -> Option<&HostFuncBody> {
         assert!(
             self.values.contains_key(&name),
             "Func {} was not loaded",

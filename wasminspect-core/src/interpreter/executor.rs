@@ -282,16 +282,10 @@ impl<'a> Executor<'a> {
             Instruction::F64Store(_, offset) => self.store::<f64>(*offset as usize),
 
             Instruction::I32Store8(_, offset) => self.store_with_width::<i32>(*offset as usize, 1),
-            Instruction::I32Store16(_, offset) => {
-                self.store_with_width::<i32>(*offset as usize, 2)
-            }
+            Instruction::I32Store16(_, offset) => self.store_with_width::<i32>(*offset as usize, 2),
             Instruction::I64Store8(_, offset) => self.store_with_width::<i64>(*offset as usize, 1),
-            Instruction::I64Store16(_, offset) => {
-                self.store_with_width::<i64>(*offset as usize, 2)
-            }
-            Instruction::I64Store32(_, offset) => {
-                self.store_with_width::<i64>(*offset as usize, 4)
-            }
+            Instruction::I64Store16(_, offset) => self.store_with_width::<i64>(*offset as usize, 2),
+            Instruction::I64Store32(_, offset) => self.store_with_width::<i64>(*offset as usize, 4),
 
             Instruction::CurrentMemory(_) => unimplemented!(),
             Instruction::GrowMemory(_) => {
@@ -559,19 +553,19 @@ impl<'a> Executor<'a> {
     }
 
     fn invoke(&mut self, addr: FuncAddr) -> ExecResult {
-        let func = self.store.func(addr);
-        println!("--- Start of Function {:?} ---", func.ty());
+        let func_ty = self.store.func_ty(addr);
+        println!("--- Start of Function {:?} ---", func_ty);
 
         // println!("{:?}", self.stack);
         let mut args = Vec::new();
-        for _ in func.ty().params() {
+        for _ in func_ty.params() {
             args.push(self.stack.pop_value());
         }
         args.reverse();
         self.invoke_with_args(addr, args)
     }
 
-    fn invoke_with_args(&mut self, addr: FuncAddr, args: Vec<Value>) -> ExecResult {
+    pub fn invoke_with_args(&mut self, addr: FuncAddr, args: Vec<Value>) -> ExecResult {
         let func = self.store.func(addr);
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         match func {
@@ -657,7 +651,10 @@ impl<'a> Executor<'a> {
         }
         let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
         val.into_le(&mut buf);
-        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf, self.store);
+        self.store
+            .memory(mem_addr)
+            .borrow_mut()
+            .initialize(addr, &buf, self.store);
         Ok(ExecSuccess::Next)
     }
 
@@ -683,7 +680,10 @@ impl<'a> Executor<'a> {
             .collect();
         val.into_le(&mut buf);
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
-        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf, self.store);
+        self.store
+            .memory(mem_addr)
+            .borrow_mut()
+            .initialize(addr, &buf, self.store);
         Ok(ExecSuccess::Next)
     }
 
@@ -729,11 +729,6 @@ impl<'a> Executor<'a> {
         let result = result.extend_into();
         self.stack.push_value(result.into());
         Ok(ExecSuccess::Next)
-    }
-
-    fn reinterpret<From, To>(&mut self) -> ExecResult {
-        // let v = self.stack.pop_
-        panic!()
     }
 }
 
