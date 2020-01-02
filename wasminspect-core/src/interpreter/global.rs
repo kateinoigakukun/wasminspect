@@ -53,8 +53,8 @@ impl DefinedGlobalInstance {
 }
 
 pub struct ExternalGlobalInstance {
-    module_name: String,
-    name: String,
+    pub module_name: String,
+    pub name: String,
     ty: GlobalType,
 }
 

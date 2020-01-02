@@ -45,6 +45,7 @@ impl ExportInstance {
     }
 }
 
+#[derive(Debug)]
 pub enum ExternalValue {
     Func(FuncAddr),
     Global(GlobalAddr),

@@ -29,7 +29,7 @@ impl ModuleInstance {
 pub struct DefinedModuleInstance {
     types: Vec<parity_wasm::elements::Type>,
     func_addrs: Vec<FuncAddr>,
-    exports: Vec<ExportInstance>,
+    pub exports: Vec<ExportInstance>,
     start_func: Option<FuncAddr>,
 }
 

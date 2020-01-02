@@ -58,20 +58,10 @@ impl Store {
         &self.globals[&addr.0][addr.1]
     }
 
-    pub fn scan_global_by_name(&self, field: &str) -> Option<&GlobalInstance> {
-        let global_addr = self
-            .modules
-            .iter()
-            .filter_map(|module| match module {
-                ModuleInstance::Defined(m) => Some(m),
-                ModuleInstance::Host(_) => None,
-            })
-            .filter_map(|module| module.exported_global(field.to_string()))
-            .next();
-        match global_addr {
-            Some(addr) => Some(self.global(addr)),
-            None => None,
-        }
+    pub fn scan_global_by_name(&self, module_index: ModuleIndex, field: &str) -> Option<&GlobalInstance> {
+        let module = self.module(module_index).defined().unwrap();
+        let global_addr = module.exported_global(field.to_string());
+        global_addr.map(|addr| self.global(addr))
     }
 
     pub fn table(&self, addr: TableAddr) -> Rc<RefCell<TableInstance>> {
