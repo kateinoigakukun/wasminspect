@@ -62,6 +62,11 @@ impl WasmInstanceBuilder {
     }
 }
 
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
 impl WasmInstance {
     pub fn new() -> WasmInstanceBuilder {
         WasmInstanceBuilder {
@@ -69,19 +74,25 @@ impl WasmInstance {
         }
     }
 
-    fn resolve_func(addr: FuncAddr, store: &Store) {
+    fn resolve_func(addr: FuncAddr, store: &Store) -> Either<FuncAddr, &HostFuncBody> {
         let func = store.func(addr);
-        let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-        let mut local_tys = func.ty().params().to_vec();
         match func {
-            FunctionInstance::Defined(func) => {
-                local_tys.append(&mut func.code().locals().clone());
-            }
+            FunctionInstance::Defined(_) => Either::Left(addr),
             FunctionInstance::Host(func) => {
-
+                let module = store.module_by_name(func.module_name().clone());
+                match module {
+                    ModuleInstance::Host(host_module) => {
+                        let func = host_module.func_by_name(func.field_name().clone()).unwrap();
+                        return Either::Right(func);
+                    }
+                    ModuleInstance::Defined(defined_module) => {
+                        let addr = defined_module
+                            .exported_func(func.field_name().clone())
+                            .unwrap();
+                        return Self::resolve_func(addr, store);
+                    }
+                }
             }
-        }
-        if let Some(defined_func) = func.defined() {
         }
     }
 
@@ -91,38 +102,48 @@ impl WasmInstance {
         arguments: Vec<WasmValue>,
     ) -> Result<Vec<WasmValue>, WasmError> {
         let module = self.store.module(self.module_index).defined().unwrap();
-        let pc = if let Some(func_name) = func_name {
+        let func_addr = if let Some(func_name) = func_name {
             if let Some(func_addr) = module.exported_func(func_name.clone()) {
-                ProgramCounter::new(func_addr, InstIndex::zero())
+                func_addr
             } else {
                 return Err(WasmError::EntryFunctionNotFound(func_name.clone()));
             }
         } else if let Some(start_func_addr) = module.start_func_addr() {
-            ProgramCounter::new(*start_func_addr, InstIndex::zero())
+            *start_func_addr
         } else {
             panic!()
         };
 
-        let (frame, ret_types) = {
-            let func = self.store.func(pc.func_addr());
-            let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-            let mut local_tys = func.ty().params().to_vec();
-            if let Some(defined_func) = func.defined() {
-                local_tys.append(&mut defined_func.code().locals().clone());
+        match Self::resolve_func(func_addr, &self.store) {
+            Either::Right(host_func_body) => {
+                let mut results = Vec::new();
+                match host_func_body.call(&arguments, &mut results) {
+                    Ok(_) => Ok(results),
+                    Err(_) => Err(WasmError::HostExecutionError)
+                }
             }
-            let frame = CallFrame::new(pc.func_addr(), &local_tys, arguments, None);
-            (frame, ret_types)
-        };
-        let mut executor = Executor::new(frame, ret_types.len(), pc, &mut self.store);
-        loop {
-            let result = executor.execute_step();
-            match result {
-                Ok(ExecSuccess::Next) => continue,
-                Ok(ExecSuccess::End) => match executor.pop_result(ret_types) {
-                    Ok(values) => return Ok(values),
-                    Err(err) => return Err(WasmError::ReturnValueError(err)),
-                },
-                Err(err) => return Err(WasmError::ExecutionError(err)),
+            Either::Left(func_addr) => {
+                let (frame, ret_types) = {
+                    let func = self.store.func(func_addr).defined().unwrap();
+                    let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
+                    let mut local_tys = func.ty().params().to_vec();
+                    local_tys.append(&mut func.code().locals().clone());
+                    let frame = CallFrame::new(func_addr, &local_tys, arguments, None);
+                    (frame, ret_types)
+                };
+                let pc = ProgramCounter::new(func_addr, InstIndex::zero());
+                let mut executor = Executor::new(frame, ret_types.len(), pc, &mut self.store);
+                loop {
+                    let result = executor.execute_step();
+                    match result {
+                        Ok(ExecSuccess::Next) => continue,
+                        Ok(ExecSuccess::End) => match executor.pop_result(ret_types) {
+                            Ok(values) => return Ok(values),
+                            Err(err) => return Err(WasmError::ReturnValueError(err)),
+                        },
+                        Err(err) => return Err(WasmError::ExecutionError(err)),
+                    }
+                }
             }
         }
     }
@@ -132,6 +153,7 @@ pub enum WasmError {
     ExecutionError(executor::ExecError),
     EntryFunctionNotFound(String),
     ReturnValueError(executor::ReturnValError),
+    HostExecutionError,
 }
 
 impl std::fmt::Display for WasmError {
@@ -143,6 +165,9 @@ impl std::fmt::Display for WasmError {
             }
             WasmError::ReturnValueError(err) => {
                 write!(f, "Failed to get returned value: {:?}", err)
+            }
+            WasmError::HostExecutionError => {
+                write!(f, "Failed to execute host func")
             }
         }
     }
