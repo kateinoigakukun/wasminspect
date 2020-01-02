@@ -1,12 +1,15 @@
 use super::module::ModuleInstance;
 use super::store::Store;
 use super::value::FromLittleEndian;
+use super::utils::*;
 use parity_wasm::elements::ResizableLimits;
 
 pub enum MemoryInstance {
     Defined(DefinedMemoryInstance),
     External(HostMemoryInstance),
 }
+
+
 
 impl MemoryInstance {
     pub fn grow(&mut self, n: usize, store: &Store) -> Result<(), Error> {
@@ -29,9 +32,9 @@ impl MemoryInstance {
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: &[u8], store: &Store) {
+    pub fn store(&mut self, offset: usize, data: &[u8], store: &Store) {
         match self {
-            Self::Defined(defined) => defined.initialize(offset, data),
+            Self::Defined(defined) => defined.store(offset, data),
             Self::External(external) => {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
@@ -40,13 +43,13 @@ impl MemoryInstance {
                         store
                             .memory(addr.unwrap())
                             .borrow_mut()
-                            .initialize(offset, data, store)
+                            .store(offset, data, store)
                     }
                     ModuleInstance::Host(host) => host
                         .memory_by_name(external.name.clone())
                         .unwrap()
                         .borrow_mut()
-                        .initialize(offset, data),
+                        .store(offset, data),
                 }
             }
         }
@@ -131,7 +134,7 @@ impl DefinedMemoryInstance {
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: &[u8]) {
+    pub fn store(&mut self, offset: usize, data: &[u8]) {
         for (index, byte) in data.into_iter().enumerate() {
             self.data[offset + index] = *byte;
         }

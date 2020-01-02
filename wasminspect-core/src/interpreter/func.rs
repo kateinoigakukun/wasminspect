@@ -19,14 +19,14 @@ impl InstIndex {
 
 pub enum FunctionInstance {
     Defined(DefinedFunctionInstance),
-    Host(HostFunctionInstance),
+    External(HostFunctionInstance),
 }
 
 impl FunctionInstance {
     pub fn ty(&self) -> &FunctionType {
         match self {
             Self::Defined(defined) => defined.ty(),
-            Self::Host(host) => host.ty(),
+            Self::External(host) => host.ty(),
         }
     }
 

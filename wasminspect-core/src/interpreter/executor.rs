@@ -6,6 +6,7 @@ use super::module::*;
 use super::stack::*;
 use super::store::*;
 use super::value::*;
+use super::utils::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::ops::*;
@@ -631,14 +632,18 @@ impl<'a> Executor<'a> {
         Ok(Signal::Next)
     }
 
-    fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult<Signal> {
-        let val: T = self.pop_as()?;
-        let raw_addr: i32 = self.pop_as()?;
-        let raw_addr = raw_addr as usize;
-        let addr: usize = raw_addr + offset;
+    fn memory(&self) -> std::rc::Rc<std::cell::RefCell<MemoryInstance>> {
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = self.store.memory(mem_addr);
+        self.store.memory(mem_addr)
+    }
+
+    fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult<Signal> {
+        let val: T = self.pop_as()?;
+        let base_addr: i32 = self.pop_as()?;
+        let base_addr = base_addr as usize;
+        let addr = base_addr + offset;
+        let memory = self.memory();
         let mem_len = memory.borrow().data_len(self.store);
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
@@ -646,10 +651,7 @@ impl<'a> Executor<'a> {
         }
         let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
         val.into_le(&mut buf);
-        self.store
-            .memory(mem_addr)
-            .borrow_mut()
-            .initialize(addr, &buf, self.store);
+        memory.borrow_mut().store(addr, &buf, self.store);
         Ok(Signal::Next)
     }
 
@@ -678,7 +680,7 @@ impl<'a> Executor<'a> {
         self.store
             .memory(mem_addr)
             .borrow_mut()
-            .initialize(addr, &buf, self.store);
+            .store(addr, &buf, self.store);
         Ok(Signal::Next)
     }
 
@@ -764,16 +766,14 @@ impl std::fmt::Display for WasmError {
     }
 }
 
-enum Either<L, R> {
-    Left(L),
-    Right(R),
-}
-
-fn resolve_func_addr(addr: FuncAddr, store: &Store) -> Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody> {
+fn resolve_func_addr(
+    addr: FuncAddr,
+    store: &Store,
+) -> Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody> {
     let func = store.func(addr);
     match func {
         FunctionInstance::Defined(defined) => Either::Left((addr, defined)),
-        FunctionInstance::Host(func) => {
+        FunctionInstance::External(func) => {
             let module = store.module_by_name(func.module_name().clone());
             match module {
                 ModuleInstance::Host(host_module) => {

@@ -254,7 +254,7 @@ impl Store {
 
         let map = self.funcs.entry(module_index).or_insert(Vec::new());
         let func_index = map.len();
-        map.push(FunctionInstance::Host(instance));
+        map.push(FunctionInstance::External(instance));
         return FuncAddr(module_index, func_index);
     }
 
@@ -461,7 +461,7 @@ impl Store {
                         _ => panic!(),
                     };
                     mem.borrow_mut()
-                        .initialize(offset as usize, seg.value(), self);
+                        .store(offset as usize, seg.value(), self);
                 }
             }
         }
