@@ -1,3 +1,5 @@
+/// Reference: https://github.com/bytecodealliance/wasmtime/blob/master/crates/wast/src/wast.rs
+
 use anyhow::{anyhow, bail, Context as _, Result};
 use std::collections::HashMap;
 use std::path::Path;
@@ -116,51 +118,90 @@ impl WastContext {
                     Err(err) => bail!("{}", err),
                 },
                 AssertMalformed {
-                    span: _,
-                    module: _,
-                    message: _,
+                    span,
+                    module,
+                    message,
                 } => {
-                    println!("assert_malformed is unsupported");
+                    let mut module = match module {
+                        wast::QuoteModule::Module(m) => m,
+                        // this is a `*.wat` parser test which we're not
+                        // interested in
+                        wast::QuoteModule::Quote(_) => return Ok(()),
+                    };
+                    let bytes = module.encode().map_err(adjust_wast)?;
+                    let err = match self.module(None, &bytes) {
+                        Ok(()) => {
+                            bail!("{}\nexpected module to fail to instantiate", context(span))
+                        }
+                        Err(e) => e,
+                    };
+                    let error_message = format!("{:?}", err);
+                    if !error_message.contains(&message) {
+                        // TODO: change to bail!
+                        println!(
+                            "{}\nassert_malformed: expected {}, got {}",
+                            context(span),
+                            message,
+                            error_message
+                        )
+                    }
                 }
                 AssertUnlinkable {
-                    span: _,
-                    module: _,
-                    message: _,
+                    span,
+                    mut module,
+                    message,
                 } => {
-                    println!("assert_unlinkable is unsupported");
+                    let bytes = module.encode().map_err(adjust_wast)?;
+                    let err = match self.module(None, &bytes) {
+                        Ok(()) => bail!("{}\nexpected module to fail to link", context(span)),
+                        Err(e) => e,
+                    };
+                    let error_message = format!("{:?}", err);
+                    if !error_message.contains(&message) {
+                        bail!(
+                            "{}\nassert_unlinkable: expected {}, got {}",
+                            context(span),
+                            message,
+                            error_message
+                        )
+                    }
                 }
                 AssertExhaustion {
-                    span: _,
-                    call: _,
-                    message: _,
-                } => {
-                    println!("assert_exhaustion is unsupported");
-                }
+                    span,
+                    call,
+                    message,
+                } => match self.invoke(call.module.map(|s| s.name()), call.name, &call.args) {
+                    Ok(values) => {
+                        bail!("{}\nexpected trap, got {:?}", context(span), values)
+                    }
+                    Err(t) => {
+                        let result = format!("{}", t);
+                        if result.contains(message) {
+                            continue;
+                        }
+                        bail!("{}\nexpected {}, got {}", context(span), message, result)
+                    }
+                },
                 AssertInvalid {
                     span,
                     mut module,
                     message,
                 } => {
-                    println!("assert_invalid is unsupported");
-                    // let bytes = module.encode().map_err(adjust_wast)?;
-                    // // TODO Fix type-check
-                    // let err = match self.module(None, &bytes) {
-                    //     Ok(()) => {
-                    //         println!("{}\nexpected module to fail to build", context(span));
-                    //         break;
-                    //     }
-                    //     Err(e) => e,
-                    // };
-                    // let error_message = format!("{:?}", err);
-                    // if !error_message.contains(&message) {
-                    //     // TODO: change to bail!
-                    //     println!(
-                    //         "{}\nassert_invalid: expected {}, got {}",
-                    //         context(span),
-                    //         message,
-                    //         error_message
-                    //     )
-                    // }
+                    let bytes = module.encode().map_err(adjust_wast)?;
+                    let err = match self.module(None, &bytes) {
+                        Ok(()) => bail!("{}\nexpected module to fail to build", context(span)),
+                        Err(e) => e,
+                    };
+                    let error_message = format!("{:?}", err);
+                    if !error_message.contains(&message) {
+                        // TODO: change to bail!
+                        println!(
+                            "{}\nassert_invalid: expected {}, got {}",
+                            context(span),
+                            message,
+                            error_message
+                        )
+                    }
                 }
                 other => panic!("unsupported"),
             }
