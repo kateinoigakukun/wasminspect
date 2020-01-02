@@ -12,7 +12,7 @@ mod table;
 mod validator;
 mod value;
 
-use self::executor::{invoke_func, ExecSuccess, Executor, WasmError};
+use self::executor::{invoke_func, Signal, Executor, WasmError};
 use self::func::{FunctionInstance, InstIndex};
 use self::module::ModuleInstance;
 use self::stack::{CallFrame, ProgramCounter};

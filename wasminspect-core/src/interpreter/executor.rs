@@ -13,6 +13,7 @@ use std::ops::*;
 #[derive(Debug)]
 pub enum Trap {
     Unreachable,
+    MemoryAccessOutOfBounds(/* try to access */ usize, /* memory size */ usize),
     TableAccessOutOfBounds,
     UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
 }
@@ -75,7 +76,11 @@ impl<'a> Executor<'a> {
         return self.execute_inst(&inst, module_index);
     }
 
-    fn execute_inst(&mut self, inst: &Instruction, module_index: ModuleIndex) -> ExecResult<Signal> {
+    fn execute_inst(
+        &mut self,
+        inst: &Instruction,
+        module_index: ModuleIndex,
+    ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
         println!("{:?}", self.stack);
         {
@@ -103,7 +108,7 @@ impl<'a> Executor<'a> {
                 Ok(Signal::Next)
             }
             Instruction::If(ty) => {
-                let val: i32 = self.pop_as();
+                let val: i32 = self.pop_as()?;
                 self.stack.push_label(Label::If(match ty {
                     BlockType::Value(_) => 1,
                     BlockType::NoResult => 0,
@@ -181,7 +186,7 @@ impl<'a> Executor<'a> {
                 }
             }
             Instruction::BrTable(ref payload) => {
-                let val: i32 = self.pop_as();
+                let val: i32 = self.pop_as()?;
                 let val = val as usize;
                 let depth = if val < payload.table.len() {
                     payload.table[val]
@@ -206,7 +211,7 @@ impl<'a> Executor<'a> {
                     };
                     (ty.clone(), addr)
                 };
-                let buf_index: i32 = self.pop_as();
+                let buf_index: i32 = self.pop_as()?;
                 let table = self.store.table(addr);
                 let buf_index = buf_index as usize;
                 assert!(buf_index < table.borrow().buffer_len(self.store));
@@ -223,7 +228,7 @@ impl<'a> Executor<'a> {
                 Ok(Signal::Next)
             }
             Instruction::Select => {
-                let cond: i32 = self.pop_as();
+                let cond: i32 = self.pop_as()?;
                 let val2 = self.stack.pop_value();
                 let val1 = self.stack.pop_value();
                 if cond != 0 {
@@ -295,7 +300,7 @@ impl<'a> Executor<'a> {
                 Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {
-                let grow_page: i32 = self.pop_as();
+                let grow_page: i32 = self.pop_as()?;
                 let frame = self.stack.current_frame();
                 let mem_addr = MemoryAddr(frame.module_index(), 0);
                 let mem = self.store.memory(mem_addr);
@@ -473,15 +478,15 @@ impl<'a> Executor<'a> {
         }
     }
 
-    fn pop_as<T: NativeValue>(&mut self) -> T {
+    fn pop_as<T: NativeValue>(&mut self) -> ExecResult<T> {
         let value = self.stack.pop_value();
-        match T::from_value(value) {
-            Some(val) => val,
-            None => panic!(),
-        }
+        T::from_value(value).ok_or(Trap::UnexpectedStackValueType(
+            /* expected: */ T::value_type(),
+            /* actual:   */ value.value_type(),
+        ))
     }
 
-    fn branch(&mut self, depth: u32) -> ExecResult {
+    fn branch(&mut self, depth: u32) -> ExecResult<Signal> {
         let depth = depth as usize;
         let label = {
             let labels = self.stack.current_frame_labels();
@@ -537,28 +542,28 @@ impl<'a> Executor<'a> {
         Ok(Signal::Next)
     }
 
-    fn testop<T: NativeValue, F: Fn(T) -> bool>(&mut self, f: F) -> ExecResult {
+    fn testop<T: NativeValue, F: Fn(T) -> bool>(&mut self, f: F) -> ExecResult<Signal> {
         self.unop(|a| Value::I32(if f(a) { 1 } else { 0 }))
     }
 
-    fn relop<T: NativeValue, F: Fn(T, T) -> bool>(&mut self, f: F) -> ExecResult {
+    fn relop<T: NativeValue, F: Fn(T, T) -> bool>(&mut self, f: F) -> ExecResult<Signal> {
         self.binop(|a: T, b: T| Value::I32(if f(a, b) { 1 } else { 0 }))
     }
 
-    fn binop<T: NativeValue, To: Into<Value>, F: Fn(T, T) -> To>(&mut self, f: F) -> ExecResult {
-        let rhs = self.pop_as();
-        let lhs = self.pop_as();
+    fn binop<T: NativeValue, To: Into<Value>, F: Fn(T, T) -> To>(&mut self, f: F) -> ExecResult<Signal> {
+        let rhs = self.pop_as()?;
+        let lhs = self.pop_as()?;
         self.stack.push_value(f(lhs, rhs).into());
         Ok(Signal::Next)
     }
 
-    fn unop<From: NativeValue, To: Into<Value>, F: Fn(From) -> To>(&mut self, f: F) -> ExecResult {
-        let v: From = self.pop_as();
+    fn unop<From: NativeValue, To: Into<Value>, F: Fn(From) -> To>(&mut self, f: F) -> ExecResult<Signal> {
+        let v: From = self.pop_as()?;
         self.stack.push_value(f(v).into());
         Ok(Signal::Next)
     }
 
-    fn invoke(&mut self, addr: FuncAddr) -> ExecResult {
+    fn invoke(&mut self, addr: FuncAddr) -> ExecResult<Signal> {
         let func_ty = self.store.func_ty(addr);
         println!("--- Start of Function {:?} ---", func_ty);
 
@@ -571,7 +576,7 @@ impl<'a> Executor<'a> {
         self.invoke_with_args(addr, args)
     }
 
-    pub fn invoke_with_args(&mut self, addr: FuncAddr, args: Vec<Value>) -> ExecResult {
+    pub fn invoke_with_args(&mut self, addr: FuncAddr, args: Vec<Value>) -> ExecResult<Signal> {
         let func = self.store.func(addr);
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         match func {
@@ -611,7 +616,7 @@ impl<'a> Executor<'a> {
             }
         }
     }
-    fn do_return(&mut self) -> ExecResult {
+    fn do_return(&mut self) -> ExecResult<Signal> {
         let frame = self.stack.current_frame().clone();
         let func = self.store.func(frame.func_addr);
         println!("--- Function return {:?} ---", func.ty());
@@ -635,16 +640,16 @@ impl<'a> Executor<'a> {
         Ok(Signal::Next)
     }
 
-    fn set_local(&mut self, index: usize) -> ExecResult {
+    fn set_local(&mut self, index: usize) -> ExecResult<Signal> {
         let value = self.stack.pop_value();
         self.stack.set_local(index, value);
 
         Ok(Signal::Next)
     }
 
-    fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult {
-        let val: T = self.pop_as();
-        let raw_addr: i32 = self.pop_as();
+    fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult<Signal> {
+        let val: T = self.pop_as()?;
+        let raw_addr: i32 = self.pop_as()?;
         let raw_addr = raw_addr as usize;
         let addr: usize = raw_addr + offset;
         let frame = self.stack.current_frame();
@@ -653,7 +658,7 @@ impl<'a> Executor<'a> {
         let mem_len = memory.borrow().data_len(self.store);
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
-            panic!();
+            return Err(Trap::MemoryAccessOutOfBounds(addr + elem_size, mem_len));
         }
         let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
         val.into_le(&mut buf);
@@ -668,9 +673,9 @@ impl<'a> Executor<'a> {
         &mut self,
         offset: usize,
         width: usize,
-    ) -> ExecResult {
-        let val: T = self.pop_as();
-        let raw_addr: i32 = self.pop_as();
+    ) -> ExecResult<Signal> {
+        let val: T = self.pop_as()?;
+        let raw_addr: i32 = self.pop_as()?;
         let raw_addr = raw_addr as usize;
         let addr: usize = raw_addr + offset;
         let frame = self.stack.current_frame();
@@ -693,12 +698,12 @@ impl<'a> Executor<'a> {
         Ok(Signal::Next)
     }
 
-    fn load<T>(&mut self, offset: usize) -> ExecResult
+    fn load<T>(&mut self, offset: usize) -> ExecResult<Signal>
     where
         T: NativeValue + FromLittleEndian,
         T: Into<Value>,
     {
-        let raw_addr: i32 = self.pop_as();
+        let raw_addr: i32 = self.pop_as()?;
         let raw_addr = raw_addr as usize;
         let addr: usize = raw_addr + offset;
 
@@ -718,8 +723,8 @@ impl<'a> Executor<'a> {
     fn load_extend<T: FromLittleEndian + ExtendInto<U>, U: Into<Value>>(
         &mut self,
         offset: usize,
-    ) -> ExecResult {
-        let raw_addr: i32 = self.pop_as();
+    ) -> ExecResult<Signal> {
+        let raw_addr: i32 = self.pop_as()?;
         let raw_addr = raw_addr as usize;
         let addr: usize = raw_addr + offset;
 

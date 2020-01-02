@@ -90,6 +90,7 @@ impl From<f64> for Value {
 
 pub trait NativeValue: Sized {
     fn from_value(val: Value) -> Option<Self>;
+    fn value_type() -> ValueType;
 }
 
 macro_rules! impl_native_value {
@@ -100,6 +101,10 @@ macro_rules! impl_native_value {
                     Value::$case(val) => Some(val as $type),
                     _ => None,
                 }
+            }
+
+            fn value_type() -> ValueType {
+                ValueType::$case
             }
         }
     };
