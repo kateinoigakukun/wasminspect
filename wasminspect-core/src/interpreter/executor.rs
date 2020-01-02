@@ -571,9 +571,7 @@ impl<'a> Executor<'a> {
 
     fn invoke(&mut self, addr: FuncAddr) -> ExecResult<Signal> {
         let func_ty = self.store.func_ty(addr);
-        println!("--- Start of Function {:?} ---", func_ty);
 
-        // println!("{:?}", self.stack);
         let mut args = Vec::new();
         for _ in func_ty.params() {
             args.push(self.stack.pop_value());
@@ -593,10 +591,7 @@ impl<'a> Executor<'a> {
             }
             Either::Right(host_func_body) => {
                 let mut result = Vec::new();
-                match host_func_body.call(&args, &mut result) {
-                    Ok(_) => (),
-                    Err(_) => panic!(),
-                };
+                host_func_body.call(&args, &mut result)?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);
