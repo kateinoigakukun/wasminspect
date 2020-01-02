@@ -402,13 +402,25 @@ impl Store {
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut mem_addrs = Vec::new();
+        if mem_sec.is_empty() && self.mems.is_empty() {
+            return mem_addrs;
+        }
         for (index, entry) in mem_sec.iter().enumerate() {
             let mut instance = DefinedMemoryInstance::new(
                 entry.limits().initial() as usize,
                 entry.limits().maximum().map(|mx| mx as usize),
             );
-            if data_segments.len() > index {
-                let segs = &data_segments[&index];
+            let map = self.mems.entry(module_index).or_insert(Vec::new());
+            let mem_index = map.len();
+            map.push(Rc::new(RefCell::new(MemoryInstance::Defined(instance))));
+            mem_addrs.push(MemoryAddr(module_index, mem_index));
+        }
+
+        let mems = self.mems.entry(module_index).or_insert(Vec::new())
+        .clone();
+
+        for (index, mem) in mems.iter().enumerate() {
+            if let Some(segs) = data_segments.get(&index) {
                 for seg in segs {
                     let offset = match seg
                         .offset()
@@ -419,13 +431,9 @@ impl Store {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
-                    instance.initialize(offset as usize, seg.value());
+                    mem.borrow_mut().initialize(offset as usize, seg.value(), self);
                 }
             }
-            let map = self.mems.entry(module_index).or_insert(Vec::new());
-            let mem_index = map.len();
-            map.push(Rc::new(RefCell::new(MemoryInstance::Defined(instance))));
-            mem_addrs.push(MemoryAddr(module_index, mem_index));
         }
         mem_addrs
     }
