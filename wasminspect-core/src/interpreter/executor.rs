@@ -291,9 +291,10 @@ impl<'a> Executor<'a> {
                 let frame = self.stack.current_frame();
                 let mem_addr = MemoryAddr(frame.module_index(), 0);
                 let mem = self.store.memory(mem_addr);
-                self.stack.push_value(Value::I32(mem.borrow().page_count(self.store) as i32));
+                self.stack
+                    .push_value(Value::I32(mem.borrow().page_count(self.store) as i32));
                 Ok(ExecSuccess::Next)
-            },
+            }
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as();
                 let frame = self.stack.current_frame();
@@ -770,9 +771,7 @@ impl std::fmt::Display for WasmError {
             WasmError::ReturnValueError(err) => {
                 write!(f, "Failed to get returned value: {:?}", err)
             }
-            WasmError::HostExecutionError => {
-                write!(f, "Failed to execute host func")
-            }
+            WasmError::HostExecutionError => write!(f, "Failed to execute host func"),
         }
     }
 }
@@ -804,13 +803,17 @@ fn resolve_func_addr(addr: FuncAddr, store: &Store) -> Either<FuncAddr, &HostFun
     }
 }
 
-pub fn invoke_func(func_addr: FuncAddr, arguments: Vec<Value>, store: &mut Store) -> Result<Vec<Value>, WasmError> {
+pub fn invoke_func(
+    func_addr: FuncAddr,
+    arguments: Vec<Value>,
+    store: &mut Store,
+) -> Result<Vec<Value>, WasmError> {
     match resolve_func_addr(func_addr, &store) {
         Either::Right(host_func_body) => {
             let mut results = Vec::new();
             match host_func_body.call(&arguments, &mut results) {
                 Ok(_) => Ok(results),
-                Err(_) => Err(WasmError::HostExecutionError)
+                Err(_) => Err(WasmError::HostExecutionError),
             }
         }
         Either::Left(func_addr) => {

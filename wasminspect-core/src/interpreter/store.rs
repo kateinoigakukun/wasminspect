@@ -58,7 +58,11 @@ impl Store {
         &self.globals[&addr.0][addr.1]
     }
 
-    pub fn scan_global_by_name(&self, module_index: ModuleIndex, field: &str) -> Option<&GlobalInstance> {
+    pub fn scan_global_by_name(
+        &self,
+        module_index: ModuleIndex,
+        field: &str,
+    ) -> Option<&GlobalInstance> {
         let module = self.module(module_index).defined().unwrap();
         let global_addr = module.exported_global(field.to_string());
         global_addr.map(|addr| self.global(addr))

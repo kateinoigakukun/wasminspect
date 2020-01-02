@@ -224,21 +224,27 @@ macro_rules! impl_trunc {
     ($type:ty, $orig:ty) => {
         impl $type {
             pub fn trunc_to_i64(self_float: $orig) -> Option<i64> {
-                if self_float.is_nan() || self_float >= -(i64::min_value() as $orig) || self_float < i64::min_value() as $orig {
+                if self_float.is_nan()
+                    || self_float >= -(i64::min_value() as $orig)
+                    || self_float < i64::min_value() as $orig
+                {
                     None
                 } else {
                     Some(self_float.trunc() as i64)
                 }
             }
             pub fn trunc_to_u64(self_float: $orig) -> Option<u64> {
-                if self_float.is_nan() || self_float >= -(u64::min_value() as $orig) * 2.0 || self_float <= -1.0 {
+                if self_float.is_nan()
+                    || self_float >= -(u64::min_value() as $orig) * 2.0
+                    || self_float <= -1.0
+                {
                     None
                 } else {
                     Some(self_float.trunc() as u64)
                 }
             }
         }
-    }
+    };
 }
 
 impl_trunc!(F32, f32);

@@ -12,7 +12,7 @@ mod table;
 mod validator;
 mod value;
 
-use self::executor::{ExecSuccess, Executor, invoke_func, WasmError};
+use self::executor::{invoke_func, ExecSuccess, Executor, WasmError};
 use self::func::{FunctionInstance, InstIndex};
 use self::module::ModuleInstance;
 use self::stack::{CallFrame, ProgramCounter};
@@ -32,8 +32,11 @@ pub struct WasmInstance {
 }
 
 impl WasmInstance {
-
-    pub fn load_module_from_file(&mut self, name: Option<String>, module_filename: String) -> ModuleIndex {
+    pub fn load_module_from_file(
+        &mut self,
+        name: Option<String>,
+        module_filename: String,
+    ) -> ModuleIndex {
         let parity_module = parity_wasm::deserialize_file(module_filename).unwrap();
         self.load_module_from_parity_module(name, parity_module)
     }
@@ -63,7 +66,9 @@ impl WasmInstance {
     }
 
     pub fn get_global(&self, module_index: ModuleIndex, field: &str) -> Option<WasmValue> {
-        self.store.scan_global_by_name(module_index, field).map(|g| g.value(&self.store))
+        self.store
+            .scan_global_by_name(module_index, field)
+            .map(|g| g.value(&self.store))
     }
 
     pub fn run(
@@ -87,4 +92,3 @@ impl WasmInstance {
         invoke_func(func_addr, arguments, &mut self.store)
     }
 }
-

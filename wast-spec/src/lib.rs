@@ -41,7 +41,8 @@ impl WastContext {
             .load_module_from_parity_module(module_name.map(|n| n.to_string()), module);
         self.current = Some(module_index);
         if let Some(module_name) = module_name {
-            self.module_index_by_name.insert(module_name.to_string(), module_index);
+            self.module_index_by_name
+                .insert(module_name.to_string(), module_index);
         }
         Ok(())
     }
@@ -99,14 +100,12 @@ impl WastContext {
                     span: _,
                     exec,
                     message: _,
-                } => {
-                    match exec {
-                        wast::WastExecute::Module(_) => {
-                            self.perform_execute(exec);
-                        }
-                        _ => println!("assert_trap is unsupported"),
+                } => match exec {
+                    wast::WastExecute::Module(_) => {
+                        self.perform_execute(exec);
                     }
-                }
+                    _ => println!("assert_trap is unsupported"),
+                },
                 AssertMalformed {
                     span: _,
                     module: _,
@@ -208,9 +207,7 @@ impl WastContext {
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
                 let module = self.instantiate(&binary);
-                let module_index = self
-                    .instance
-                    .load_module_from_parity_module(None, module);
+                let module_index = self.instance.load_module_from_parity_module(None, module);
                 Ok(Vec::new())
             }
             wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),

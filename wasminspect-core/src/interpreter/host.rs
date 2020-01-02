@@ -18,9 +18,9 @@ impl BuiltinPrintI32 {
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::memory::DefinedMemoryInstance;
 use super::stack::Stack;
 use super::table::DefinedTableInstance;
-use super::memory::DefinedMemoryInstance;
 use parity_wasm::elements::FunctionType;
 
 type Ref<T> = Rc<RefCell<T>>;
@@ -57,4 +57,3 @@ impl HostFuncBody {
         &self.ty
     }
 }
-

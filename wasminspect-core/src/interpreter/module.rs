@@ -1,13 +1,13 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
-use super::table::DefinedTableInstance;
-use super::memory::DefinedMemoryInstance;
 use super::host::*;
+use super::memory::DefinedMemoryInstance;
+use super::table::DefinedTableInstance;
 use super::value::Value;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ModuleIndex(pub u32);

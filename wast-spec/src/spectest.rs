@@ -1,8 +1,8 @@
 use parity_wasm::elements::{FunctionType, ValueType};
-use std::collections::HashMap;
-use wasminspect_core::interpreter::*;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+use wasminspect_core::interpreter::*;
 
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();
