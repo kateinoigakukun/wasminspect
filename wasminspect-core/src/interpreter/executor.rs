@@ -663,7 +663,7 @@ impl<'a> Executor<'a> {
         }
         let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
         val.into_le(&mut buf);
-        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf);
+        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf, self.store);
         Ok(ExecSuccess::Next)
     }
 
@@ -679,7 +679,7 @@ impl<'a> Executor<'a> {
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
         let memory = self.store.memory(mem_addr);
-        let mem_len = memory.borrow().data_len();
+        let mem_len = memory.borrow().data_len(self.store);
         let elem_size = width;
         if (addr + elem_size) > mem_len {
             panic!();
@@ -688,7 +688,7 @@ impl<'a> Executor<'a> {
             .take(std::mem::size_of::<T>())
             .collect();
         val.into_le(&mut buf);
-        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf);
+        self.store.memory(mem_addr).borrow_mut().initialize(addr, &buf, self.store);
         Ok(ExecSuccess::Next)
     }
 
@@ -704,12 +704,12 @@ impl<'a> Executor<'a> {
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
         let memory = self.store.memory(mem_addr);
-        let mem_len = memory.borrow().data_len().clone();
+        let mem_len = memory.borrow().data_len(self.store).clone();
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
             panic!();
         }
-        let result: T = memory.borrow_mut().load_as(addr);
+        let result: T = memory.borrow_mut().load_as(addr, self.store);
         self.stack.push_value(result.into());
         Ok(ExecSuccess::Next)
     }
@@ -725,12 +725,12 @@ impl<'a> Executor<'a> {
         let frame = self.stack.current_frame();
         let mem_addr = MemoryAddr(frame.module_index(), 0);
         let memory = self.store.memory(mem_addr);
-        let mem_len = memory.borrow().data_len();
+        let mem_len = memory.borrow().data_len(self.store);
         let elem_size = std::mem::size_of::<T>();
         if (addr + elem_size) > mem_len {
             panic!();
         }
-        let result: T = memory.borrow_mut().load_as(addr);
+        let result: T = memory.borrow_mut().load_as(addr, self.store);
         let result = result.extend_into();
         self.stack.push_value(result.into());
         Ok(ExecSuccess::Next)

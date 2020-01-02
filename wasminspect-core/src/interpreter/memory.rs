@@ -29,22 +29,62 @@ impl MemoryInstance {
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: &[u8]) {
+    pub fn initialize(&mut self, offset: usize, data: &[u8], store: &Store) {
         match self {
             Self::Defined(defined) => defined.initialize(offset, data),
-            Self::External(_) => unimplemented!(),
+            Self::External(external) => {
+                let module = store.module_by_name(external.module_name.clone());
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_memory(external.name.clone());
+                        store.memory(addr.unwrap()).borrow_mut().initialize(offset, data, store)
+                    }
+                    ModuleInstance::Host(host) => host
+                        .memory_by_name(external.name.clone())
+                        .unwrap()
+                        .borrow_mut()
+                        .initialize(offset, data),
+                }
+            },
         }
     }
-    pub fn data_len(&self) -> usize {
+    pub fn data_len(&self, store: &Store) -> usize {
         match self {
             Self::Defined(defined) => defined.data_len(),
-            Self::External(_) => unimplemented!(),
+            Self::External(external) => {
+                let module = store.module_by_name(external.module_name.clone());
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_memory(external.name.clone());
+                        store.memory(addr.unwrap()).borrow().data_len(store)
+                    }
+                    ModuleInstance::Host(host) => host
+                        .memory_by_name(external.name.clone())
+                        .unwrap()
+                        .borrow()
+                        .data_len(),
+                }
+            }
         }
     }
-    pub fn load_as<T: FromLittleEndian>(&self, offset: usize) -> T {
+
+    pub fn load_as<T: FromLittleEndian>(&self, offset: usize, store: &Store) -> T {
         match self {
             Self::Defined(defined) => defined.load_as(offset),
-            Self::External(_) => unimplemented!(),
+            Self::External(external) => {
+                let module = store.module_by_name(external.module_name.clone());
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_memory(external.name.clone());
+                        store.memory(addr.unwrap()).borrow().load_as(offset, store)
+                    }
+                    ModuleInstance::Host(host) => host
+                        .memory_by_name(external.name.clone())
+                        .unwrap()
+                        .borrow()
+                        .load_as(offset),
+                }
+            }
         }
     }
 }

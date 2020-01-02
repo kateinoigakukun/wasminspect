@@ -58,19 +58,6 @@ impl Store {
         self.mems[&addr.0][addr.1].clone()
     }
 
-    // pub fn set_memory(&mut self, addr: MemoryAddr, offset: usize, bytes: &[u8]) {
-    //     &mut self.mems.entry(addr.0).and_modify(|mems| {
-    //         if let Some(mem) = mems.get_mut(addr.1) {
-    //             match mem {
-    //                 MemoryInstance::Defined(mem) => mem.initialize(offset, bytes),
-    //                 MemoryInstance::External(mem) => {
-    //                     panic!();
-    //                 }
-    //             }
-    //         }
-    //     });
-    // }
-
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
         &self.modules[module_index.0 as usize]
     }
