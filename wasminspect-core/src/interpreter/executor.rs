@@ -1,12 +1,13 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::host::*;
-use super::memory::*;
+use super::memory;
+use super::memory::MemoryInstance;
 use super::module::*;
 use super::stack::*;
 use super::store::*;
-use super::value::*;
 use super::utils::*;
+use super::value::*;
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::ops::*;
@@ -14,7 +15,7 @@ use std::ops::*;
 #[derive(Debug)]
 pub enum Trap {
     Unreachable,
-    MemoryAccessOutOfBounds(/* try to access */ usize, /* memory size */ usize),
+    Memory(memory::Error),
     TableAccessOutOfBounds,
     UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
 }
@@ -643,15 +644,14 @@ impl<'a> Executor<'a> {
         let base_addr: i32 = self.pop_as()?;
         let base_addr = base_addr as usize;
         let addr = base_addr + offset;
-        let memory = self.memory();
-        let mem_len = memory.borrow().data_len(self.store);
-        let elem_size = std::mem::size_of::<T>();
-        if (addr + elem_size) > mem_len {
-            return Err(Trap::MemoryAccessOutOfBounds(addr + elem_size, mem_len));
-        }
-        let mut buf: Vec<u8> = std::iter::repeat(0).take(elem_size).collect();
+        let mut buf: Vec<u8> = std::iter::repeat(0)
+            .take(std::mem::size_of::<T>())
+            .collect();
         val.into_le(&mut buf);
-        memory.borrow_mut().store(addr, &buf, self.store);
+        self.memory()
+            .borrow_mut()
+            .store(addr, &buf, self.store)
+            .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
 
@@ -661,26 +661,18 @@ impl<'a> Executor<'a> {
         width: usize,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
-        let raw_addr: i32 = self.pop_as()?;
-        let raw_addr = raw_addr as usize;
-        let addr: usize = raw_addr + offset;
-        let frame = self.stack.current_frame();
-        let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = self.store.memory(mem_addr);
-        let mem_len = memory.borrow().data_len(self.store);
-        let elem_size = width;
-        if (addr + elem_size) > mem_len {
-            panic!();
-        }
+        let base_addr: i32 = self.pop_as()?;
+        let base_addr = base_addr as usize;
+        let addr: usize = base_addr + offset;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
             .collect();
         val.into_le(&mut buf);
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
-        self.store
-            .memory(mem_addr)
+        self.memory()
             .borrow_mut()
-            .store(addr, &buf, self.store);
+            .store(addr, &buf, self.store)
+            .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
 
@@ -689,19 +681,15 @@ impl<'a> Executor<'a> {
         T: NativeValue + FromLittleEndian,
         T: Into<Value>,
     {
-        let raw_addr: i32 = self.pop_as()?;
-        let raw_addr = raw_addr as usize;
-        let addr: usize = raw_addr + offset;
+        let base_addr: i32 = self.pop_as()?;
+        let base_addr = base_addr as usize;
+        let addr: usize = base_addr + offset;
 
-        let frame = self.stack.current_frame();
-        let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = self.store.memory(mem_addr);
-        let mem_len = memory.borrow().data_len(self.store).clone();
-        let elem_size = std::mem::size_of::<T>();
-        if (addr + elem_size) > mem_len {
-            panic!();
-        }
-        let result: T = memory.borrow_mut().load_as(addr, self.store);
+        let result: T = self
+            .memory()
+            .borrow_mut()
+            .load_as(addr, self.store)
+            .map_err(Trap::Memory)?;
         self.stack.push_value(result.into());
         Ok(Signal::Next)
     }
@@ -710,19 +698,15 @@ impl<'a> Executor<'a> {
         &mut self,
         offset: usize,
     ) -> ExecResult<Signal> {
-        let raw_addr: i32 = self.pop_as()?;
-        let raw_addr = raw_addr as usize;
-        let addr: usize = raw_addr + offset;
+        let base_addr: i32 = self.pop_as()?;
+        let base_addr = base_addr as usize;
+        let addr: usize = base_addr + offset;
 
-        let frame = self.stack.current_frame();
-        let mem_addr = MemoryAddr(frame.module_index(), 0);
-        let memory = self.store.memory(mem_addr);
-        let mem_len = memory.borrow().data_len(self.store);
-        let elem_size = std::mem::size_of::<T>();
-        if (addr + elem_size) > mem_len {
-            panic!();
-        }
-        let result: T = memory.borrow_mut().load_as(addr, self.store);
+        let result: T = self
+            .memory()
+            .borrow_mut()
+            .load_as(addr, self.store)
+            .map_err(Trap::Memory)?;
         let result = result.extend_into();
         self.stack.push_value(result.into());
         Ok(Signal::Next)

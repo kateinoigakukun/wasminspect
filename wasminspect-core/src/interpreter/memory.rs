@@ -34,11 +34,11 @@ impl MemoryInstance {
         }
     }
 
-    pub fn grow(&mut self, n: usize, store: &Store) -> Result<(), Error> {
+    pub fn grow(&mut self, n: usize, store: &Store) -> Result<()> {
         self.resolve_memory_instance(store).borrow_mut().grow(n)
     }
 
-    pub fn store(&mut self, offset: usize, data: &[u8], store: &Store) {
+    pub fn store(&mut self, offset: usize, data: &[u8], store: &Store) -> Result<()> {
         self.resolve_memory_instance(store)
             .borrow_mut()
             .store(offset, data)
@@ -52,7 +52,7 @@ impl MemoryInstance {
         self.data_len(store) / PAGE_SIZE
     }
 
-    pub fn load_as<T: FromLittleEndian>(&self, offset: usize, store: &Store) -> T {
+    pub fn load_as<T: FromLittleEndian>(&self, offset: usize, store: &Store) -> Result<T> {
         self.resolve_memory_instance(store).borrow().load_as(offset)
     }
 }
@@ -80,9 +80,12 @@ impl ExternalMemoryInstance {
 
 #[derive(Debug)]
 pub enum Error {
-    OverMaximumSize(usize),
-    OverLimitWasmMemory,
+    GrowOverMaximumSize(usize),
+    GrowOverMaximumPageSize(usize),
+    AccessOutOfBounds(/* try to access */ usize, /* memory size */ usize)
 }
+
+type Result<T> = std::result::Result<T, Error>;
 
 static PAGE_SIZE: usize = 65536;
 impl DefinedMemoryInstance {
@@ -93,33 +96,43 @@ impl DefinedMemoryInstance {
         }
     }
 
-    pub fn store(&mut self, offset: usize, data: &[u8]) {
+    fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
+        if (offset + size) > self.data_len() {
+            return Err(Error::AccessOutOfBounds(offset + size, self.data_len()))
+        }
+        Ok(())
+    }
+
+    pub fn store(&mut self, offset: usize, data: &[u8]) -> Result<()> {
+        self.validate_region(offset, data.len())?;
         for (index, byte) in data.into_iter().enumerate() {
             self.data[offset + index] = *byte;
         }
+        Ok(())
     }
     pub fn data_len(&self) -> usize {
         self.data.len()
     }
 
-    pub fn load_as<T: FromLittleEndian>(&self, offset: usize) -> T {
+    pub fn load_as<T: FromLittleEndian>(&self, offset: usize) -> Result<T> {
+        self.validate_region(offset, std::mem::size_of::<T>())?;
         let buf = &self.data[offset..offset + std::mem::size_of::<T>()];
-        T::from_le(buf)
+        Ok(T::from_le(buf))
     }
 
     fn page_count(&self) -> usize {
         self.data_len() / PAGE_SIZE
     }
 
-    pub fn grow(&mut self, n: usize) -> Result<(), Error> {
+    pub fn grow(&mut self, n: usize) -> Result<()> {
         let len = self.page_count() + n;
         if len > 65536 {
-            return Err(Error::OverLimitWasmMemory);
+            return Err(Error::GrowOverMaximumPageSize(len));
         }
 
         if let Some(max) = self.max {
             if len > max {
-                return Err(Error::OverMaximumSize(max));
+                return Err(Error::GrowOverMaximumSize(max));
             }
         }
         let mut extra: Vec<u8> = std::iter::repeat(0).take(n * PAGE_SIZE).collect();
