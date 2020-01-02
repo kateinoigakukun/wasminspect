@@ -5,7 +5,7 @@ use super::func::{
 };
 use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
 use super::host::{HostFuncBody, HostValue};
-use super::memory::{DefinedMemoryInstance, HostMemoryInstance, MemoryInstance};
+use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
 use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::value::Value;
@@ -264,7 +264,7 @@ impl Store {
         import: &parity_wasm::elements::ImportEntry,
         memory_ty: parity_wasm::elements::MemoryType,
     ) -> MemoryAddr {
-        let instance = HostMemoryInstance::new(
+        let instance = ExternalMemoryInstance::new(
             import.module().to_string(),
             import.field().to_string(),
             memory_ty.limits().clone(),
@@ -442,7 +442,9 @@ impl Store {
             );
             let map = self.mems.entry(module_index).or_insert(Vec::new());
             let mem_index = map.len();
-            map.push(Rc::new(RefCell::new(MemoryInstance::Defined(instance))));
+            map.push(Rc::new(RefCell::new(MemoryInstance::Defined(Rc::new(
+                RefCell::new(instance),
+            )))));
             mem_addrs.push(MemoryAddr(module_index, mem_index));
         }
 
@@ -460,8 +462,7 @@ impl Store {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
-                    mem.borrow_mut()
-                        .store(offset as usize, seg.value(), self);
+                    mem.borrow_mut().store(offset as usize, seg.value(), self);
                 }
             }
         }
