@@ -1,12 +1,11 @@
 /// Reference: https://github.com/bytecodealliance/wasmtime/blob/master/crates/wast/src/wast.rs
-
 use anyhow::{anyhow, bail, Context as _, Result};
 use std::collections::HashMap;
 use std::path::Path;
 use std::str;
 mod spectest;
 use spectest::instantiate_spectest;
-use wasminspect_core::interpreter::{ModuleIndex, Trap, WasmError, WasmInstance, WasmValue};
+use wasminspect_core::interpreter::{ModuleIndex, WasmError, WasmInstance, WasmValue};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -29,13 +28,11 @@ impl WastContext {
         self.run_buffer(path.to_str().unwrap(), &bytes)
     }
 
-    pub fn instantiate(&self, bytes: &[u8]) -> parity_wasm::elements::Module {
-        let parity_module: parity_wasm::elements::Module =
-            parity_wasm::deserialize_buffer(&bytes).unwrap();
-        return parity_module;
+    pub fn instantiate(&self, bytes: &[u8]) -> Result<parity_wasm::elements::Module> {
+        parity_wasm::deserialize_buffer(&bytes).with_context(|| anyhow!("Failed to parse wasm"))
     }
     fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
-        let module = self.instantiate(&bytes);
+        let module = self.instantiate(&bytes)?;
         let module_index = self
             .instance
             .load_module_from_parity_module(module_name.map(|n| n.to_string()), module);
@@ -171,9 +168,7 @@ impl WastContext {
                     call,
                     message,
                 } => match self.invoke(call.module.map(|s| s.name()), call.name, &call.args) {
-                    Ok(values) => {
-                        bail!("{}\nexpected trap, got {:?}", context(span), values)
-                    }
+                    Ok(values) => bail!("{}\nexpected trap, got {:?}", context(span), values),
                     Err(t) => {
                         let result = format!("{}", t);
                         if result.contains(message) {
@@ -264,7 +259,7 @@ impl WastContext {
             }
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
-                let module = self.instantiate(&binary);
+                let module = self.instantiate(&binary)?;
                 self.instance.load_module_from_parity_module(None, module);
                 Ok(Ok(Vec::new()))
             }
@@ -279,7 +274,7 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
         wast::Instruction::I64Const(x) => WasmValue::I64(*x),
         wast::Instruction::F32Const(x) => WasmValue::F32(f32::from_bits(x.bits)),
         wast::Instruction::F64Const(x) => WasmValue::F64(f64::from_bits(x.bits)),
-        wast::Instruction::V128Const(x) => panic!(),
+        wast::Instruction::V128Const(_) => panic!(),
         _ => panic!(),
     }
 }
