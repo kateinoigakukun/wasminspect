@@ -51,6 +51,7 @@ impl WasmInstance {
     }
 
     pub fn register_name(&mut self, name: String, module_index: ModuleIndex) {
+        self.store.register_name(name, module_index)
     }
 }
 

@@ -83,6 +83,10 @@ impl Store {
             panic!("Module {} was not loaded", name);
         }
     }
+
+    pub fn register_name(&mut self, name: String, module_index: ModuleIndex) {
+        self.module_index_by_name.insert(name, module_index);
+    }
 }
 
 impl Store {

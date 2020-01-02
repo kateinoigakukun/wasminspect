@@ -5,9 +5,10 @@ use std::path::Path;
 
 fn run_wasm(filename: &str, func: &str, args: Vec<WasmValue>, results: Vec<WasmValue>) {
     let example_dir = Path::new(file!()).parent().unwrap().join("simple-example");
-    let mut instance = WasmInstance::new()
-        .load_main_module_from_file(example_dir.join(filename).to_str().unwrap().to_string());
-    match instance.run(Some(func.to_string()), args) {
+    let mut instance = WasmInstance::new();
+    let module_index = instance
+        .load_module_from_file(None, example_dir.join(filename).to_str().unwrap().to_string());
+    match instance.run(module_index, Some(func.to_string()), args) {
         Ok(result) => assert_eq!(result, results),
         Err(err) => panic!("{}", err),
     }
