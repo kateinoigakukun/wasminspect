@@ -4,7 +4,26 @@ use super::module::ModuleIndex;
 use super::value::{NativeValue, Value};
 use parity_wasm::elements::{FunctionType, ValueType};
 
-use std::fmt::{Debug, Display, Formatter, Result};
+use std::fmt;
+
+#[derive(Debug)]
+pub enum StackValueType {
+    Label,
+    Value,
+    Activation,
+}
+
+#[derive(Debug)]
+pub enum Error {
+    PopEmptyStack,
+    MismatchStackValueType(
+        /* expected: */ StackValueType,
+        /* actual: */ StackValueType,
+    ),
+    NoCallFrame,
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Label {
@@ -131,35 +150,64 @@ pub enum StackValue {
 }
 
 impl StackValue {
-    pub fn as_value(&self) -> Option<&Value> {
+    pub fn value_type(&self) -> StackValueType {
         match self {
-            Self::Value(val) => Some(val),
-            _ => None,
+            Self::Value(_) => StackValueType::Value,
+            Self::Label(_) => StackValueType::Label,
+            Self::Activation(_) => StackValueType::Activation,
         }
     }
-    fn as_label(&self) -> Option<&Label> {
+    pub fn as_value(self) -> Result<Value> {
         match self {
-            Self::Label(val) => Some(val),
-            _ => None,
+            Self::Value(val) => Ok(val),
+            _ => Err(Error::MismatchStackValueType(
+                StackValueType::Value,
+                self.value_type(),
+            )),
         }
     }
-    fn as_activation(&self) -> Option<&CallFrame> {
+    fn as_label(self) -> Result<Label> {
         match self {
-            Self::Activation(val) => Some(val),
-            _ => None,
+            Self::Label(val) => Ok(val),
+            _ => Err(Error::MismatchStackValueType(
+                StackValueType::Label,
+                self.value_type(),
+            )),
+        }
+    }
+    fn as_activation(self) -> Result<CallFrame> {
+        match self {
+            Self::Activation(val) => Ok(val),
+            _ => Err(Error::MismatchStackValueType(
+                StackValueType::Activation,
+                self.value_type(),
+            )),
         }
     }
 
-    fn as_activation_mut(&mut self) -> Option<&mut CallFrame> {
+    fn as_activation_ref(&self) -> Result<&CallFrame> {
         match self {
-            Self::Activation(val) => Some(val),
-            _ => None,
+            Self::Activation(val) => Ok(val),
+            _ => Err(Error::MismatchStackValueType(
+                StackValueType::Activation,
+                self.value_type(),
+            )),
+        }
+    }
+
+    fn as_activation_mut(&mut self) -> Result<&mut CallFrame> {
+        match self {
+            Self::Activation(val) => Ok(val),
+            _ => Err(Error::MismatchStackValueType(
+                StackValueType::Activation,
+                self.value_type(),
+            )),
         }
     }
 }
 
-impl Display for StackValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+impl std::fmt::Display for StackValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Value(_) => writeln!(f, "StackValue::Value"),
             Self::Label(_) => writeln!(f, "StackValue::Label"),
@@ -183,12 +231,15 @@ impl Stack {
         result
     }
 
-    pub fn current_frame_index(&self) -> usize {
-        *self.frame_index.last().unwrap()
+    pub fn current_frame_index(&self) -> Result<usize> {
+        self.frame_index
+            .last()
+            .map(|v| *v)
+            .ok_or(Error::NoCallFrame)
     }
 
-    pub fn is_func_top_level(&self) -> bool {
-        match self.stack[self.current_frame_index()..]
+    pub fn is_func_top_level(&self) -> Result<bool> {
+        match self.stack[self.current_frame_index()?..]
             .iter()
             .filter(|v| match v {
                 StackValue::Label(Label::Return(_)) => false,
@@ -197,33 +248,32 @@ impl Stack {
             })
             .next()
         {
-            Some(_) => false,
-            None => true,
+            Some(_) => Ok(false),
+            None => Ok(true),
         }
     }
 
-    pub fn current_frame_labels(&self) -> Vec<&Label> {
-        self.stack[self.current_frame_index()..]
+    pub fn current_frame_labels(&self) -> Result<Vec<&Label>> {
+        Ok(self.stack[self.current_frame_index()?..]
             .iter()
             .filter_map(|v| match v {
                 StackValue::Label(label) => Some(label),
                 _ => None,
             })
-            .collect()
+            .collect())
     }
 
-    pub fn latest(&self) -> &StackValue {
+    fn latest(&self) -> &StackValue {
         self.stack.last().unwrap()
     }
     pub fn push_value(&mut self, val: Value) {
         self.stack.push(StackValue::Value(val))
     }
 
-    pub fn pop_value(&mut self) -> Value {
+    pub fn pop_value(&mut self) -> Result<Value> {
         match self.stack.pop() {
-            Some(StackValue::Value(val)) => val,
-            Some(val) => panic!("Unexpected stack value type {}", val),
-            None => panic!("Stack is empty"),
+            Some(val) => val.as_value(),
+            None => Err(Error::PopEmptyStack),
         }
     }
 
@@ -231,11 +281,10 @@ impl Stack {
         self.stack.push(StackValue::Label(val))
     }
 
-    pub fn pop_label(&mut self) -> Label {
+    pub fn pop_label(&mut self) -> Result<Label> {
         match self.stack.pop() {
-            Some(StackValue::Label(val)) => val,
-            Some(val) => panic!("Unexpected stack value type {}", val),
-            None => panic!("Stack is empty"),
+            Some(val) => val.as_label(),
+            None => Err(Error::PopEmptyStack),
         }
     }
 
@@ -244,44 +293,42 @@ impl Stack {
         self.stack.push(StackValue::Activation(frame))
     }
 
-    pub fn current_frame(&self) -> &CallFrame {
-        match &self.stack[self.current_frame_index()] {
-            StackValue::Activation(val) => val,
-            val => panic!("Unexpected stack value type {}", val),
-        }
+    pub fn current_frame(&self) -> Result<&CallFrame> {
+        self.stack[self.current_frame_index()?].as_activation_ref()
     }
 
-    pub fn pop_frame(&mut self) -> CallFrame {
+    pub fn pop_frame(&mut self) -> Result<CallFrame> {
         match self.stack.pop() {
-            Some(StackValue::Activation(val)) => {
+            Some(val) => {
                 self.frame_index.pop();
-                return val;
+                val.as_activation()
             }
-            Some(val) => panic!("Unexpected stack value type {}", val),
-            None => panic!("Stack is empty"),
+            None => Err(Error::PopEmptyStack),
         }
     }
 
-    pub fn current_func_addr(&self) -> FuncAddr {
-        self.current_frame().func_addr
+    pub fn current_func_addr(&self) -> Result<FuncAddr> {
+        self.current_frame().map(|f| f.func_addr)
     }
 
     pub fn is_over_top_level(&self) -> bool {
         self.frame_index.is_empty()
     }
 
-    pub fn set_local(&mut self, index: usize, value: Value) {
-        let size = self.current_frame_index();
+    pub fn set_local(&mut self, index: usize, value: Value) -> Result<()> {
+        let size = self.current_frame_index()?;
         if let Some(stack) = self.stack.get_mut(size) {
-            if let Some(frame) = stack.as_activation_mut() {
-                frame.set_local(index, value);
-            }
+            let frame = stack.as_activation_mut()?;
+            frame.set_local(index, value);
+            Ok(())
+        } else {
+            Err(Error::NoCallFrame)
         }
     }
 }
 
-impl Debug for Stack {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+impl std::fmt::Debug for Stack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "┌-------------------------┐")?;
         writeln!(f, "|--------- Stack ---------|")?;
         writeln!(f, "|     ty     |     val    |")?;

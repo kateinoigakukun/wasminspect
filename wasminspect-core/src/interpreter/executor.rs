@@ -4,11 +4,12 @@ use super::host::*;
 use super::memory;
 use super::memory::MemoryInstance;
 use super::module::*;
-use super::stack::*;
+use super::stack;
+use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
 use super::store::*;
 use super::utils::*;
 use super::value::*;
-use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
+use parity_wasm::elements::{BlockType, InitExpr, Instruction, ValueType};
 
 use std::ops::*;
 
@@ -16,6 +17,7 @@ use std::ops::*;
 pub enum Trap {
     Unreachable,
     Memory(memory::Error),
+    Stack(stack::Error),
     TableAccessOutOfBounds,
     UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
 }
@@ -30,6 +32,7 @@ pub type ExecResult<T> = std::result::Result<T, Trap>;
 #[derive(Debug)]
 pub enum ReturnValError {
     TypeMismatchReturnValue(Value, ValueType),
+    Stack(stack::Error),
     NoValue(ValueType),
 }
 
@@ -57,7 +60,7 @@ impl<'a> Executor<'a> {
     pub fn pop_result(&mut self, return_ty: Vec<ValueType>) -> ReturnValResult {
         let mut results = vec![];
         for ty in return_ty {
-            let val = self.stack.pop_value();
+            let val = self.stack.pop_value().map_err(ReturnValError::Stack)?;
             results.push(val);
             if val.value_type() != ty {
                 return Err(ReturnValError::TypeMismatchReturnValue(val.clone(), ty));
@@ -66,9 +69,10 @@ impl<'a> Executor<'a> {
         Ok(results)
     }
 
-    pub fn current_func_insts(&self) -> &[Instruction] {
-        let func = self.store.func(self.stack.current_func_addr());
-        &func.defined().unwrap().code().instructions()
+    pub fn current_func_insts(&self) -> ExecResult<&[Instruction]> {
+        let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
+        let func = self.store.func(addr);
+        Ok(&func.defined().unwrap().code().instructions())
     }
 
     pub fn execute_step(&mut self) -> ExecResult<Signal> {
@@ -87,7 +91,7 @@ impl<'a> Executor<'a> {
         println!("{:?}", self.stack);
         {
             let mut indent = String::new();
-            for _ in 0..self.stack.current_frame_labels().len() {
+            for _ in 0..self.stack.current_frame_labels().map_err(Trap::Stack)?.len() {
                 indent.push_str("  ");
             }
             println!("{}{}", indent, inst.clone());
@@ -119,7 +123,7 @@ impl<'a> Executor<'a> {
                     let mut depth = 1;
                     loop {
                         let index = self.pc.inst_index().0 as usize;
-                        match self.current_func_insts()[index] {
+                        match self.current_func_insts()?[index] {
                             Instruction::End => depth -= 1,
                             Instruction::Block(_) => depth += 1,
                             Instruction::If(_) => depth += 1,
@@ -142,23 +146,20 @@ impl<'a> Executor<'a> {
             }
             Instruction::Else => self.branch(0),
             Instruction::End => {
-                if self.stack.is_func_top_level() {
+                if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
-                    let frame = self.stack.current_frame().clone();
+                    let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
                     let func = self.store.func(frame.func_addr);
-                    println!("--- End of function {:?} ---", func.ty());
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
                     let mut result = vec![];
                     for _ in 0..arity {
-                        result.push(self.stack.pop_value());
+                        result.push(self.stack.pop_value().map_err(Trap::Stack)?);
                     }
-                    // println!("{:?}", self.stack);
-                    self.stack.pop_label();
-                    self.stack.pop_frame();
+                    self.stack.pop_label().map_err(Trap::Stack)?;
+                    self.stack.pop_frame().map_err(Trap::Stack)?;
                     for v in result {
                         self.stack.push_value(v);
                     }
-                    println!("--- End of finish process ---");
                     if let Some(ret_pc) = frame.ret_pc {
                         self.pc = ret_pc;
                         Ok(Signal::Next)
@@ -171,16 +172,16 @@ impl<'a> Executor<'a> {
                         StackValue::Value(_) => true,
                         _ => false,
                     });
-                    self.stack.pop_label();
+                    self.stack.pop_label().map_err(Trap::Stack)?;
                     for v in results {
-                        self.stack.push_value(*v.as_value().unwrap());
+                        self.stack.push_value(v.as_value().map_err(Trap::Stack)?);
                     }
                     Ok(Signal::Next)
                 }
             }
             Instruction::Br(depth) => self.branch(*depth),
             Instruction::BrIf(depth) => {
-                let val = self.stack.pop_value();
+                let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 if val != Value::I32(0) {
                     self.branch(*depth)
                 } else {
@@ -199,13 +200,13 @@ impl<'a> Executor<'a> {
             }
             Instruction::Return => self.do_return(),
             Instruction::Call(func_index) => {
-                let frame = self.stack.current_frame();
+                let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = FuncAddr(frame.module_index(), *func_index as usize);
                 self.invoke(addr)
             }
             Instruction::CallIndirect(type_index, _) => {
                 let (ty, addr) = {
-                    let frame = self.stack.current_frame();
+                    let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                     let addr = TableAddr(frame.module_index(), 0);
                     let module = self.store.module(frame.module_index()).defined().unwrap();
                     let ty = match module.get_type(*type_index as usize) {
@@ -226,13 +227,13 @@ impl<'a> Executor<'a> {
                 self.invoke(func_addr)
             }
             Instruction::Drop => {
-                self.stack.pop_value();
+                self.stack.pop_value().map_err(Trap::Stack)?;
                 Ok(Signal::Next)
             }
             Instruction::Select => {
                 let cond: i32 = self.pop_as()?;
-                let val2 = self.stack.pop_value();
-                let val1 = self.stack.pop_value();
+                let val2 = self.stack.pop_value().map_err(Trap::Stack)?;
+                let val1 = self.stack.pop_value().map_err(Trap::Stack)?;
                 if cond != 0 {
                     self.stack.push_value(val1);
                 } else {
@@ -241,13 +242,17 @@ impl<'a> Executor<'a> {
                 Ok(Signal::Next)
             }
             Instruction::GetLocal(index) => {
-                let value = self.stack.current_frame().local(*index as usize);
+                let value = self
+                    .stack
+                    .current_frame()
+                    .map_err(Trap::Stack)?
+                    .local(*index as usize);
                 self.stack.push_value(value);
                 Ok(Signal::Next)
             }
             Instruction::SetLocal(index) => self.set_local(*index as usize),
             Instruction::TeeLocal(index) => {
-                let val = self.stack.pop_value();
+                let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 self.stack.push_value(val);
                 self.stack.push_value(val);
                 self.set_local(*index as usize)
@@ -260,7 +265,7 @@ impl<'a> Executor<'a> {
             }
             Instruction::SetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
-                let value = self.stack.pop_value();
+                let value = self.stack.pop_value().map_err(Trap::Stack)?;
                 self.store.set_global(addr, value);
                 Ok(Signal::Next)
             }
@@ -294,18 +299,13 @@ impl<'a> Executor<'a> {
             Instruction::I64Store32(_, offset) => self.store_with_width::<i64>(*offset as usize, 4),
 
             Instruction::CurrentMemory(_) => {
-                let frame = self.stack.current_frame();
-                let mem_addr = MemoryAddr(frame.module_index(), 0);
-                let mem = self.store.memory(mem_addr);
                 self.stack
-                    .push_value(Value::I32(mem.borrow().page_count(self.store) as i32));
+                    .push_value(Value::I32(self.memory()?.borrow().page_count(self.store) as i32));
                 Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as()?;
-                let frame = self.stack.current_frame();
-                let mem_addr = MemoryAddr(frame.module_index(), 0);
-                let mem = self.store.memory(mem_addr);
+                let mem = self.memory()?;
                 let size = mem.borrow().page_count(self.store);
                 match mem.borrow_mut().grow(grow_page as usize, self.store) {
                     Ok(_) => {
@@ -481,7 +481,7 @@ impl<'a> Executor<'a> {
     }
 
     fn pop_as<T: NativeValue>(&mut self) -> ExecResult<T> {
-        let value = self.stack.pop_value();
+        let value = self.stack.pop_value().map_err(Trap::Stack)?;
         T::from_value(value).ok_or(Trap::UnexpectedStackValueType(
             /* expected: */ T::value_type(),
             /* actual:   */ value.value_type(),
@@ -491,7 +491,7 @@ impl<'a> Executor<'a> {
     fn branch(&mut self, depth: u32) -> ExecResult<Signal> {
         let depth = depth as usize;
         let label = {
-            let labels = self.stack.current_frame_labels();
+            let labels = self.stack.current_frame_labels().map_err(Trap::Stack)?;
             let labels_len = labels.len();
             assert!(depth + 1 <= labels_len);
             *labels[labels_len - depth - 1]
@@ -501,7 +501,7 @@ impl<'a> Executor<'a> {
 
         let mut results = vec![];
         for _ in 0..arity {
-            results.push(self.stack.pop_value());
+            results.push(self.stack.pop_value().map_err(Trap::Stack)?);
         }
 
         for _ in 0..depth + 1 {
@@ -509,7 +509,7 @@ impl<'a> Executor<'a> {
                 StackValue::Value(_) => true,
                 _ => false,
             });
-            self.stack.pop_label();
+            self.stack.pop_label().map_err(Trap::Stack)?;
         }
 
         for _ in 0..arity {
@@ -527,7 +527,7 @@ impl<'a> Executor<'a> {
                 let mut depth = depth + 1;
                 loop {
                     let index = self.pc.inst_index().0 as usize;
-                    match self.current_func_insts()[index] {
+                    match self.current_func_insts()?[index] {
                         Instruction::End => depth -= 1,
                         Instruction::Block(_) => depth += 1,
                         Instruction::If(_) => depth += 1,
@@ -576,7 +576,7 @@ impl<'a> Executor<'a> {
 
         let mut args = Vec::new();
         for _ in func_ty.params() {
-            args.push(self.stack.pop_value());
+            args.push(self.stack.pop_value().map_err(Trap::Stack)?);
         }
         args.reverse();
 
@@ -603,19 +603,19 @@ impl<'a> Executor<'a> {
         }
     }
     fn do_return(&mut self) -> ExecResult<Signal> {
-        let frame = self.stack.current_frame().clone();
+        let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
         let func = self.store.func(frame.func_addr);
         println!("--- Function return {:?} ---", func.ty());
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         let mut result = vec![];
         for _ in 0..arity {
-            result.push(self.stack.pop_value());
+            result.push(self.stack.pop_value().map_err(Trap::Stack)?);
         }
         self.stack.pop_while(|v| match v {
             StackValue::Activation(_) => false,
             _ => true,
         });
-        self.stack.pop_frame();
+        self.stack.pop_frame().map_err(Trap::Stack)?;
         for v in result {
             self.stack.push_value(v);
         }
@@ -627,16 +627,16 @@ impl<'a> Executor<'a> {
     }
 
     fn set_local(&mut self, index: usize) -> ExecResult<Signal> {
-        let value = self.stack.pop_value();
-        self.stack.set_local(index, value);
+        let value = self.stack.pop_value().map_err(Trap::Stack)?;
+        self.stack.set_local(index, value).map_err(Trap::Stack)?;
 
         Ok(Signal::Next)
     }
 
-    fn memory(&self) -> std::rc::Rc<std::cell::RefCell<MemoryInstance>> {
-        let frame = self.stack.current_frame();
+    fn memory(&self) -> ExecResult<std::rc::Rc<std::cell::RefCell<MemoryInstance>>> {
+        let frame = self.stack.current_frame().map_err(Trap::Stack)?;
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        self.store.memory(mem_addr)
+        Ok(self.store.memory(mem_addr))
     }
 
     fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult<Signal> {
@@ -648,7 +648,7 @@ impl<'a> Executor<'a> {
             .take(std::mem::size_of::<T>())
             .collect();
         val.into_le(&mut buf);
-        self.memory()
+        self.memory()?
             .borrow_mut()
             .store(addr, &buf, self.store)
             .map_err(Trap::Memory)?;
@@ -669,7 +669,7 @@ impl<'a> Executor<'a> {
             .collect();
         val.into_le(&mut buf);
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
-        self.memory()
+        self.memory()?
             .borrow_mut()
             .store(addr, &buf, self.store)
             .map_err(Trap::Memory)?;
@@ -686,7 +686,7 @@ impl<'a> Executor<'a> {
         let addr: usize = base_addr + offset;
 
         let result: T = self
-            .memory()
+            .memory()?
             .borrow_mut()
             .load_as(addr, self.store)
             .map_err(Trap::Memory)?;
@@ -703,7 +703,7 @@ impl<'a> Executor<'a> {
         let addr: usize = base_addr + offset;
 
         let result: T = self
-            .memory()
+            .memory()?
             .borrow_mut()
             .load_as(addr, self.store)
             .map_err(Trap::Memory)?;
