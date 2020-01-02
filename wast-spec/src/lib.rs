@@ -97,10 +97,15 @@ impl WastContext {
                 },
                 AssertTrap {
                     span: _,
-                    exec: _,
+                    exec,
                     message: _,
                 } => {
-                    println!("assert_trap is unsupported");
+                    match exec {
+                        wast::WastExecute::Module(_) => {
+                            self.perform_execute(exec);
+                        }
+                        _ => println!("assert_trap is unsupported"),
+                    }
                 }
                 AssertMalformed {
                     span: _,
@@ -202,7 +207,10 @@ impl WastContext {
             }
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
-                let result = self.instantiate(&binary);
+                let module = self.instantiate(&binary);
+                let module_index = self
+                    .instance
+                    .load_module_from_parity_module(None, module);
                 Ok(Vec::new())
             }
             wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
