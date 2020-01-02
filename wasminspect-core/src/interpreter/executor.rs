@@ -287,7 +287,13 @@ impl<'a> Executor<'a> {
             Instruction::I64Store16(_, offset) => self.store_with_width::<i64>(*offset as usize, 2),
             Instruction::I64Store32(_, offset) => self.store_with_width::<i64>(*offset as usize, 4),
 
-            Instruction::CurrentMemory(_) => unimplemented!(),
+            Instruction::CurrentMemory(_) => {
+                let frame = self.stack.current_frame();
+                let mem_addr = MemoryAddr(frame.module_index(), 0);
+                let mem = self.store.memory(mem_addr);
+                self.stack.push_value(Value::I32(mem.borrow().page_count(self.store) as i32));
+                Ok(ExecSuccess::Next)
+            },
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as();
                 let frame = self.stack.current_frame();
