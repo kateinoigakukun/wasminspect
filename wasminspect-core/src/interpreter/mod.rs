@@ -74,6 +74,10 @@ impl WasmInstance {
         }
     }
 
+    pub fn get_global(&self, field: &str) -> Option<WasmValue> {
+        self.store.scan_global_by_name(field).map(|g| g.value(&self.store))
+    }
+
     fn resolve_func(addr: FuncAddr, store: &Store) -> Either<FuncAddr, &HostFuncBody> {
         let func = store.func(addr);
         match func {

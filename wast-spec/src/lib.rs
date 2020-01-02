@@ -171,7 +171,10 @@ impl WastContext {
     fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Vec<WasmValue>> {
         let (instance, module) = self.get_instance(instance_name.as_ref().map(|x| &**x));
         let instance = instance.borrow();
-        panic!();
+        match instance.get_global(field) {
+            Some(value) => Ok(vec![value]),
+            None => panic!()
+        }
     }
 
     fn invoke(

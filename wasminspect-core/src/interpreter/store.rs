@@ -58,6 +58,22 @@ impl Store {
         &self.globals[&addr.0][addr.1]
     }
 
+    pub fn scan_global_by_name(&self, field: &str) -> Option<&GlobalInstance> {
+        let global_addr = self
+            .modules
+            .iter()
+            .filter_map(|module| match module {
+                ModuleInstance::Defined(m) => Some(m),
+                ModuleInstance::Host(_) => None,
+            })
+            .filter_map(|module| module.exported_global(field.to_string()))
+            .next();
+        match global_addr {
+            Some(addr) => Some(self.global(addr)),
+            None => None,
+        }
+    }
+
     pub fn table(&self, addr: TableAddr) -> Rc<RefCell<TableInstance>> {
         self.tables[&addr.0][addr.1].clone()
     }
