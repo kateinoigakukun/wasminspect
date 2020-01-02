@@ -36,12 +36,12 @@ impl WastContext {
     }
     fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
         let module = self.instantiate(&bytes);
+        let module_index = self
+            .instance
+            .load_module_from_parity_module(module_name.map(|n| n.to_string()), module);
+        self.current = Some(module_index);
         if let Some(module_name) = module_name {
-            let module_index = self
-                .instance
-                .load_module_from_parity_module(Some(module_name.to_string()), module);
             self.module_index_by_name.insert(module_name.to_string(), module_index);
-            self.current = Some(module_index);
         }
         Ok(())
     }
