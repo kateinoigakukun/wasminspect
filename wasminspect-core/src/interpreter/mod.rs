@@ -13,10 +13,11 @@ mod utils;
 mod validator;
 mod value;
 
-use self::executor::{invoke_func, WasmError};
+use self::executor::invoke_func;
 use self::store::Store;
 
 pub use self::address::*;
+pub use self::executor::{Trap, WasmError};
 pub use self::host::{HostFuncBody, HostValue};
 pub use self::memory::DefinedMemoryInstance as HostMemory;
 pub use self::module::ModuleIndex;

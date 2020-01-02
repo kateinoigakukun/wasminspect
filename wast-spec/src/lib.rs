@@ -1,10 +1,10 @@
-use anyhow::Result;
+use anyhow::{anyhow, bail, Context as _, Result};
 use std::collections::HashMap;
 use std::path::Path;
 use std::str;
 mod spectest;
 use spectest::instantiate_spectest;
-use wasminspect_core::interpreter::{ModuleIndex, WasmInstance, WasmValue};
+use wasminspect_core::interpreter::{ModuleIndex, Trap, WasmError, WasmInstance, WasmValue};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -67,42 +67,53 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name()), &bytes)?;
+                    self.module(module.name.map(|s| s.name()), &bytes)
+                        .with_context(|| context(module.span))?;
                 }
-                Register { span, name, module } => {
+                Register {
+                    span: _,
+                    name,
+                    module,
+                } => {
                     let module_index = self.get_instance(module.map(|s| s.name()));
                     self.instance.register_name(name.to_string(), module_index);
                 }
                 Invoke(i) => {
-                    self.invoke(i.module.map(|s| s.name()), i.name, &i.args);
+                    self.invoke(i.module.map(|s| s.name()), i.name, &i.args)
+                        .map_err(|err| anyhow!("{}", err))
+                        .with_context(|| context(i.span))?;
                 }
                 AssertReturn {
                     span,
                     exec,
                     results,
-                } => match self.perform_execute(exec) {
-                    Ok(values) => {
+                } => match self.perform_execute(exec).with_context(|| context(span)) {
+                    Ok(Ok(values)) => {
                         for (v, e) in values.iter().zip(results.iter().map(const_expr)) {
                             let e = e;
                             if is_equal_value(*v, e) {
                                 continue;
                             }
-                            panic!("expected {:?}, got {:?}", e, v)
+                            bail!("expected {:?}, got {:?}", e, v)
                         }
                     }
-                    Err(e) => {
-                        panic!("unexpected err: {}", e);
-                    }
+                    Ok(Err(e)) => bail!("unexpected err: {}", e),
+                    Err(e) => bail!("unexpected err: {}", e),
                 },
                 AssertTrap {
-                    span: _,
+                    span,
                     exec,
-                    message: _,
-                } => match exec {
-                    wast::WastExecute::Module(_) => {
-                        self.perform_execute(exec);
+                    message,
+                } => match self.perform_execute(exec).with_context(|| context(span)) {
+                    Ok(Ok(values)) => bail!("{}\nexpected trap, got {:?}", context(span), values),
+                    Ok(Err(t)) => {
+                        let result = format!("{}", t);
+                        if result.contains(message) {
+                            continue;
+                        }
+                        bail!("{}\nexpected {}, got {}", context(span), message, result,)
                     }
-                    _ => println!("assert_trap is unsupported"),
+                    Err(err) => bail!("{}", err),
                 },
                 AssertMalformed {
                     span: _,
@@ -168,11 +179,19 @@ impl WastContext {
     }
 
     /// Get the value of an exported global from an instance.
-    fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Vec<WasmValue>> {
+    fn get(
+        &mut self,
+        instance_name: Option<&str>,
+        field: &str,
+    ) -> Result<Result<Vec<WasmValue>, WasmError>> {
         let module_index = self.get_instance(instance_name.as_ref().map(|x| &**x));
-        match self.instance.get_global(module_index, field) {
-            Some(value) => Ok(vec![value]),
-            None => panic!(),
+        match self
+            .instance
+            .get_global(module_index, field)
+            .map(|value| vec![value])
+        {
+            Some(v) => Ok(Ok(v)),
+            None => Err(anyhow!("no global named {}", field)),
         }
     }
 
@@ -181,7 +200,7 @@ impl WastContext {
         module_name: Option<&str>,
         func_name: &str,
         args: &[wast::Expression],
-    ) -> Vec<WasmValue> {
+    ) -> Result<Vec<WasmValue>, WasmError> {
         println!(
             "Invoking \"{}.{}\"",
             module_name.unwrap_or("unknown"),
@@ -191,13 +210,13 @@ impl WastContext {
         let args = args.iter().map(const_expr).collect();
         return self
             .instance
-            .run(module_index, Some(func_name.to_string()), args)
-            .unwrap_or_else(|err| {
-                panic!("{}", err);
-            });
+            .run(module_index, Some(func_name.to_string()), args);
     }
 
-    fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Vec<WasmValue>> {
+    fn perform_execute(
+        &mut self,
+        exec: wast::WastExecute<'_>,
+    ) -> Result<Result<Vec<WasmValue>, WasmError>> {
         match exec {
             wast::WastExecute::Invoke(i) => {
                 Ok(self.invoke(i.module.map(|s| s.name()), i.name, &i.args))
@@ -205,8 +224,8 @@ impl WastContext {
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
                 let module = self.instantiate(&binary);
-                let module_index = self.instance.load_module_from_parity_module(None, module);
-                Ok(Vec::new())
+                self.instance.load_module_from_parity_module(None, module);
+                Ok(Ok(Vec::new()))
             }
             wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
         }
