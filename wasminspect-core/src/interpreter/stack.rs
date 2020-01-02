@@ -13,6 +13,8 @@ pub enum StackValueType {
     Activation,
 }
 
+const DEFAULT_CALL_STACK_LIMIT: usize = 64 * 1024;
+
 #[derive(Debug)]
 pub enum Error {
     PopEmptyStack,
@@ -21,6 +23,7 @@ pub enum Error {
         /* actual: */ StackValueType,
     ),
     NoCallFrame,
+    Overflow
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -288,9 +291,13 @@ impl Stack {
         }
     }
 
-    pub fn set_frame(&mut self, frame: CallFrame) {
+    pub fn set_frame(&mut self, frame: CallFrame) -> Result<()> {
+        if self.frame_index.len() > DEFAULT_CALL_STACK_LIMIT {
+            return Err(Error::Overflow);
+        }
         self.frame_index.push(self.stack.len());
-        self.stack.push(StackValue::Activation(frame))
+        self.stack.push(StackValue::Activation(frame));
+        Ok(())
     }
 
     pub fn current_frame(&self) -> Result<&CallFrame> {

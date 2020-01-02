@@ -52,7 +52,7 @@ impl<'a> Executor<'a> {
         store: &'a mut Store,
     ) -> Self {
         let mut stack = Stack::default();
-        stack.set_frame(initial_frame);
+        let _ = stack.set_frame(initial_frame);
         stack.push_label(Label::Return(initial_arity));
         Self { store, pc, stack }
     }
@@ -592,7 +592,7 @@ impl<'a> Executor<'a> {
             Either::Left((addr, func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
                 let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
-                self.stack.set_frame(frame);
+                self.stack.set_frame(frame).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Return(arity));
                 self.pc = pc;
                 Ok(Signal::Next)
