@@ -91,7 +91,12 @@ impl<'a> Executor<'a> {
         println!("{:?}", self.stack);
         {
             let mut indent = String::new();
-            for _ in 0..self.stack.current_frame_labels().map_err(Trap::Stack)?.len() {
+            for _ in 0..self
+                .stack
+                .current_frame_labels()
+                .map_err(Trap::Stack)?
+                .len()
+            {
                 indent.push_str("  ");
             }
             println!("{}{}", indent, inst.clone());
@@ -299,8 +304,9 @@ impl<'a> Executor<'a> {
             Instruction::I64Store32(_, offset) => self.store_with_width::<i64>(*offset as usize, 4),
 
             Instruction::CurrentMemory(_) => {
-                self.stack
-                    .push_value(Value::I32(self.memory()?.borrow().page_count(self.store) as i32));
+                self.stack.push_value(Value::I32(
+                    self.memory()?.borrow().page_count(self.store) as i32
+                ));
                 Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {

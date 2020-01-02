@@ -1,8 +1,6 @@
 use anyhow::Result;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
-use std::rc::Rc;
 use std::str;
 mod spectest;
 use spectest::instantiate_spectest;

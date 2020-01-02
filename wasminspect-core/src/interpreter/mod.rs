@@ -9,9 +9,9 @@ mod module;
 mod stack;
 mod store;
 mod table;
+mod utils;
 mod validator;
 mod value;
-mod utils;
 
 use self::executor::{invoke_func, WasmError};
 use self::store::Store;

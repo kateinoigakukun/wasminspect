@@ -3,9 +3,9 @@ use super::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::executor::Trap;
 use super::memory::DefinedMemoryInstance;
 use super::table::DefinedTableInstance;
-use super::executor::Trap;
 use parity_wasm::elements::FunctionType;
 
 type Ref<T> = Rc<RefCell<T>>;

@@ -1,5 +1,4 @@
 use parity_wasm::elements::ValueType;
-use std::convert::TryFrom;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Value {
@@ -46,10 +45,6 @@ impl Value {
             _ => None,
         }
     }
-}
-
-pub enum ValueConversionError {
-    InvalidType(String),
 }
 
 impl From<i32> for Value {

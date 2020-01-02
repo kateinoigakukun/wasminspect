@@ -82,7 +82,7 @@ impl ExternalMemoryInstance {
 pub enum Error {
     GrowOverMaximumSize(usize),
     GrowOverMaximumPageSize(usize),
-    AccessOutOfBounds(/* try to access */ usize, /* memory size */ usize)
+    AccessOutOfBounds(/* try to access */ usize, /* memory size */ usize),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -98,7 +98,7 @@ impl DefinedMemoryInstance {
 
     fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
         if (offset + size) > self.data_len() {
-            return Err(Error::AccessOutOfBounds(offset + size, self.data_len()))
+            return Err(Error::AccessOutOfBounds(offset + size, self.data_len()));
         }
         Ok(())
     }
