@@ -34,7 +34,7 @@ impl WasmInstance {
         &mut self,
         name: Option<String>,
         module_filename: String,
-    ) -> ModuleIndex {
+    ) -> Result<ModuleIndex, store::Error> {
         let parity_module = parity_wasm::deserialize_file(module_filename).unwrap();
         self.load_module_from_parity_module(name, parity_module)
     }
@@ -43,7 +43,7 @@ impl WasmInstance {
         &mut self,
         name: Option<String>,
         parity_module: parity_wasm::elements::Module,
-    ) -> ModuleIndex {
+    ) -> Result<ModuleIndex, store::Error> {
         self.store.load_parity_module(name, parity_module)
     }
 

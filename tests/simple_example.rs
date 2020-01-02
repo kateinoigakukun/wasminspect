@@ -9,7 +9,7 @@ fn run_wasm(filename: &str, func: &str, args: Vec<WasmValue>, results: Vec<WasmV
     let module_index = instance.load_module_from_file(
         None,
         example_dir.join(filename).to_str().unwrap().to_string(),
-    );
+    ).ok().unwrap();
     match instance.run(module_index, Some(func.to_string()), args) {
         Ok(result) => assert_eq!(result, results),
         Err(err) => panic!("{}", err),

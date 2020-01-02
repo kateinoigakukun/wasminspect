@@ -35,7 +35,7 @@ fn main() {
         .unwrap_or(vec![]);
     if let Some(path) = matches.value_of("file") {
         let mut instance = WasmInstance::new();
-        let module_index = instance.load_module_from_file(None, path.to_string());
+        let module_index = instance.load_module_from_file(None, path.to_string()).ok().unwrap();
         match instance.run(
             module_index,
             func,

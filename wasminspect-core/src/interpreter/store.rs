@@ -102,12 +102,25 @@ impl Store {
     }
 }
 
+use super::table;
+pub enum Error {
+    Table(table::Error),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Table(err) => write!(f, "{:?}", err)
+        }
+    }
+}
+
 impl Store {
     pub fn load_parity_module(
         &mut self,
         name: Option<String>,
         parity_module: parity_wasm::elements::Module,
-    ) -> ModuleIndex {
+    ) -> Result<ModuleIndex, Error> {
         let types = Self::get_types(&parity_module);
         let elem_segs = Self::get_element_segments(&parity_module);
         let data_segs = Self::get_data_segments(&parity_module);
@@ -118,7 +131,7 @@ impl Store {
         func_addrs.append(&mut self.load_functions(&parity_module, module_index, types));
 
         global_addrs.append(&mut self.load_globals(&parity_module, module_index));
-        table_addrs.append(&mut self.load_tables(&parity_module, module_index, elem_segs));
+        table_addrs.append(&mut self.load_tables(&parity_module, module_index, elem_segs)?);
 
         mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs));
         let types = types.iter().map(|ty| ty.clone()).collect();
@@ -141,7 +154,7 @@ impl Store {
             // TODO: Handle result
             invoke_func(func_addr, vec![], self);
         }
-        return module_index;
+        return Ok(module_index);
     }
 
     fn get_types(parity_module: &parity_wasm::elements::Module) -> &[parity_wasm::elements::Type] {
@@ -367,14 +380,14 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         element_segments: HashMap<usize, Vec<&parity_wasm::elements::ElementSegment>>,
-    ) -> Vec<TableAddr> {
+    ) -> Result<Vec<TableAddr>, Error> {
         let tables = parity_module
             .table_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut table_addrs = Vec::new();
         if tables.is_empty() && self.tables.is_empty() {
-            return table_addrs;
+            return Ok(table_addrs);
         }
         for entry in tables.iter() {
             match entry.elem_type() {
@@ -414,11 +427,14 @@ impl Store {
                         .iter()
                         .map(|func_index| FuncAddr(module_index, *func_index as usize))
                         .collect();
-                    table.borrow_mut().initialize(offset as usize, data, self);
+                    table
+                        .borrow_mut()
+                        .initialize(offset as usize, data, self)
+                        .map_err(Error::Table)?;
                 }
             }
         }
-        table_addrs
+        Ok(table_addrs)
     }
 
     fn load_mems(

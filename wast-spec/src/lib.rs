@@ -35,7 +35,8 @@ impl WastContext {
         let module = self.instantiate(&bytes)?;
         let module_index = self
             .instance
-            .load_module_from_parity_module(module_name.map(|n| n.to_string()), module);
+            .load_module_from_parity_module(module_name.map(|n| n.to_string()), module)
+            .map_err(|e| anyhow!("Failed to instantiate: {}", e))?;
         self.current = Some(module_index);
         if let Some(module_name) = module_name {
             self.module_index_by_name

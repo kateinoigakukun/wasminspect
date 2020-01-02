@@ -9,7 +9,7 @@ pub enum TableInstance {
 }
 
 impl TableInstance {
-    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>, store: &mut Store) {
+    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>, store: &mut Store) -> Result<()> {
         match self {
             Self::Defined(defined) => defined.initialize(offset, data),
             Self::External(external) => {
@@ -73,6 +73,13 @@ impl TableInstance {
     }
 }
 
+#[derive(Debug)]
+pub enum Error {
+    AccessOutOfBounds(/* try to access */ usize, /* memory size */ usize),
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
 pub struct DefinedTableInstance {
     buffer: Vec<Option<FuncAddr>>,
     max: Option<usize>,
@@ -86,10 +93,17 @@ impl DefinedTableInstance {
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>) {
+    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>) -> Result<()> {
+        if offset + data.len() > self.buffer_len() {
+            return Err(Error::AccessOutOfBounds(
+                offset + data.len(),
+                self.buffer_len(),
+            ));
+        }
         for (index, func_addr) in data.into_iter().enumerate() {
             self.buffer[offset + index] = Some(func_addr);
         }
+        Ok(())
     }
 
     pub fn buffer_len(&self) -> usize {
