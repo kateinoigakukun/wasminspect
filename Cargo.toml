@@ -9,12 +9,6 @@ name = "wasminspect"
 path = "src/main.rs"
 
 [dependencies]
-wasminspect-core = { path = "wasminspect-core" }
-wast-spec = { path = "wast-spec" }
+wasminspect-core = { path = "crates/wasminspect-core" }
+wast-spec = { path = "crates/wast-spec" }
 clap = "2.33.0"
-
-[workspace]
-members = [
-    "wasminspect-core",
-    "wast-spec",
-]
