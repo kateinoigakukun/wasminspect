@@ -80,7 +80,7 @@ impl WastContext {
                 }
                 Invoke(i) => {
                     self.invoke(i.module.map(|s| s.name()), i.name, &i.args)
-                        .map_err(|err| anyhow!("{}", err))
+                        .map_err(|err| anyhow!("Failed to invoke {}", err))
                         .with_context(|| context(i.span))?;
                 }
                 AssertReturn {
@@ -94,26 +94,26 @@ impl WastContext {
                             if is_equal_value(*v, e) {
                                 continue;
                             }
-                            bail!("expected {:?}, got {:?}", e, v)
+                            panic!("expected {:?}, got {:?}", e, v)
                         }
                     }
-                    Ok(Err(e)) => bail!("unexpected err: {}", e),
-                    Err(e) => bail!("unexpected err: {}", e),
+                    Ok(Err(e)) => panic!("unexpected err: {}", e),
+                    Err(e) => panic!("unexpected err: {}", e),
                 },
                 AssertTrap {
                     span,
                     exec,
                     message,
                 } => match self.perform_execute(exec).with_context(|| context(span)) {
-                    Ok(Ok(values)) => bail!("{}\nexpected trap, got {:?}", context(span), values),
+                    Ok(Ok(values)) => panic!("{}\nexpected trap, got {:?}", context(span), values),
                     Ok(Err(t)) => {
                         let result = format!("{}", t);
                         if result.contains(message) {
                             continue;
                         }
-                        bail!("{}\nexpected {}, got {}", context(span), message, result,)
+                        panic!("{}\nexpected {}, got {}", context(span), message, result,)
                     }
-                    Err(err) => bail!("{}", err),
+                    Err(err) => panic!("{}", err),
                 },
                 AssertMalformed {
                     span,
@@ -129,13 +129,13 @@ impl WastContext {
                     let bytes = module.encode().map_err(adjust_wast)?;
                     let err = match self.module(None, &bytes) {
                         Ok(()) => {
-                            bail!("{}\nexpected module to fail to instantiate", context(span))
+                            panic!("{}\nexpected module to fail to instantiate", context(span))
                         }
                         Err(e) => e,
                     };
                     let error_message = format!("{:?}", err);
                     if !error_message.contains(&message) {
-                        // TODO: change to bail!
+                        // TODO: change to panic!
                         println!(
                             "{}\nassert_malformed: expected {}, got {}",
                             context(span),
@@ -151,12 +151,12 @@ impl WastContext {
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
                     let err = match self.module(None, &bytes) {
-                        Ok(()) => bail!("{}\nexpected module to fail to link", context(span)),
+                        Ok(()) => panic!("{}\nexpected module to fail to link", context(span)),
                         Err(e) => e,
                     };
                     let error_message = format!("{:?}", err);
                     if !error_message.contains(&message) {
-                        bail!(
+                        panic!(
                             "{}\nassert_unlinkable: expected {}, got {}",
                             context(span),
                             message,
@@ -169,13 +169,13 @@ impl WastContext {
                     call,
                     message,
                 } => match self.invoke(call.module.map(|s| s.name()), call.name, &call.args) {
-                    Ok(values) => bail!("{}\nexpected trap, got {:?}", context(span), values),
+                    Ok(values) => panic!("{}\nexpected trap, got {:?}", context(span), values),
                     Err(t) => {
                         let result = format!("{}", t);
                         if result.contains(message) {
                             continue;
                         }
-                        bail!("{}\nexpected {}, got {}", context(span), message, result)
+                        panic!("{}\nexpected {}, got {}", context(span), message, result)
                     }
                 },
                 AssertInvalid {
@@ -185,12 +185,12 @@ impl WastContext {
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
                     let err = match self.module(None, &bytes) {
-                        Ok(()) => bail!("{}\nexpected module to fail to build", context(span)),
+                        Ok(()) => panic!("{}\nexpected module to fail to build", context(span)),
                         Err(e) => e,
                     };
                     let error_message = format!("{:?}", err);
                     if !error_message.contains(&message) {
-                        // TODO: change to bail!
+                        // TODO: change to panic!
                         println!(
                             "{}\nassert_invalid: expected {}, got {}",
                             context(span),
