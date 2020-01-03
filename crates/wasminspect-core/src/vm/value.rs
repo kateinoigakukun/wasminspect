@@ -259,6 +259,14 @@ pub enum Error {
     ZeroDivision,
 }
 
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ZeroDivision => write!(f, "integer divide by zero"),
+        }
+    }
+}
+
 macro_rules! impl_try_wrapping_div {
     ($type:ty, $orig:ty) => {
         impl $type {
@@ -270,7 +278,7 @@ macro_rules! impl_try_wrapping_div {
                 }
             }
         }
-    }
+    };
 }
 
 impl_try_wrapping_div!(I32, i32);

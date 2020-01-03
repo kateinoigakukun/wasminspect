@@ -83,6 +83,18 @@ pub enum Error {
     AccessOutOfBounds(/* try to access */ usize, /* memory size */ usize),
 }
 
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AccessOutOfBounds(addr, size) => write!(
+                f,
+                "undefined element, try to access {} but size of memory is {}",
+                addr, size
+            ),
+        }
+    }
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct DefinedTableInstance {

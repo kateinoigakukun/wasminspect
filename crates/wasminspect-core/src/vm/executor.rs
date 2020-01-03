@@ -37,6 +37,14 @@ impl std::fmt::Display for Trap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Memory(e) => write!(f, "{}", e),
+            Self::Value(e) => write!(f, "{}", e),
+            Self::Table(e) => write!(f, "{}", e),
+            Self::Stack(e) => write!(f, "{}", e),
+            Self::IndirectCallTypeMismatch(expected, actual) => write!(
+                f,
+                "indirect call type mismatch, expected {:?} but got {:?}",
+                expected, actual
+            ),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -113,19 +121,19 @@ impl<'a> Executor<'a> {
         module_index: ModuleIndex,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
-        println!("{:?}", self.stack);
-        {
-            let mut indent = String::new();
-            for _ in 0..self
-                .stack
-                .current_frame_labels()
-                .map_err(Trap::Stack)?
-                .len()
-            {
-                indent.push_str("  ");
-            }
-            println!("{}{}", indent, inst.clone());
-        }
+        // println!("{:?}", self.stack);
+        // {
+        //     let mut indent = String::new();
+        //     for _ in 0..self
+        //         .stack
+        //         .current_frame_labels()
+        //         .map_err(Trap::Stack)?
+        //         .len()
+        //     {
+        //         indent.push_str("  ");
+        //     }
+        //     println!("{}{}", indent, inst.clone());
+        // }
         let result = match inst {
             Instruction::Unreachable => Err(Trap::Unreachable),
             Instruction::Nop => Ok(Signal::Next),
@@ -556,7 +564,6 @@ impl<'a> Executor<'a> {
         }
 
         // Jump to the continuation
-        println!("> Jump to the continuation");
         match label {
             Label::Loop(loop_label) => self.pc.loop_jump(&loop_label),
             Label::Return(_) => {
@@ -658,7 +665,6 @@ impl<'a> Executor<'a> {
             .store
             .func(frame.func_addr)
             .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
-        println!("--- Function return {:?} ---", func.ty());
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         let mut result = vec![];
         for _ in 0..arity {
