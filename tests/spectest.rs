@@ -16,7 +16,7 @@ fn run_spectest(filename: &str) {
     let mut context = WastContext::new();
     match context.run_file(&testsuite_dir.join(filename)) {
         Ok(_) => (),
-        Err(err) => panic!(err),
+        Err(err) => panic!("{}", err),
     }
 }
 
