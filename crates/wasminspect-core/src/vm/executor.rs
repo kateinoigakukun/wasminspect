@@ -33,6 +33,15 @@ pub enum Trap {
     UndefinedFunc(FuncAddr),
 }
 
+impl std::fmt::Display for Trap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Memory(e) => write!(f, "{}", e),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
 pub enum Signal {
     Next,
     End,
@@ -782,7 +791,7 @@ pub enum WasmError {
 impl std::fmt::Display for WasmError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WasmError::ExecutionError(err) => write!(f, "Failed to execute: {:?}", err),
+            WasmError::ExecutionError(err) => write!(f, "Failed to execute: {}", err),
             WasmError::EntryFunctionNotFound(func_name) => {
                 write!(f, "Entry function \"{}\" not found", func_name)
             }
