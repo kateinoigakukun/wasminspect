@@ -104,30 +104,32 @@ impl Store {
 
 use super::table;
 pub enum Error {
-    Table(table::Error),
+    InvalidElementSegments(table::Error),
     UnknownType(/* type index: */ u32),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Table(err) => write!(f, "Load table failed: {:?}", err),
+            Self::InvalidElementSegments(err) => {
+                write!(f, "elements segment does not fit: {:?}", err)
+            }
             Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
         }
     }
 }
 
 impl Store {
-    pub fn load_parity_module(
+    fn load_parity_module_internal(
         &mut self,
         name: Option<String>,
         parity_module: parity_wasm::elements::Module,
+        module_index: ModuleIndex,
     ) -> Result<ModuleIndex, Error> {
         let types = Self::get_types(&parity_module);
         let elem_segs = Self::get_element_segments(&parity_module);
         let data_segs = Self::get_data_segments(&parity_module);
 
-        let module_index = ModuleIndex(self.modules.len() as u32);
         let (mut func_addrs, mut mem_addrs, mut table_addrs, mut global_addrs) =
             self.load_imports(&parity_module, module_index, types)?;
         func_addrs.append(&mut self.load_functions(&parity_module, module_index, types)?);
@@ -156,7 +158,30 @@ impl Store {
             // TODO: Handle result
             invoke_func(func_addr, vec![], self);
         }
-        return Ok(module_index);
+        Ok(module_index)
+    }
+    pub fn load_parity_module(
+        &mut self,
+        name: Option<String>,
+        parity_module: parity_wasm::elements::Module,
+    ) -> Result<ModuleIndex, Error> {
+        let module_index = ModuleIndex(self.modules.len() as u32);
+        let result: Result<ModuleIndex, Error> = self.load_parity_module_internal(name.clone(), parity_module, module_index);
+        match result {
+            Ok(ok) => Ok(ok),
+            Err(err) => {
+                // If fail, cleanup states
+                self.funcs.remove(&module_index);
+                self.tables.remove(&module_index);
+                self.mems.remove(&module_index);
+                self.globals.remove(&module_index);
+                self.modules.remove(module_index.0 as usize);
+                if let Some(ref name) = name.clone() {
+                    self.module_index_by_name.remove(name);
+                }
+                Err(err)
+            }
+        }
     }
 
     fn get_types(parity_module: &parity_wasm::elements::Module) -> &[parity_wasm::elements::Type] {
@@ -206,12 +231,15 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> Result<(
-        Vec<FuncAddr>,
-        Vec<MemoryAddr>,
-        Vec<TableAddr>,
-        Vec<GlobalAddr>,
-    ), Error> {
+    ) -> Result<
+        (
+            Vec<FuncAddr>,
+            Vec<MemoryAddr>,
+            Vec<TableAddr>,
+            Vec<GlobalAddr>,
+        ),
+        Error,
+    > {
         let imports = parity_module
             .import_section()
             .map(|sec| sec.entries())
@@ -338,8 +366,10 @@ impl Store {
             .unwrap_or_default();
         let mut func_addrs = Vec::new();
         for (func, body) in functions.into_iter().zip(bodies) {
-            let parity_wasm::elements::Type::Function(func_type) =
-                types.get(func.type_ref() as usize).ok_or(Error::UnknownType(func.type_ref()))?.clone();
+            let parity_wasm::elements::Type::Function(func_type) = types
+                .get(func.type_ref() as usize)
+                .ok_or(Error::UnknownType(func.type_ref()))?
+                .clone();
             let defined = DefinedFunctionInstance::new(
                 func_type,
                 module_index,
@@ -430,7 +460,7 @@ impl Store {
                     table
                         .borrow_mut()
                         .initialize(offset as usize, data, self)
-                        .map_err(Error::Table)?;
+                        .map_err(Error::InvalidElementSegments)?;
                 }
             }
         }
