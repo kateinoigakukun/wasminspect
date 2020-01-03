@@ -6,11 +6,15 @@ use super::memory::MemoryInstance;
 use super::module::*;
 use super::stack;
 use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
-use super::table;
 use super::store::*;
+use super::table;
 use super::utils::*;
-use super::value::*;
-use parity_wasm::elements::{BlockType, InitExpr, Instruction, ValueType, FunctionType};
+use super::value;
+use super::value::{
+    ExtendInto, FromLittleEndian, IntoLittleEndian, NativeValue, Value, F32, F64, I32, I64, U32,
+    U64,
+};
+use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::ops::*;
 
@@ -20,7 +24,11 @@ pub enum Trap {
     Memory(memory::Error),
     Stack(stack::Error),
     Table(table::Error),
-    IndirectCallTypeMismatch(/* expected: */ FunctionType, /* actual: */ FunctionType),
+    Value(value::Error),
+    IndirectCallTypeMismatch(
+        /* expected: */ FunctionType,
+        /* actual: */ FunctionType,
+    ),
     UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
 }
 
@@ -224,7 +232,10 @@ impl<'a> Executor<'a> {
                 let buf_index: i32 = self.pop_as()?;
                 let table = self.store.table(addr);
                 let buf_index = buf_index as usize;
-                let func_addr = table.borrow().get_at(buf_index, self.store).map_err(Trap::Table)?;
+                let func_addr = table
+                    .borrow()
+                    .get_at(buf_index, self.store)
+                    .map_err(Trap::Table)?;
                 let func = self.store.func(func_addr);
                 if *func.ty() == ty {
                     self.invoke(func_addr)
@@ -387,8 +398,8 @@ impl<'a> Executor<'a> {
             Instruction::I32Add => self.binop(|a: u32, b: u32| a.wrapping_add(b)),
             Instruction::I32Sub => self.binop(|a: i32, b: i32| a.wrapping_sub(b)),
             Instruction::I32Mul => self.binop(|a: i32, b: i32| a.wrapping_mul(b)),
-            Instruction::I32DivS => self.binop(|a: i32, b: i32| a.wrapping_div(b)),
-            Instruction::I32DivU => self.binop(|a: u32, b: u32| a.wrapping_div(b) as u32),
+            Instruction::I32DivS => self.try_binop(|a: i32, b: i32| I32::try_wrapping_div(a, b)),
+            Instruction::I32DivU => self.try_binop(|a: u32, b: u32| U32::try_wrapping_div(a, b)),
             Instruction::I32RemS => self.binop(|a: i32, b: i32| a.wrapping_rem(b)),
             Instruction::I32RemU => self.binop(|a: u32, b: u32| a.wrapping_rem(b) as u32),
             Instruction::I32And => self.binop(|a: i32, b: i32| a.bitand(b)),
@@ -406,8 +417,8 @@ impl<'a> Executor<'a> {
             Instruction::I64Add => self.binop(|a: i64, b: i64| a.wrapping_add(b)),
             Instruction::I64Sub => self.binop(|a: i64, b: i64| a.wrapping_sub(b)),
             Instruction::I64Mul => self.binop(|a: i64, b: i64| a.wrapping_mul(b)),
-            Instruction::I64DivS => self.binop(|a: i64, b: i64| a.wrapping_div(b)),
-            Instruction::I64DivU => self.binop(|a: u64, b: u64| a.wrapping_div(b) as i64),
+            Instruction::I64DivS => self.try_binop(|a: i64, b: i64| I64::try_wrapping_div(a, b)),
+            Instruction::I64DivU => self.try_binop(|a: u64, b: u64| U64::try_wrapping_div(a, b)),
             Instruction::I64RemS => self.binop(|a: i64, b: i64| a.wrapping_rem(b)),
             Instruction::I64RemU => self.binop(|a: u64, b: u64| (a.wrapping_rem(b)) as u64),
             Instruction::I64And => self.binop(|a: i64, b: i64| a.bitand(b)),
@@ -557,6 +568,17 @@ impl<'a> Executor<'a> {
 
     fn relop<T: NativeValue, F: Fn(T, T) -> bool>(&mut self, f: F) -> ExecResult<Signal> {
         self.binop(|a: T, b: T| Value::I32(if f(a, b) { 1 } else { 0 }))
+    }
+
+    fn try_binop<T: NativeValue, To: Into<Value>, F: Fn(T, T) -> Result<To, value::Error>>(
+        &mut self,
+        f: F,
+    ) -> ExecResult<Signal> {
+        let rhs = self.pop_as()?;
+        let lhs = self.pop_as()?;
+        self.stack
+            .push_value(f(lhs, rhs).map(|v| v.into()).map_err(Trap::Value)?);
+        Ok(Signal::Next)
     }
 
     fn binop<T: NativeValue, To: Into<Value>, F: Fn(T, T) -> To>(

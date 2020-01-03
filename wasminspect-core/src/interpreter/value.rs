@@ -204,6 +204,10 @@ extend_conversion!(i32, i64);
 
 pub enum F32 {}
 pub enum F64 {}
+pub enum I32 {}
+pub enum I64 {}
+pub enum U32 {}
+pub enum U64 {}
 
 macro_rules! impl_copysign {
     ($type:ty, $orig:ty, $size:ty) => {
@@ -249,3 +253,27 @@ macro_rules! impl_trunc {
 
 impl_trunc!(F32, f32);
 impl_trunc!(F64, f64);
+
+#[derive(Debug)]
+pub enum Error {
+    ZeroDivision,
+}
+
+macro_rules! impl_try_wrapping_div {
+    ($type:ty, $orig:ty) => {
+        impl $type {
+            pub fn try_wrapping_div(this: $orig, another: $orig) -> Result<$orig, Error> {
+                if another == 0 {
+                    Err(Error::ZeroDivision)
+                } else {
+                    Ok(this.wrapping_div(another))
+                }
+            }
+        }
+    }
+}
+
+impl_try_wrapping_div!(I32, i32);
+impl_try_wrapping_div!(I64, i64);
+impl_try_wrapping_div!(U32, u32);
+impl_try_wrapping_div!(U64, u64);
