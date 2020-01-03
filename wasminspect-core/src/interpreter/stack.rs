@@ -13,7 +13,7 @@ pub enum StackValueType {
     Activation,
 }
 
-const DEFAULT_CALL_STACK_LIMIT: usize = 64 * 1024;
+const DEFAULT_CALL_STACK_LIMIT: usize = 1024;
 
 #[derive(Debug)]
 pub enum Error {
