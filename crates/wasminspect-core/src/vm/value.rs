@@ -227,28 +227,93 @@ impl_copysign!(F64, f64, u64);
 macro_rules! impl_trunc {
     ($type:ty, $orig:ty) => {
         impl $type {
-            pub fn trunc_to_i64(self_float: $orig) -> Option<i64> {
-                if self_float.is_nan()
-                    || self_float >= -(i64::min_value() as $orig)
-                    || self_float < i64::min_value() as $orig
-                {
-                    None
+            pub fn trunc_to_i32(self_float: $orig) -> Result<i32, Error> {
+                if self_float.is_nan() {
+                    Err(Error::InvalidConversionToInt)
+                } else if !<$type>::in_range_i32(self_float.to_bits()) {
+                    Err(Error::IntegerOverflow)
                 } else {
-                    Some(self_float.trunc() as i64)
+                    Ok(self_float.trunc() as i32)
                 }
             }
-            pub fn trunc_to_u64(self_float: $orig) -> Option<u64> {
-                if self_float.is_nan()
-                    || self_float >= -(u64::min_value() as $orig) * 2.0
-                    || self_float <= -1.0
-                {
-                    None
+
+            pub fn trunc_to_i64(self_float: $orig) -> Result<i64, Error> {
+                if self_float.is_nan() {
+                    Err(Error::InvalidConversionToInt)
+                } else if !<$type>::in_range_i64(self_float.to_bits()) {
+                    Err(Error::IntegerOverflow)
                 } else {
-                    Some(self_float.trunc() as u64)
+                    Ok(self_float.trunc() as i64)
+                }
+            }
+
+            pub fn trunc_to_u32(self_float: $orig) -> Result<u32, Error> {
+                if self_float.is_nan() {
+                    Err(Error::InvalidConversionToInt)
+                } else if !<$type>::in_range_u32(self_float.to_bits()) {
+                    Err(Error::IntegerOverflow)
+                } else {
+                    Ok(self_float.trunc() as u32)
+                }
+            }
+
+            pub fn trunc_to_u64(self_float: $orig) -> Result<u64, Error> {
+                if self_float.is_nan() {
+                    Err(Error::InvalidConversionToInt)
+                } else if !<$type>::in_range_u64(self_float.to_bits()) {
+                    Err(Error::IntegerOverflow)
+                } else {
+                    Ok(self_float.trunc() as u64)
                 }
             }
         }
     };
+}
+
+impl F32 {
+    const NEGATIVE_ZERO: u32 = 0x80000000u32;
+    const NEGATIVE_ONE: u32 = 0xbf800000u32;
+    fn in_range_i32(bits: u32) -> bool {
+        return (bits < 0x4f000000u32) || (bits >= Self::NEGATIVE_ZERO && bits <= 0xcf000000u32);
+    }
+
+    fn in_range_i64(bits: u32) -> bool {
+        return (bits < 0x5f000000u32) || (bits >= Self::NEGATIVE_ZERO && bits <= 0xdf000000u32);
+    }
+
+    fn in_range_u32(bits: u32) -> bool {
+        return (bits < 0x4f800000u32)
+            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    }
+
+    fn in_range_u64(bits: u32) -> bool {
+        return (bits < 0x5f800000u32)
+            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    }
+}
+
+impl F64 {
+    const NEGATIVE_ZERO: u64 = 0x8000000000000000u64;
+    const NEGATIVE_ONE: u64 = 0xbff0000000000000u64;
+    fn in_range_i32(bits: u64) -> bool {
+        return (bits <= 0x41dfffffffc00000u64)
+            || (bits >= Self::NEGATIVE_ZERO && bits <= 0xc1e0000000000000u64);
+    }
+
+    fn in_range_i64(bits: u64) -> bool {
+        return (bits < 0x43e0000000000000u64)
+            || (bits >= Self::NEGATIVE_ZERO && bits <= 0xc3e0000000000000u64);
+    }
+
+    fn in_range_u32(bits: u64) -> bool {
+        return (bits <= 0x41efffffffe00000u64)
+            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    }
+
+    fn in_range_u64(bits: u64) -> bool {
+        return (bits < 0x43f0000000000000u64)
+            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    }
 }
 
 impl_trunc!(F32, f32);
@@ -257,12 +322,16 @@ impl_trunc!(F64, f64);
 #[derive(Debug)]
 pub enum Error {
     ZeroDivision,
+    InvalidConversionToInt,
+    IntegerOverflow,
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ZeroDivision => write!(f, "integer divide by zero"),
+            Self::InvalidConversionToInt => write!(f, "invalid conversion to integer"),
+            Self::IntegerOverflow => write!(f, "integer overflow"),
         }
     }
 }

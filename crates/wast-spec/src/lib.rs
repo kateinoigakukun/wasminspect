@@ -102,7 +102,7 @@ impl WastContext {
                             bail!("expected {:?}, got {:?} {}", e, v, context(span))
                         }
                     }
-                    Ok(Err(e)) => panic!("unexpected err: {}", e),
+                    Ok(Err(e)) => panic!("unexpected err: {}, {}", e, context(span)),
                     Err(e) => panic!("unexpected err: {}", e),
                 },
                 AssertTrap {

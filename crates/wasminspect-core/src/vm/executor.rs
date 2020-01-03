@@ -494,16 +494,16 @@ impl<'a> Executor<'a> {
             }
 
             Instruction::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
-            Instruction::I32TruncSF32 => self.unop(|v: f32| v as i64),
-            Instruction::I32TruncUF32 => self.unop(|v: f32| (v as f32).trunc()),
-            Instruction::I32TruncSF64 => self.unop(|v: f64| v as f64),
-            Instruction::I32TruncUF64 => self.unop(|v: f64| v as f64),
+            Instruction::I32TruncSF32 => self.try_unop(|v: f32| F32::trunc_to_i32(v)),
+            Instruction::I32TruncUF32 => self.try_unop(|v: f32| F32::trunc_to_u32(v)),
+            Instruction::I32TruncSF64 => self.try_unop(|v: f64| F64::trunc_to_i32(v)),
+            Instruction::I32TruncUF64 => self.try_unop(|v: f64| F64::trunc_to_u32(v)),
             Instruction::I64ExtendSI32 => self.unop(|v: i32| Value::from(v as u64)),
             Instruction::I64ExtendUI32 => self.unop(|v: u32| Value::from(v as u64)),
-            Instruction::I64TruncSF32 => self.unop(|x: f32| F32::trunc_to_i64(x).unwrap()),
-            Instruction::I64TruncUF32 => self.unop(|x: f32| F32::trunc_to_u64(x).unwrap()),
-            Instruction::I64TruncSF64 => self.unop(|x: f64| F64::trunc_to_i64(x).unwrap()),
-            Instruction::I64TruncUF64 => self.unop(|x: f64| F64::trunc_to_u64(x).unwrap()),
+            Instruction::I64TruncSF32 => self.try_unop(|x: f32| F32::trunc_to_i64(x)),
+            Instruction::I64TruncUF32 => self.try_unop(|x: f32| F32::trunc_to_u64(x)),
+            Instruction::I64TruncSF64 => self.try_unop(|x: f64| F64::trunc_to_i64(x)),
+            Instruction::I64TruncUF64 => self.try_unop(|x: f64| F64::trunc_to_u64(x)),
             Instruction::F32ConvertSI32 => self.unop(|x: u32| x as i32 as f32),
             Instruction::F32ConvertUI32 => self.unop(|x: u32| x as f32),
             Instruction::F32ConvertSI64 => self.unop(|x: u64| x as i64 as f32),
@@ -616,6 +616,16 @@ impl<'a> Executor<'a> {
         let rhs = self.pop_as()?;
         let lhs = self.pop_as()?;
         self.stack.push_value(f(lhs, rhs).into());
+        Ok(Signal::Next)
+    }
+
+    fn try_unop<From: NativeValue, To: Into<Value>, F: Fn(From) -> Result<To, value::Error>>(
+        &mut self,
+        f: F,
+    ) -> ExecResult<Signal> {
+        let v: From = self.pop_as()?;
+        self.stack
+            .push_value(f(v).map(|v| v.into()).map_err(Trap::Value)?);
         Ok(Signal::Next)
     }
 
