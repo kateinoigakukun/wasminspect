@@ -464,14 +464,14 @@ impl<'a> Executor<'a> {
             Instruction::F32Ceil => self.unop(|v: f32| v.ceil()),
             Instruction::F32Floor => self.unop(|v: f32| v.floor()),
             Instruction::F32Trunc => self.unop(|v: f32| v.trunc()),
-            Instruction::F32Nearest => self.unop(|v: f32| v.round()),
+            Instruction::F32Nearest => self.unop(|v: f32| F32::nearest(v)),
             Instruction::F32Sqrt => self.unop(|v: f32| Value::F32(v.sqrt())),
             Instruction::F32Add => self.binop(|a: f32, b: f32| Value::F32(a + b)),
             Instruction::F32Sub => self.binop(|a: f32, b: f32| Value::F32(a - b)),
             Instruction::F32Mul => self.binop(|a: f32, b: f32| Value::F32(a * b)),
             Instruction::F32Div => self.binop(|a: f32, b: f32| Value::F32(a / b)),
-            Instruction::F32Min => self.binop(|a: f32, b: f32| Value::F32(a.min(b))),
-            Instruction::F32Max => self.binop(|a: f32, b: f32| Value::F32(a.max(b))),
+            Instruction::F32Min => self.binop(|a: f32, b: f32| F32::min(a, b)),
+            Instruction::F32Max => self.binop(|a: f32, b: f32| F32::max(a, b)),
             Instruction::F32Copysign => {
                 self.binop(|a: f32, b: f32| Value::F32(F32::copysign(a, b)))
             }
@@ -481,14 +481,14 @@ impl<'a> Executor<'a> {
             Instruction::F64Ceil => self.unop(|v: f64| Value::F64(v.ceil())),
             Instruction::F64Floor => self.unop(|v: f64| Value::F64(v.floor())),
             Instruction::F64Trunc => self.unop(|v: f64| Value::F64(v.trunc())),
-            Instruction::F64Nearest => self.unop(|v: f64| Value::F64(v.round())),
+            Instruction::F64Nearest => self.unop(|v: f64| F64::nearest(v)),
             Instruction::F64Sqrt => self.unop(|v: f64| Value::F64(v.sqrt())),
             Instruction::F64Add => self.binop(|a: f64, b: f64| Value::F64(a + b)),
             Instruction::F64Sub => self.binop(|a: f64, b: f64| Value::F64(a - b)),
             Instruction::F64Mul => self.binop(|a: f64, b: f64| Value::F64(a * b)),
             Instruction::F64Div => self.binop(|a: f64, b: f64| Value::F64(a / b)),
-            Instruction::F64Min => self.binop(|a: f64, b: f64| Value::F64(a.min(b))),
-            Instruction::F64Max => self.binop(|a: f64, b: f64| Value::F64(a.max(b))),
+            Instruction::F64Min => self.binop(|a: f64, b: f64| F64::min(a, b)),
+            Instruction::F64Max => self.binop(|a: f64, b: f64| F64::max(a, b)),
             Instruction::F64Copysign => {
                 self.binop(|a: f64, b: f64| Value::F64(F64::copysign(a, b)))
             }

@@ -99,7 +99,7 @@ impl WastContext {
                             if is_equal_value(*v, e) {
                                 continue;
                             }
-                            panic!("expected {:?}, got {:?}", e, v)
+                            bail!("expected {:?}, got {:?} {}", e, v, context(span))
                         }
                     }
                     Ok(Err(e)) => panic!("unexpected err: {}", e),
@@ -204,6 +204,54 @@ impl WastContext {
                         )
                     }
                 }
+                AssertReturnCanonicalNan { span, invoke } => {
+                    match self.invoke(invoke.module.map(|s| s.name()), invoke.name, &invoke.args) {
+                        Ok(values) => {
+                            for v in values.iter() {
+                                match v {
+                                    WasmValue::F32(x) => {
+                                        if !is_canonical_f32_nan(x) {
+                                            println!("{}\nexpected canonical NaN", context(span))
+                                        }
+                                    }
+                                    WasmValue::F64(x) => {
+                                        if !is_canonical_f64_nan(x) {
+                                            println!("{}\nexpected canonical NaN", context(span))
+                                        }
+                                    }
+                                    other => bail!("expected float, got {:?}", other),
+                                };
+                            }
+                        }
+                        Err(t) => {
+                            bail!("{}\nunexpected trap: {}", context(span), t)
+                        }
+                    }
+                }
+                AssertReturnArithmeticNan { span, invoke } => {
+                    match self.invoke(invoke.module.map(|s| s.name()), invoke.name, &invoke.args) {
+                        Ok(values) => {
+                            for v in values.iter() {
+                                match v {
+                                    WasmValue::F32(x) => {
+                                        if !is_arithmetic_f32_nan(x) {
+                                            println!("{}\nexpected arithmetic NaN", context(span))
+                                        }
+                                    }
+                                    WasmValue::F64(x) => {
+                                        if !is_arithmetic_f64_nan(x) {
+                                            println!("{}\nexpected arithmetic NaN", context(span))
+                                        }
+                                    }
+                                    other => bail!("expected float, got {:?}", other),
+                                };
+                            }
+                        }
+                        Err(t) => {
+                            bail!("{}\nunexpected trap: {}", context(span), t)
+                        }
+                    }
+                }
                 other => panic!("unsupported"),
             }
         }
@@ -243,11 +291,6 @@ impl WastContext {
         func_name: &str,
         args: &[wast::Expression],
     ) -> Result<Vec<WasmValue>, WasmError> {
-        println!(
-            "Invoking \"{}.{}\"",
-            module_name.unwrap_or("unknown"),
-            func_name
-        );
         let module_index = self.get_instance(module_name).clone();
         let args = args.iter().map(const_expr).collect();
         return self
@@ -297,4 +340,20 @@ fn is_equal_value(lhs: WasmValue, rhs: WasmValue) -> bool {
         }
         (_, _) => false,
     }
+}
+
+fn is_canonical_f32_nan(f: &f32) -> bool {
+    return (f.to_bits() & 0x7fffffff) == 0x7fc00000;
+}
+
+fn is_canonical_f64_nan(f: &f64) -> bool {
+    return (f.to_bits() & 0x7fffffffffffffff) == 0x7ff8000000000000;
+}
+
+fn is_arithmetic_f32_nan(f: &f32) -> bool {
+    return (f.to_bits() & 0x00400000) == 0x00400000;
+}
+
+fn is_arithmetic_f64_nan(f: &f64) -> bool {
+    return (f.to_bits() & 0x0008000000000000) == 0x0008000000000000;
 }

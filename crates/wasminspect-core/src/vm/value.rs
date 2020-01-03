@@ -285,3 +285,57 @@ impl_try_wrapping_div!(I32, i32);
 impl_try_wrapping_div!(I64, i64);
 impl_try_wrapping_div!(U32, u32);
 impl_try_wrapping_div!(U64, u64);
+
+macro_rules! impl_min_max {
+    ($type:ty, $orig:ty) => {
+        impl $type {
+            pub fn min(this: $orig, another: $orig) -> $orig {
+                if this.is_nan() {
+                    return this;
+                }
+                if another.is_nan() {
+                    return another;
+                }
+                return this.min(another);
+            }
+
+            pub fn max(this: $orig, another: $orig) -> $orig {
+                if this.is_nan() {
+                    return this;
+                }
+                if another.is_nan() {
+                    return another;
+                }
+                return this.max(another);
+            }
+        }
+    };
+}
+
+impl_min_max!(F32, f32);
+impl_min_max!(F64, f64);
+
+macro_rules! impl_nearest {
+    ($type:ty, $orig:ty) => {
+        impl $type {
+            pub fn nearest(this: $orig) -> $orig {
+                let round = this.round();
+                if this.fract().abs() != 0.5 {
+                    return round;
+                }
+
+                use core::ops::Rem;
+                if round.rem(2.0) == 1.0 {
+                    this.floor()
+                } else if round.rem(2.0) == -1.0 {
+                    this.ceil()
+                } else {
+                    round
+                }
+            }
+        }
+    };
+}
+
+impl_nearest!(F32, f32);
+impl_nearest!(F64, f64);
