@@ -37,8 +37,8 @@ impl Store {
         }
     }
 
-    pub fn func(&self, addr: FuncAddr) -> &FunctionInstance {
-        &self.funcs[&addr.0][addr.1]
+    pub fn func(&self, addr: FuncAddr) -> Option<&FunctionInstance> {
+        self.funcs.get(&addr.0).and_then(|m| m.get(addr.1))
     }
 
     pub fn func_ty(&self, addr: FuncAddr) -> &FunctionType {

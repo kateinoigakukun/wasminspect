@@ -30,6 +30,7 @@ pub enum Trap {
         /* actual: */ FunctionType,
     ),
     UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
+    UndefinedFunc(FuncAddr),
 }
 
 pub enum Signal {
@@ -81,12 +82,17 @@ impl<'a> Executor<'a> {
 
     pub fn current_func_insts(&self) -> ExecResult<&[Instruction]> {
         let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
-        let func = self.store.func(addr);
+        let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         Ok(&func.defined().unwrap().code().instructions())
     }
 
     pub fn execute_step(&mut self) -> ExecResult<Signal> {
-        let func = self.store.func(self.pc.func_addr()).defined().unwrap();
+        let func = self
+            .store
+            .func(self.pc.func_addr())
+            .ok_or(Trap::UndefinedFunc(self.pc.func_addr()))?
+            .defined()
+            .unwrap();
         let module_index = func.module_index().clone();
         let inst = func.code().inst(self.pc.inst_index()).clone();
         return self.execute_inst(&inst, module_index);
@@ -164,7 +170,10 @@ impl<'a> Executor<'a> {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-                    let func = self.store.func(frame.func_addr);
+                    let func = self
+                        .store
+                        .func(frame.func_addr)
+                        .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
                     let mut result = vec![];
                     for _ in 0..arity {
@@ -236,7 +245,10 @@ impl<'a> Executor<'a> {
                     .borrow()
                     .get_at(buf_index, self.store)
                     .map_err(Trap::Table)?;
-                let func = self.store.func(func_addr);
+                let func = self
+                    .store
+                    .func(func_addr)
+                    .ok_or(Trap::UndefinedFunc(func_addr))?;
                 if *func.ty() == ty {
                     self.invoke(func_addr)
                 } else {
@@ -609,9 +621,9 @@ impl<'a> Executor<'a> {
         }
         args.reverse();
 
-        let func = self.store.func(addr);
+        let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        match resolve_func_addr(addr, self.store) {
+        match resolve_func_addr(addr, self.store)? {
             Either::Left((addr, func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
                 let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
@@ -633,7 +645,10 @@ impl<'a> Executor<'a> {
     }
     fn do_return(&mut self) -> ExecResult<Signal> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-        let func = self.store.func(frame.func_addr);
+        let func = self
+            .store
+            .func(frame.func_addr)
+            .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
         println!("--- Function return {:?} ---", func.ty());
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         let mut result = vec![];
@@ -782,16 +797,16 @@ impl std::fmt::Display for WasmError {
 fn resolve_func_addr(
     addr: FuncAddr,
     store: &Store,
-) -> Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody> {
-    let func = store.func(addr);
+) -> ExecResult<Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody>> {
+    let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
     match func {
-        FunctionInstance::Defined(defined) => Either::Left((addr, defined)),
+        FunctionInstance::Defined(defined) => Ok(Either::Left((addr, defined))),
         FunctionInstance::External(func) => {
             let module = store.module_by_name(func.module_name().clone());
             match module {
                 ModuleInstance::Host(host_module) => {
                     let func = host_module.func_by_name(func.field_name().clone()).unwrap();
-                    return Either::Right(func);
+                    return Ok(Either::Right(func));
                 }
                 ModuleInstance::Defined(defined_module) => {
                     let addr = defined_module
@@ -809,7 +824,7 @@ pub fn invoke_func(
     arguments: Vec<Value>,
     store: &mut Store,
 ) -> Result<Vec<Value>, WasmError> {
-    match resolve_func_addr(func_addr, &store) {
+    match resolve_func_addr(func_addr, &store).map_err(WasmError::ExecutionError)? {
         Either::Right(host_func_body) => {
             let mut results = Vec::new();
             match host_func_body.call(&arguments, &mut results) {
