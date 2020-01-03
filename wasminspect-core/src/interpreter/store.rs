@@ -129,7 +129,7 @@ impl Store {
 
         let module_index = ModuleIndex(self.modules.len() as u32);
         let (mut func_addrs, mut mem_addrs, mut table_addrs, mut global_addrs) =
-            self.load_imports(&parity_module, module_index, types);
+            self.load_imports(&parity_module, module_index, types)?;
         func_addrs.append(&mut self.load_functions(&parity_module, module_index, types)?);
 
         global_addrs.append(&mut self.load_globals(&parity_module, module_index));
@@ -206,12 +206,12 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> (
+    ) -> Result<(
         Vec<FuncAddr>,
         Vec<MemoryAddr>,
         Vec<TableAddr>,
         Vec<GlobalAddr>,
-    ) {
+    ), Error> {
         let imports = parity_module
             .import_section()
             .map(|sec| sec.entries())
@@ -228,7 +228,7 @@ impl Store {
                         import,
                         *type_index as usize,
                         &types,
-                    );
+                    )?;
                     func_addrs.push(addr);
                 }
                 parity_wasm::elements::External::Memory(memory_ty) => {
@@ -245,7 +245,7 @@ impl Store {
                 }
             }
         }
-        (func_addrs, mem_addrs, table_addrs, global_addrs)
+        Ok((func_addrs, mem_addrs, table_addrs, global_addrs))
     }
 
     fn load_import_function(
@@ -254,13 +254,11 @@ impl Store {
         import: &parity_wasm::elements::ImportEntry,
         type_index: usize,
         types: &[parity_wasm::elements::Type],
-    ) -> FuncAddr {
-        let func_ty = {
-            let ty = types[type_index as usize].clone();
-            match ty {
-                parity_wasm::elements::Type::Function(func_ty) => func_ty,
-            }
-        };
+    ) -> Result<FuncAddr, Error> {
+        let parity_wasm::elements::Type::Function(func_ty) = types
+            .get(type_index)
+            .ok_or(Error::UnknownType(type_index as u32))?
+            .clone();
         let instance = HostFunctionInstance::new(
             func_ty,
             import.module().to_string(),
@@ -270,7 +268,7 @@ impl Store {
         let map = self.funcs.entry(module_index).or_insert(Vec::new());
         let func_index = map.len();
         map.push(FunctionInstance::External(instance));
-        return FuncAddr(module_index, func_index);
+        return Ok(FuncAddr(module_index, func_index));
     }
 
     fn load_import_memory(
