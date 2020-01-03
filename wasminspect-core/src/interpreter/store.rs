@@ -105,12 +105,14 @@ impl Store {
 use super::table;
 pub enum Error {
     Table(table::Error),
+    UnknownType(/* type index: */ u32),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Table(err) => write!(f, "{:?}", err)
+            Self::Table(err) => write!(f, "Load table failed: {:?}", err),
+            Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
         }
     }
 }
@@ -128,7 +130,7 @@ impl Store {
         let module_index = ModuleIndex(self.modules.len() as u32);
         let (mut func_addrs, mut mem_addrs, mut table_addrs, mut global_addrs) =
             self.load_imports(&parity_module, module_index, types);
-        func_addrs.append(&mut self.load_functions(&parity_module, module_index, types));
+        func_addrs.append(&mut self.load_functions(&parity_module, module_index, types)?);
 
         global_addrs.append(&mut self.load_globals(&parity_module, module_index));
         table_addrs.append(&mut self.load_tables(&parity_module, module_index, elem_segs)?);
@@ -327,7 +329,7 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> Vec<FuncAddr> {
+    ) -> Result<Vec<FuncAddr>, Error> {
         let functions = parity_module
             .function_section()
             .map(|sec| sec.entries())
@@ -339,7 +341,7 @@ impl Store {
         let mut func_addrs = Vec::new();
         for (func, body) in functions.into_iter().zip(bodies) {
             let parity_wasm::elements::Type::Function(func_type) =
-                types[func.type_ref() as usize].clone();
+                types.get(func.type_ref() as usize).ok_or(Error::UnknownType(func.type_ref()))?.clone();
             let defined = DefinedFunctionInstance::new(
                 func_type,
                 module_index,
@@ -351,7 +353,7 @@ impl Store {
             map.push(instance);
             func_addrs.push(FuncAddr(module_index, func_index));
         }
-        func_addrs
+        Ok(func_addrs)
     }
 
     fn load_globals(
