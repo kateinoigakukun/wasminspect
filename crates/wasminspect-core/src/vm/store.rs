@@ -3,7 +3,9 @@ use super::executor::{eval_const_expr, invoke_func, resolve_func_addr, WasmError
 use super::func::{
     DefinedFuncBody, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
 };
-use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
+use super::global::{
+    resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,
+};
 use super::host::HostValue;
 use super::memory;
 use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
@@ -12,7 +14,7 @@ use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::utils::*;
 use super::value::Value;
 use parity_wasm;
-use parity_wasm::elements::FunctionType;
+use parity_wasm::elements::{FunctionType, GlobalType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -22,7 +24,7 @@ pub struct Store {
     funcs: HashMap<ModuleIndex, Vec<FunctionInstance>>,
     tables: HashMap<ModuleIndex, Vec<Rc<RefCell<TableInstance>>>>,
     mems: HashMap<ModuleIndex, Vec<Rc<RefCell<MemoryInstance>>>>,
-    globals: HashMap<ModuleIndex, Vec<GlobalInstance>>,
+    globals: HashMap<ModuleIndex, Vec<Rc<RefCell<GlobalInstance>>>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 }
@@ -48,23 +50,15 @@ impl Store {
         func.ty()
     }
 
-    pub fn set_global(&mut self, addr: GlobalAddr, value: Value) {
-        let instance = &mut self.globals.get_mut(&addr.0).unwrap()[addr.1];
-        match instance {
-            GlobalInstance::Defined(instance) => instance.set_value(value),
-            GlobalInstance::External(_) => unimplemented!(),
-        }
-    }
-
-    pub fn global(&self, addr: GlobalAddr) -> &GlobalInstance {
-        &self.globals[&addr.0][addr.1]
+    pub fn global(&self, addr: GlobalAddr) -> Rc<RefCell<GlobalInstance>> {
+        self.globals[&addr.0][addr.1].clone()
     }
 
     pub fn scan_global_by_name(
         &self,
         module_index: ModuleIndex,
         field: &str,
-    ) -> Option<&GlobalInstance> {
+    ) -> Option<Rc<RefCell<GlobalInstance>>> {
         let module = self.module(module_index).defined().unwrap();
         let global_addr = module.exported_global(field.to_string());
         global_addr.map(|addr| self.global(addr))
@@ -111,7 +105,8 @@ pub enum Error {
     UnknownType(/* type index: */ u32),
     UndefinedFunction(/* module: */ String, /* name: */ String),
     FailedEntryFunction(WasmError),
-    IncompatibleImportType(FunctionType, FunctionType),
+    IncompatibleImportFuncType(FunctionType, FunctionType),
+    IncompatibleImportGlobalType(GlobalType, GlobalType),
 }
 
 impl std::fmt::Display for Error {
@@ -126,7 +121,7 @@ impl std::fmt::Display for Error {
                 write!(f, "Undefined function \"{}\" in \"{}\"", name, module)
             }
             Self::FailedEntryFunction(e) => write!(f, "{}", e),
-            Self::IncompatibleImportType(expected, actual) => write!(
+            Self::IncompatibleImportFuncType(expected, actual) => write!(
                 f,
                 "incompatible import type, expected {:?} but got {:?}",
                 expected, actual
@@ -287,7 +282,7 @@ impl Store {
                     table_addrs.push(addr);
                 }
                 parity_wasm::elements::External::Global(global_ty) => {
-                    let addr = self.load_import_global(module_index, import, *global_ty);
+                    let addr = self.load_import_global(module_index, import, *global_ty)?;
                     global_addrs.push(addr);
                 }
             }
@@ -336,7 +331,7 @@ impl Store {
                 }
             };
             if *actual_func_ty != func_ty {
-                return Err(Error::IncompatibleImportType(
+                return Err(Error::IncompatibleImportFuncType(
                     func_ty,
                     actual_func_ty.clone(),
                 ));
@@ -388,16 +383,41 @@ impl Store {
         module_index: ModuleIndex,
         import: &parity_wasm::elements::ImportEntry,
         global_ty: parity_wasm::elements::GlobalType,
-    ) -> GlobalAddr {
+    ) -> Result<GlobalAddr> {
         let instance = ExternalGlobalInstance::new(
             import.module().to_string(),
             import.field().to_string(),
             global_ty.clone(),
         );
+        // Validation
+        {
+            let actual_global = {
+                let name = import.field().to_string();
+                let module = self.module_by_name(import.module().to_string());
+                let err = || {
+                    Error::UndefinedFunction(
+                        import.module().clone().to_string(),
+                        import.field().clone().to_string(),
+                    )
+                };
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_global(name).ok_or(err())?;
+                        resolve_global_instance(addr, self).borrow()
+                    }
+                    ModuleInstance::Host(host) => {
+                        host.global_by_name(name).ok_or(err()).map(|f| f.borrow())?
+                    }
+                }
+            };
+            if actual_global.ty().clone() != global_ty.clone() {
+                return Err(Error::IncompatibleImportGlobalType(actual_global.ty().clone(), global_ty.clone()));
+            }
+        };
         let map = self.globals.entry(module_index).or_insert(Vec::new());
         let global_index = map.len();
-        map.push(GlobalInstance::External(instance));
-        return GlobalAddr(module_index, global_index);
+        map.push(Rc::new(RefCell::new(GlobalInstance::External(instance))));
+        return Ok(GlobalAddr(module_index, global_index));
     }
 
     fn load_functions(
@@ -449,7 +469,9 @@ impl Store {
             let instance = DefinedGlobalInstance::new(value, entry.global_type().clone());
             let map = self.globals.entry(module_index).or_insert(Vec::new());
             let global_index = map.len();
-            map.push(GlobalInstance::Defined(instance));
+            map.push(Rc::new(RefCell::new(GlobalInstance::Defined(Rc::new(
+                RefCell::new(instance),
+            )))));
             global_addrs.push(GlobalAddr(module_index, global_index));
         }
         global_addrs

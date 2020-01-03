@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::executor::Trap;
+use super::global::DefinedGlobalInstance;
 use super::memory::DefinedMemoryInstance;
 use super::table::DefinedTableInstance;
 use parity_wasm::elements::FunctionType;
@@ -12,7 +13,7 @@ type Ref<T> = Rc<RefCell<T>>;
 
 pub enum HostValue {
     Func(HostFuncBody),
-    Global(Value),
+    Global(Rc<RefCell<DefinedGlobalInstance>>),
     Mem(Ref<DefinedMemoryInstance>),
     Table(Ref<DefinedTableInstance>),
 }

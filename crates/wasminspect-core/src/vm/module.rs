@@ -3,7 +3,7 @@ use super::export::{ExportInstance, ExternalValue};
 use super::host::*;
 use super::memory::DefinedMemoryInstance;
 use super::table::DefinedTableInstance;
-use super::value::Value;
+use super::global::DefinedGlobalInstance;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -111,14 +111,14 @@ impl HostModuleInstance {
         Self { values }
     }
 
-    pub fn global_by_name(&self, name: String) -> Option<Value> {
+    pub fn global_by_name(&self, name: String) -> Option<&Rc<RefCell<DefinedGlobalInstance>>> {
         assert!(
             self.values.contains_key(&name),
             "Global {} was not loaded",
             name
         );
-        match self.values[&name] {
-            HostValue::Global(global) => Some(global.clone()),
+        match &self.values[&name] {
+            HostValue::Global(global) => Some(global),
             _ => None,
         }
     }
