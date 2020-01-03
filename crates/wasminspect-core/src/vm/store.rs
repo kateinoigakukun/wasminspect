@@ -1,10 +1,11 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
-use super::executor::{eval_const_expr, invoke_func};
+use super::executor::{eval_const_expr, invoke_func, WasmError};
 use super::func::{
     DefinedFuncBody, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
 };
 use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
 use super::host::HostValue;
+use super::memory;
 use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
 use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
@@ -105,7 +106,9 @@ impl Store {
 use super::table;
 pub enum Error {
     InvalidElementSegments(table::Error),
+    InvalidDataSegments(memory::Error),
     UnknownType(/* type index: */ u32),
+    FailedEntryFunction(WasmError),
 }
 
 impl std::fmt::Display for Error {
@@ -114,10 +117,14 @@ impl std::fmt::Display for Error {
             Self::InvalidElementSegments(err) => {
                 write!(f, "elements segment does not fit: {:?}", err)
             }
+            Self::InvalidDataSegments(err) => write!(f, "data segment does not fit: {}", err),
             Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
+            Self::FailedEntryFunction(e) => write!(f, "{}", e),
         }
     }
 }
+
+type Result<T> = std::result::Result<T, Error>;
 
 impl Store {
     fn load_parity_module_internal(
@@ -125,7 +132,7 @@ impl Store {
         name: Option<String>,
         parity_module: parity_wasm::elements::Module,
         module_index: ModuleIndex,
-    ) -> Result<ModuleIndex, Error> {
+    ) -> Result<ModuleIndex> {
         let types = Self::get_types(&parity_module);
         let elem_segs = Self::get_element_segments(&parity_module);
         let data_segs = Self::get_data_segments(&parity_module);
@@ -137,7 +144,7 @@ impl Store {
         global_addrs.append(&mut self.load_globals(&parity_module, module_index));
         table_addrs.append(&mut self.load_tables(&parity_module, module_index, elem_segs)?);
 
-        mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs));
+        mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs)?);
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let start_section = parity_module.start_section().clone();
@@ -156,7 +163,7 @@ impl Store {
         if let Some(start_section) = start_section {
             let func_addr = FuncAddr(module_index, start_section as usize);
             // TODO: Handle result
-            invoke_func(func_addr, vec![], self);
+            invoke_func(func_addr, vec![], self).map_err(Error::FailedEntryFunction)?;
         }
         Ok(module_index)
     }
@@ -164,9 +171,10 @@ impl Store {
         &mut self,
         name: Option<String>,
         parity_module: parity_wasm::elements::Module,
-    ) -> Result<ModuleIndex, Error> {
+    ) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
-        let result: Result<ModuleIndex, Error> = self.load_parity_module_internal(name.clone(), parity_module, module_index);
+        let result: Result<ModuleIndex> =
+            self.load_parity_module_internal(name.clone(), parity_module, module_index);
         match result {
             Ok(ok) => Ok(ok),
             Err(err) => {
@@ -234,15 +242,12 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> Result<
-        (
-            Vec<FuncAddr>,
-            Vec<MemoryAddr>,
-            Vec<TableAddr>,
-            Vec<GlobalAddr>,
-        ),
-        Error,
-    > {
+    ) -> Result<(
+        Vec<FuncAddr>,
+        Vec<MemoryAddr>,
+        Vec<TableAddr>,
+        Vec<GlobalAddr>,
+    )> {
         let imports = parity_module
             .import_section()
             .map(|sec| sec.entries())
@@ -285,7 +290,7 @@ impl Store {
         import: &parity_wasm::elements::ImportEntry,
         type_index: usize,
         types: &[parity_wasm::elements::Type],
-    ) -> Result<FuncAddr, Error> {
+    ) -> Result<FuncAddr> {
         let parity_wasm::elements::Type::Function(func_ty) = types
             .get(type_index)
             .ok_or(Error::UnknownType(type_index as u32))?
@@ -358,7 +363,7 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> Result<Vec<FuncAddr>, Error> {
+    ) -> Result<Vec<FuncAddr>> {
         let functions = parity_module
             .function_section()
             .map(|sec| sec.entries())
@@ -413,7 +418,7 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         element_segments: HashMap<usize, Vec<&parity_wasm::elements::ElementSegment>>,
-    ) -> Result<Vec<TableAddr>, Error> {
+    ) -> Result<Vec<TableAddr>> {
         let tables = parity_module
             .table_section()
             .map(|sec| sec.entries())
@@ -475,14 +480,14 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         data_segments: HashMap<usize, Vec<&parity_wasm::elements::DataSegment>>,
-    ) -> Vec<MemoryAddr> {
+    ) -> Result<Vec<MemoryAddr>> {
         let mem_sec = parity_module
             .memory_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut mem_addrs = Vec::new();
         if mem_sec.is_empty() && self.mems.is_empty() {
-            return mem_addrs;
+            return Ok(mem_addrs);
         }
         for entry in mem_sec.iter() {
             let instance = DefinedMemoryInstance::new(
@@ -511,11 +516,13 @@ impl Store {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
-                    mem.borrow_mut().store(offset as usize, seg.value(), self);
+                    mem.borrow_mut()
+                        .store(offset as usize, seg.value(), self)
+                        .map_err(Error::InvalidDataSegments)?;
                 }
             }
         }
-        mem_addrs
+        Ok(mem_addrs)
     }
 }
 

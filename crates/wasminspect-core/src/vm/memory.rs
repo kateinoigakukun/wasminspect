@@ -82,16 +82,21 @@ impl ExternalMemoryInstance {
 pub enum Error {
     GrowOverMaximumSize(usize),
     GrowOverMaximumPageSize(usize),
-    AccessOutOfBounds(/* try to access */ usize, /* memory size */ usize),
+    AccessOutOfBounds(/* try to access */ Option<usize>, /* memory size */ usize),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AccessOutOfBounds(addr, size) => write!(
+            Self::AccessOutOfBounds(Some(addr), size) => write!(
                 f,
                 "out of bounds memory access, try to access {} but size of memory is {}",
                 addr, size
+            ),
+            Self::AccessOutOfBounds(None, size) => write!(
+                f,
+                "out of bounds memory access, try to access over size of usize but size of memory is {}",
+                size
             ),
             _ => write!(f, "{:?}", self),
         }
@@ -110,8 +115,12 @@ impl DefinedMemoryInstance {
     }
 
     fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
-        if (offset + size) > self.data_len() {
-            return Err(Error::AccessOutOfBounds(offset + size, self.data_len()));
+        if let Some(max_addr) = offset.checked_add(size) {
+            if max_addr > self.data_len() {
+                return Err(Error::AccessOutOfBounds(Some(max_addr), self.data_len()));
+            }
+        } else {
+            return Err(Error::AccessOutOfBounds(None, self.data_len()));
         }
         Ok(())
     }
