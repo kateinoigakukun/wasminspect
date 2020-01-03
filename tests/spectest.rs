@@ -14,7 +14,10 @@ macro_rules! run_wast {
 fn run_spectest(filename: &str) {
     let testsuite_dir = Path::new(file!()).parent().unwrap().join("testsuite");
     let mut context = WastContext::new();
-    let _ = context.run_file(&testsuite_dir.join(filename));
+    match context.run_file(&testsuite_dir.join(filename)) {
+        Ok(_) => (),
+        Err(err) => panic!(err),
+    }
 }
 
 run_wast!("address.wast", test_wast_address);
