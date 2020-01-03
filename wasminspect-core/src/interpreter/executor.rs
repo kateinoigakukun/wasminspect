@@ -9,7 +9,7 @@ use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
 use super::store::*;
 use super::utils::*;
 use super::value::*;
-use parity_wasm::elements::{BlockType, InitExpr, Instruction, ValueType};
+use parity_wasm::elements::{BlockType, InitExpr, Instruction, ValueType, FunctionType};
 
 use std::ops::*;
 
@@ -19,6 +19,7 @@ pub enum Trap {
     Memory(memory::Error),
     Stack(stack::Error),
     TableAccessOutOfBounds,
+    IndirectCallTypeMismatch(/* expected: */ FunctionType, /* actual: */ FunctionType),
     UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
 }
 
@@ -228,8 +229,11 @@ impl<'a> Executor<'a> {
                     None => return Err(Trap::TableAccessOutOfBounds),
                 };
                 let func = self.store.func(func_addr);
-                assert_eq!(*func.ty(), ty);
-                self.invoke(func_addr)
+                if *func.ty() == ty {
+                    self.invoke(func_addr)
+                } else {
+                    Err(Trap::IndirectCallTypeMismatch(ty, func.ty().clone()))
+                }
             }
             Instruction::Drop => {
                 self.stack.pop_value().map_err(Trap::Stack)?;
