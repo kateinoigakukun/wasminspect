@@ -126,6 +126,11 @@ impl std::fmt::Display for Error {
                 "incompatible import type, expected {:?} but got {:?}",
                 expected, actual
             ),
+            Self::IncompatibleImportGlobalType(expected, actual) => write!(
+                f,
+                "incompatible import type, expected {:?} but got {:?}",
+                expected, actual
+            ),
         }
     }
 }
@@ -403,15 +408,16 @@ impl Store {
                 match module {
                     ModuleInstance::Defined(defined) => {
                         let addr = defined.exported_global(name).ok_or(err())?;
-                        resolve_global_instance(addr, self).borrow()
+                        resolve_global_instance(addr, self)
                     }
                     ModuleInstance::Host(host) => {
-                        host.global_by_name(name).ok_or(err()).map(|f| f.borrow())?
+                        host.global_by_name(name).ok_or(err())?.clone()
                     }
                 }
             };
-            if actual_global.ty().clone() != global_ty.clone() {
-                return Err(Error::IncompatibleImportGlobalType(actual_global.ty().clone(), global_ty.clone()));
+            let actual_global_ty = actual_global.borrow().ty().clone();
+            if actual_global_ty != global_ty.clone() {
+                return Err(Error::IncompatibleImportGlobalType(actual_global_ty, global_ty.clone()));
             }
         };
         let map = self.globals.entry(module_index).or_insert(Vec::new());

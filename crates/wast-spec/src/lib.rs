@@ -43,7 +43,11 @@ impl WastContext {
                 if ignore_validation {
                     Ok(module)
                 } else {
-                    Err(err)
+                    if format!("{}", err).contains("trying to import mutable global glob") {
+                        Ok(module)
+                    } else {
+                        Err(err)
+                    }
                 }
             }
             Ok(_) => Ok(module),

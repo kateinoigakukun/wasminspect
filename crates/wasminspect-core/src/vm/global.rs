@@ -1,7 +1,7 @@
+use super::address::GlobalAddr;
 use super::module::ModuleInstance;
 use super::store::Store;
 use super::value::Value;
-use super::address::GlobalAddr;
 use parity_wasm::elements::GlobalType;
 
 pub enum GlobalInstance {
@@ -13,9 +13,8 @@ pub fn resolve_global_instance(
     addr: GlobalAddr,
     store: &Store,
 ) -> std::rc::Rc<std::cell::RefCell<DefinedGlobalInstance>> {
-    let this = store.global(addr);
-    match *this.borrow() {
-        GlobalInstance::Defined(defined) => defined,
+    match &*store.global(addr).borrow() {
+        GlobalInstance::Defined(defined) => defined.clone(),
         GlobalInstance::External(external) => {
             let module = store.module_by_name(external.module_name.clone());
             match module {
@@ -25,8 +24,10 @@ pub fn resolve_global_instance(
                         .unwrap();
                     resolve_global_instance(addr, store)
                 }
-                ModuleInstance::Host(host_module) => *host_module
-                    .global_by_name(external.name.clone()).unwrap(),
+                ModuleInstance::Host(host_module) => host_module
+                    .global_by_name(external.name.clone())
+                    .unwrap()
+                    .clone(),
             }
         }
     }
@@ -39,9 +40,11 @@ impl GlobalInstance {
             GlobalInstance::External(external) => {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
-                    ModuleInstance::Host(host) => {
-                        host.global_by_name(external.name.clone()).unwrap().borrow().value()
-                    }
+                    ModuleInstance::Host(host) => host
+                        .global_by_name(external.name.clone())
+                        .unwrap()
+                        .borrow()
+                        .value(),
                     ModuleInstance::Defined(defined) => {
                         let addr = defined.exported_global(external.name.clone());
                         store.global(addr.unwrap()).borrow().value(store)

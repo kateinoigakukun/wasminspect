@@ -2,6 +2,7 @@ use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::host::*;
 use super::memory;
+use super::global::*;
 use super::memory::MemoryInstance;
 use super::module::*;
 use super::stack;
@@ -306,13 +307,14 @@ impl<'a> Executor<'a> {
             Instruction::GetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
                 let global = self.store.global(addr);
-                self.stack.push_value(global.value(self.store));
+                self.stack.push_value(global.borrow().value(self.store));
                 Ok(Signal::Next)
             }
             Instruction::SetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
-                self.store.set_global(addr, value);
+                let global = resolve_global_instance(addr, self.store);
+                global.borrow_mut().set_value(value);
                 Ok(Signal::Next)
             }
 
@@ -791,7 +793,7 @@ pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: Module
         Instruction::F64Const(val) => Value::F64(f64::from_bits(val)),
         Instruction::GetGlobal(index) => {
             let addr = GlobalAddr(module_index, index as usize);
-            store.global(addr).value(store)
+            store.global(addr).borrow().value(store)
         }
         _ => panic!("Unsupported init_expr {}", inst),
     }

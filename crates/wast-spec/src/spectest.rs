@@ -1,4 +1,4 @@
-use parity_wasm::elements::{FunctionType, ValueType};
+use parity_wasm::elements::{FunctionType, GlobalType, ValueType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -54,21 +54,34 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     }));
     module.insert("print_f64_f64".to_string(), func);
 
+    let create_glbal = |value, ty| Rc::new(RefCell::new(HostGlobal::new(value, ty)));
     module.insert(
         "global_i32".to_string(),
-        HostValue::Global(WasmValue::I32(666)),
+        HostValue::Global(create_glbal(
+            WasmValue::I32(666),
+            GlobalType::new(ValueType::I32, true),
+        )),
     );
     module.insert(
         "global_i64".to_string(),
-        HostValue::Global(WasmValue::I32(666)),
+        HostValue::Global(create_glbal(
+            WasmValue::I64(666),
+            GlobalType::new(ValueType::I64, true),
+        )),
     );
     module.insert(
         "global_f32".to_string(),
-        HostValue::Global(WasmValue::F32(f32::from_bits(0x44268000))),
+        HostValue::Global(create_glbal(
+            WasmValue::F32(f32::from_bits(0x44268000)),
+            GlobalType::new(ValueType::F32, true),
+        )),
     );
     module.insert(
         "global_f64".to_string(),
-        HostValue::Global(WasmValue::F64(f64::from_bits(0x4084d00000000000))),
+        HostValue::Global(create_glbal(
+            WasmValue::F64(f64::from_bits(0x4084d00000000000)),
+            GlobalType::new(ValueType::F64, true),
+        )),
     );
 
     let table = Rc::new(RefCell::new(HostTable::new(10, Some(20))));
