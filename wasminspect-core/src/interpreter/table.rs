@@ -9,7 +9,12 @@ pub enum TableInstance {
 }
 
 impl TableInstance {
-    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>, store: &mut Store) -> Result<()> {
+    pub fn initialize(
+        &mut self,
+        offset: usize,
+        data: Vec<FuncAddr>,
+        store: &mut Store,
+    ) -> Result<()> {
         match self {
             Self::Defined(defined) => defined.initialize(offset, data),
             Self::External(external) => {
@@ -52,7 +57,7 @@ impl TableInstance {
         }
     }
 
-    pub fn get_at(&self, index: usize, store: &Store) -> Option<FuncAddr> {
+    pub fn get_at(&self, index: usize, store: &Store) -> Result<FuncAddr> {
         match self {
             Self::Defined(defined) => defined.get_at(index),
             Self::External(external) => {
@@ -110,8 +115,11 @@ impl DefinedTableInstance {
         self.buffer.len()
     }
 
-    pub fn get_at(&self, index: usize) -> Option<FuncAddr> {
-        self.buffer[index]
+    pub fn get_at(&self, index: usize) -> Result<FuncAddr> {
+        self.buffer
+            .get(index)
+            .ok_or(Error::AccessOutOfBounds(index, self.buffer_len()))
+            .map(|addr| addr.unwrap().clone())
     }
 }
 

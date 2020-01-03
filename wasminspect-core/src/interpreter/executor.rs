@@ -6,6 +6,7 @@ use super::memory::MemoryInstance;
 use super::module::*;
 use super::stack;
 use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
+use super::table;
 use super::store::*;
 use super::utils::*;
 use super::value::*;
@@ -18,7 +19,7 @@ pub enum Trap {
     Unreachable,
     Memory(memory::Error),
     Stack(stack::Error),
-    TableAccessOutOfBounds,
+    Table(table::Error),
     IndirectCallTypeMismatch(/* expected: */ FunctionType, /* actual: */ FunctionType),
     UnexpectedStackValueType(/* expected: */ ValueType, /* actual: */ ValueType),
 }
@@ -223,11 +224,7 @@ impl<'a> Executor<'a> {
                 let buf_index: i32 = self.pop_as()?;
                 let table = self.store.table(addr);
                 let buf_index = buf_index as usize;
-                assert!(buf_index < table.borrow().buffer_len(self.store));
-                let func_addr = match table.borrow().get_at(buf_index, self.store) {
-                    Some(addr) => addr,
-                    None => return Err(Trap::TableAccessOutOfBounds),
-                };
+                let func_addr = table.borrow().get_at(buf_index, self.store).map_err(Trap::Table)?;
                 let func = self.store.func(func_addr);
                 if *func.ty() == ty {
                     self.invoke(func_addr)
