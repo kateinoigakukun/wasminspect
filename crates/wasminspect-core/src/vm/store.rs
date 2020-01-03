@@ -104,6 +104,9 @@ pub enum Error {
     InvalidDataSegments(memory::Error),
     UnknownType(/* type index: */ u32),
     UndefinedFunction(/* module: */ String, /* name: */ String),
+    UndefinedMemory(String, String),
+    UndefinedTable(String, String),
+    UndefinedGlobal(String, String),
     FailedEntryFunction(WasmError),
     IncompatibleImportFuncType(FunctionType, FunctionType),
     IncompatibleImportGlobalType(GlobalType, GlobalType),
@@ -120,6 +123,21 @@ impl std::fmt::Display for Error {
             Self::UndefinedFunction(module, name) => {
                 write!(f, "Undefined function \"{}\" in \"{}\"", name, module)
             }
+            Self::UndefinedMemory(module, name) => write!(
+                f,
+                "unknown import: Undefined memory \"{}\" in \"{}\"",
+                name, module
+            ),
+            Self::UndefinedTable(module, name) => write!(
+                f,
+                "unknown import: Undefined table \"{}\" in \"{}\"",
+                name, module
+            ),
+            Self::UndefinedGlobal(module, name) => write!(
+                f,
+                "unknown import: Undefined global \"{}\" in \"{}\"",
+                name, module
+            ),
             Self::FailedEntryFunction(e) => write!(f, "{}", e),
             Self::IncompatibleImportFuncType(expected, actual) => write!(
                 f,
@@ -279,11 +297,11 @@ impl Store {
                     func_addrs.push(addr);
                 }
                 parity_wasm::elements::External::Memory(memory_ty) => {
-                    let addr = self.load_import_memory(module_index, import, *memory_ty);
+                    let addr = self.load_import_memory(module_index, import, *memory_ty)?;
                     mem_addrs.push(addr);
                 }
                 parity_wasm::elements::External::Table(table_ty) => {
-                    let addr = self.load_import_table(module_index, import, *table_ty);
+                    let addr = self.load_import_table(module_index, import, *table_ty)?;
                     table_addrs.push(addr);
                 }
                 parity_wasm::elements::External::Global(global_ty) => {
@@ -354,16 +372,31 @@ impl Store {
         module_index: ModuleIndex,
         import: &parity_wasm::elements::ImportEntry,
         memory_ty: parity_wasm::elements::MemoryType,
-    ) -> MemoryAddr {
+    ) -> Result<MemoryAddr> {
         let instance = ExternalMemoryInstance::new(
             import.module().to_string(),
             import.field().to_string(),
             memory_ty.limits().clone(),
         );
+        // Validation
+        {
+            let name = import.field().to_string();
+            let module = self.module_by_name(import.module().to_string());
+            let found = match module {
+                ModuleInstance::Defined(defined) => defined.exported_memory(name.clone()).is_some(),
+                ModuleInstance::Host(host) => host.memory_by_name(name.clone()).is_some(),
+            };
+            if !found {
+                return Err(Error::UndefinedMemory(
+                    import.module().clone().to_string(),
+                    name.clone(),
+                ));
+            }
+        }
         let map = self.mems.entry(module_index).or_insert(Vec::new());
         let mem_index = map.len();
         map.push(Rc::new(RefCell::new(MemoryInstance::External(instance))));
-        return MemoryAddr(module_index, mem_index);
+        return Ok(MemoryAddr(module_index, mem_index));
     }
 
     fn load_import_table(
@@ -371,16 +404,31 @@ impl Store {
         module_index: ModuleIndex,
         import: &parity_wasm::elements::ImportEntry,
         table_ty: parity_wasm::elements::TableType,
-    ) -> TableAddr {
+    ) -> Result<TableAddr> {
         let instance = ExternalTableInstance::new(
             import.module().to_string(),
             import.field().to_string(),
             table_ty.limits().clone(),
         );
+        let name = import.field().to_string();
+        let module = self.module_by_name(import.module().to_string());
+        // Validation
+        {
+            let found = match module {
+                ModuleInstance::Defined(defined) => defined.exported_memory(name.clone()).is_some(),
+                ModuleInstance::Host(host) => host.memory_by_name(name.clone()).is_some(),
+            };
+            if !found {
+                return Err(Error::UndefinedTable(
+                    import.module().clone().to_string(),
+                    name.clone(),
+                ));
+            }
+        }
         let map = self.tables.entry(module_index).or_insert(Vec::new());
         let table_index = map.len();
         map.push(Rc::new(RefCell::new(TableInstance::External(instance))));
-        return TableAddr(module_index, table_index);
+        return Ok(TableAddr(module_index, table_index));
     }
 
     fn load_import_global(
@@ -400,7 +448,7 @@ impl Store {
                 let name = import.field().to_string();
                 let module = self.module_by_name(import.module().to_string());
                 let err = || {
-                    Error::UndefinedFunction(
+                    Error::UndefinedGlobal(
                         import.module().clone().to_string(),
                         import.field().clone().to_string(),
                     )
@@ -410,14 +458,15 @@ impl Store {
                         let addr = defined.exported_global(name).ok_or(err())?;
                         resolve_global_instance(addr, self)
                     }
-                    ModuleInstance::Host(host) => {
-                        host.global_by_name(name).ok_or(err())?.clone()
-                    }
+                    ModuleInstance::Host(host) => host.global_by_name(name).ok_or(err())?.clone(),
                 }
             };
             let actual_global_ty = actual_global.borrow().ty().clone();
             if actual_global_ty != global_ty.clone() {
-                return Err(Error::IncompatibleImportGlobalType(actual_global_ty, global_ty.clone()));
+                return Err(Error::IncompatibleImportGlobalType(
+                    actual_global_ty,
+                    global_ty.clone(),
+                ));
             }
         };
         let map = self.globals.entry(module_index).or_insert(Vec::new());

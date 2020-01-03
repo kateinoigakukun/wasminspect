@@ -46,6 +46,7 @@ impl std::fmt::Display for Trap {
                 "indirect call type mismatch, expected {:?} but got {:?}",
                 expected, actual
             ),
+            Self::UndefinedFunc(addr) => write!(f, "uninitialized func at {:?}", addr),
             _ => write!(f, "{:?}", self),
         }
     }
