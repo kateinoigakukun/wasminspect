@@ -1,5 +1,5 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
-use super::executor::{eval_const_expr, invoke_func, WasmError};
+use super::executor::{eval_const_expr, invoke_func, resolve_func_addr, WasmError};
 use super::func::{
     DefinedFuncBody, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
 };
@@ -9,6 +9,7 @@ use super::memory;
 use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
 use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
+use super::utils::*;
 use super::value::Value;
 use parity_wasm;
 use parity_wasm::elements::FunctionType;
@@ -108,7 +109,9 @@ pub enum Error {
     InvalidElementSegments(table::Error),
     InvalidDataSegments(memory::Error),
     UnknownType(/* type index: */ u32),
+    UndefinedFunction(/* module: */ String, /* name: */ String),
     FailedEntryFunction(WasmError),
+    IncompatibleImportType(FunctionType, FunctionType),
 }
 
 impl std::fmt::Display for Error {
@@ -119,7 +122,15 @@ impl std::fmt::Display for Error {
             }
             Self::InvalidDataSegments(err) => write!(f, "data segment does not fit: {}", err),
             Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
+            Self::UndefinedFunction(module, name) => {
+                write!(f, "Undefined function \"{}\" in \"{}\"", name, module)
+            }
             Self::FailedEntryFunction(e) => write!(f, "{}", e),
+            Self::IncompatibleImportType(expected, actual) => write!(
+                f,
+                "incompatible import type, expected {:?} but got {:?}",
+                expected, actual
+            ),
         }
     }
 }
@@ -296,10 +307,41 @@ impl Store {
             .ok_or(Error::UnknownType(type_index as u32))?
             .clone();
         let instance = HostFunctionInstance::new(
-            func_ty,
+            func_ty.clone(),
             import.module().to_string(),
             import.field().to_string(),
         );
+        // Validation
+        {
+            let actual_func_ty = {
+                let name = import.field().to_string();
+                let module = self.module_by_name(import.module().to_string());
+                let err = || {
+                    Error::UndefinedFunction(
+                        import.module().clone().to_string(),
+                        import.field().clone().to_string(),
+                    )
+                };
+                match module {
+                    ModuleInstance::Defined(defined) => {
+                        let addr = defined.exported_func(name).ok_or(err())?;
+                        match resolve_func_addr(addr, self).map_err(|_| err())? {
+                            Either::Left((_, f)) => f.ty(),
+                            Either::Right(f) => f.ty(),
+                        }
+                    }
+                    ModuleInstance::Host(host) => {
+                        host.func_by_name(name).ok_or(err()).map(|f| f.ty())?
+                    }
+                }
+            };
+            if *actual_func_ty != func_ty {
+                return Err(Error::IncompatibleImportType(
+                    func_ty,
+                    actual_func_ty.clone(),
+                ));
+            }
+        }
 
         let map = self.funcs.entry(module_index).or_insert(Vec::new());
         let func_index = map.len();

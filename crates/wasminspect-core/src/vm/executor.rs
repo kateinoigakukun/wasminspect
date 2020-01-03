@@ -819,7 +819,7 @@ impl std::fmt::Display for WasmError {
     }
 }
 
-fn resolve_func_addr(
+pub fn resolve_func_addr(
     addr: FuncAddr,
     store: &Store,
 ) -> ExecResult<Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody>> {

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::str;
 mod spectest;
-use spectest::instantiate_spectest;
+pub use spectest::instantiate_spectest;
 use wasmi_validation::{validate_module, PlainValidator};
 use wasminspect_core::vm::{ModuleIndex, WasmError, WasmInstance, WasmValue};
 

@@ -1,11 +1,14 @@
 extern crate wasminspect_core;
 use wasminspect_core::vm::*;
+use wast_spec::instantiate_spectest;
 
 use std::path::Path;
 
 fn run_wasm(filename: &str, func: &str, args: Vec<WasmValue>, results: Vec<WasmValue>) {
     let example_dir = Path::new(file!()).parent().unwrap().join("simple-example");
     let mut instance = WasmInstance::new();
+    let spectest = instantiate_spectest();
+    instance.load_host_module("spectest".to_string(), spectest);
     let module_index = instance
         .load_module_from_file(
             None,
