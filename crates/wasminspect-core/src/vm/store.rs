@@ -175,7 +175,10 @@ impl Store {
                 self.tables.remove(&module_index);
                 self.mems.remove(&module_index);
                 self.globals.remove(&module_index);
-                self.modules.remove(module_index.0 as usize);
+                let module_index = module_index.0 as usize;
+                if module_index < self.modules.len() {
+                    self.modules.remove(module_index);
+                }
                 if let Some(ref name) = name.clone() {
                     self.module_index_by_name.remove(name);
                 }
