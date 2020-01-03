@@ -1,5 +1,5 @@
 extern crate wasminspect_core;
-use wasminspect_core::interpreter::*;
+use wasminspect_core::vm::*;
 
 use std::path::Path;
 

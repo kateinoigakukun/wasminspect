@@ -5,7 +5,7 @@ use std::path::Path;
 use std::str;
 mod spectest;
 use spectest::instantiate_spectest;
-use wasminspect_core::interpreter::{ModuleIndex, WasmError, WasmInstance, WasmValue};
+use wasminspect_core::vm::{ModuleIndex, WasmError, WasmInstance, WasmValue};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,

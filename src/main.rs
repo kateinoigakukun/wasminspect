@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use wasminspect_core::interpreter::{WasmInstance, WasmValue};
+use wasminspect_core::vm::{WasmInstance, WasmValue};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
