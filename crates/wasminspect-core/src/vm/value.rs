@@ -336,24 +336,38 @@ impl std::fmt::Display for Error {
     }
 }
 
-macro_rules! impl_try_wrapping_div {
+macro_rules! impl_try_wrapping {
     ($type:ty, $orig:ty) => {
         impl $type {
             pub fn try_wrapping_div(this: $orig, another: $orig) -> Result<$orig, Error> {
                 if another == 0 {
                     Err(Error::ZeroDivision)
                 } else {
-                    Ok(this.wrapping_div(another))
+                    let (result, overflow) = this.overflowing_div(another);
+                    if overflow {
+                        Err(Error::IntegerOverflow)
+                    } else {
+                        Ok(result)
+                    }
                 }
             }
+
+            pub fn try_wrapping_rem(this: $orig, another: $orig) -> Result<$orig, Error> {
+                if another == 0 {
+                    Err(Error::ZeroDivision)
+                } else {
+                    Ok(this.wrapping_rem(another))
+                }
+            }
+
         }
     };
 }
 
-impl_try_wrapping_div!(I32, i32);
-impl_try_wrapping_div!(I64, i64);
-impl_try_wrapping_div!(U32, u32);
-impl_try_wrapping_div!(U64, u64);
+impl_try_wrapping!(I32, i32);
+impl_try_wrapping!(I64, i64);
+impl_try_wrapping!(U32, u32);
+impl_try_wrapping!(U64, u64);
 
 macro_rules! impl_min_max {
     ($type:ty, $orig:ty) => {
