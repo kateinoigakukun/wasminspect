@@ -80,7 +80,11 @@ impl TableInstance {
 
 #[derive(Debug)]
 pub enum Error {
-    AccessOutOfBounds(/* try to access */ Option<usize>, /* memory size */ usize),
+    AccessOutOfBounds(
+        /* try to access */ Option<usize>,
+        /* memory size */ usize,
+    ),
+    UninitializedElement(usize),
 }
 
 impl std::fmt::Display for Error {
@@ -96,6 +100,9 @@ impl std::fmt::Display for Error {
                 "undefined element, try to access over size of usize but size of memory is {}",
                 size
             ),
+            Self::UninitializedElement(addr) => {
+                write!(f, "uninitialized element, try to access {}", addr)
+            }
         }
     }
 }
@@ -119,16 +126,10 @@ impl DefinedTableInstance {
         {
             if let Some(max_addr) = offset.checked_add(data.len()) {
                 if max_addr > self.buffer_len() {
-                    return Err(Error::AccessOutOfBounds(
-                        Some(max_addr),
-                        self.buffer_len(),
-                    ));
+                    return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
                 }
             } else {
-                return Err(Error::AccessOutOfBounds(
-                    None,
-                    self.buffer_len(),
-                ));
+                return Err(Error::AccessOutOfBounds(None, self.buffer_len()));
             }
         }
         for (index, func_addr) in data.into_iter().enumerate() {
@@ -145,7 +146,8 @@ impl DefinedTableInstance {
         self.buffer
             .get(index)
             .ok_or(Error::AccessOutOfBounds(Some(index), self.buffer_len()))
-            .map(|addr| addr.unwrap().clone())
+            .and_then(|addr| addr.ok_or(Error::UninitializedElement(index)))
+            .map(|addr| addr.clone())
     }
 }
 
