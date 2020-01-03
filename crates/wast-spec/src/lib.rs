@@ -6,6 +6,7 @@ use std::str;
 mod spectest;
 use spectest::instantiate_spectest;
 use wasminspect_core::vm::{ModuleIndex, WasmError, WasmInstance, WasmValue};
+use wasmi_validation::{validate_module, PlainValidator};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -29,7 +30,9 @@ impl WastContext {
     }
 
     pub fn instantiate(&self, bytes: &[u8]) -> Result<parity_wasm::elements::Module> {
-        parity_wasm::deserialize_buffer(&bytes).with_context(|| anyhow!("Failed to parse wasm"))
+        let module = parity_wasm::deserialize_buffer(&bytes).with_context(|| anyhow!("Failed to parse wasm"))?;
+        validate_module::<PlainValidator>(&module).with_context(|| anyhow!("Invalid module"))?;
+        Ok(module)
     }
     fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
         let module = self.instantiate(&bytes)?;
