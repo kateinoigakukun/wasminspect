@@ -29,15 +29,33 @@ impl WastContext {
         self.run_buffer(path.to_str().unwrap(), &bytes)
     }
 
-    pub fn instantiate(&self, bytes: &[u8]) -> Result<parity_wasm::elements::Module> {
+    pub fn instantiate(
+        &self,
+        bytes: &[u8],
+        ignore_validation: bool,
+    ) -> Result<parity_wasm::elements::Module> {
         let module = parity_wasm::deserialize_buffer(&bytes)
             .with_context(|| anyhow!("Failed to parse wasm"))?;
-        validate_module::<PlainValidator>(&module)
-            .map_err(|e| anyhow!("validation error: {}", e))?;
-        Ok(module)
+        match validate_module::<PlainValidator>(&module)
+            .map_err(|e| anyhow!("validation error: {}", e))
+        {
+            Err(err) => {
+                if ignore_validation {
+                    Ok(module)
+                } else {
+                    Err(err)
+                }
+            }
+            Ok(_) => Ok(module),
+        }
     }
-    fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
-        let module = self.instantiate(&bytes)?;
+    fn module(
+        &mut self,
+        module_name: Option<&str>,
+        bytes: &[u8],
+        ignore_validation: bool,
+    ) -> Result<()> {
+        let module = self.instantiate(&bytes, ignore_validation)?;
         let module_index = self
             .instance
             .load_module_from_parity_module(module_name.map(|n| n.to_string()), module)
@@ -72,7 +90,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name()), &bytes)
+                    self.module(module.name.map(|s| s.name()), &bytes, true)
                         .with_context(|| context(module.span))?;
                 }
                 Register {
@@ -132,7 +150,7 @@ impl WastContext {
                         wast::QuoteModule::Quote(_) => return Ok(()),
                     };
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes) {
+                    let err = match self.module(None, &bytes, false) {
                         Ok(()) => {
                             panic!("{}\nexpected module to fail to instantiate", context(span))
                         }
@@ -155,7 +173,7 @@ impl WastContext {
                     message,
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes) {
+                    let err = match self.module(None, &bytes, false) {
                         Ok(()) => panic!("{}\nexpected module to fail to link", context(span)),
                         Err(e) => e,
                     };
@@ -189,7 +207,7 @@ impl WastContext {
                     message,
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes) {
+                    let err = match self.module(None, &bytes, false) {
                         Ok(()) => panic!("{}\nexpected module to fail to build", context(span)),
                         Err(e) => e,
                     };
@@ -223,9 +241,7 @@ impl WastContext {
                                 };
                             }
                         }
-                        Err(t) => {
-                            bail!("{}\nunexpected trap: {}", context(span), t)
-                        }
+                        Err(t) => bail!("{}\nunexpected trap: {}", context(span), t),
                     }
                 }
                 AssertReturnArithmeticNan { span, invoke } => {
@@ -247,9 +263,7 @@ impl WastContext {
                                 };
                             }
                         }
-                        Err(t) => {
-                            bail!("{}\nunexpected trap: {}", context(span), t)
-                        }
+                        Err(t) => bail!("{}\nunexpected trap: {}", context(span), t),
                     }
                 }
                 other => panic!("unsupported"),
@@ -308,7 +322,7 @@ impl WastContext {
             }
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
-                let module = self.instantiate(&binary)?;
+                let module = self.instantiate(&binary, false)?;
                 self.instance.load_module_from_parity_module(None, module);
                 Ok(Ok(Vec::new()))
             }
