@@ -416,7 +416,7 @@ impl Store {
         {
             let found = match module {
                 ModuleInstance::Defined(defined) => defined.exported_table(name.clone()).is_some(),
-                ModuleInstance::Host(host) => host.memory_by_name(name.clone()).is_some(),
+                ModuleInstance::Host(host) => host.table_by_name(name.clone()).is_some(),
             };
             if !found {
                 return Err(Error::UndefinedTable(
