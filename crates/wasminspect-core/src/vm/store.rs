@@ -115,6 +115,7 @@ pub enum Error {
     FailedEntryFunction(WasmError),
     IncompatibleImportFuncType(FunctionType, FunctionType),
     IncompatibleImportGlobalType(ValueType, ValueType),
+    IncompatibleImportGlobalMutability,
     IncompatibleImportTableType,
     IncompatibleImportMemoryType,
 }
@@ -160,6 +161,7 @@ impl std::fmt::Display for Error {
                 "incompatible import type, expected {:?} but got {:?}",
                 expected, actual
             ),
+            Self::IncompatibleImportGlobalMutability => write!(f, "incompatible import type"),
             Self::IncompatibleImportTableType => write!(f, "incompatible import type"),
             Self::IncompatibleImportMemoryType => write!(f, "incompatible import type"),
         }
@@ -541,6 +543,9 @@ impl Store {
             };
             let actual_global_ty = actual_global.borrow().ty().content_type().clone();
             let expected_global_ty = global_ty.content_type().clone();
+            if actual_global.borrow().is_mutable() != global_ty.is_mutable() {
+                return Err(Error::IncompatibleImportGlobalMutability);
+            }
             if actual_global_ty != expected_global_ty {
                 return Err(Error::IncompatibleImportGlobalType(
                     actual_global_ty,

@@ -59,28 +59,28 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         "global_i32".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::I32(666),
-            GlobalType::new(ValueType::I32, true),
+            GlobalType::new(ValueType::I32, false),
         )),
     );
     module.insert(
         "global_i64".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::I64(666),
-            GlobalType::new(ValueType::I64, true),
+            GlobalType::new(ValueType::I64, false),
         )),
     );
     module.insert(
         "global_f32".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::F32(f32::from_bits(0x44268000)),
-            GlobalType::new(ValueType::F32, true),
+            GlobalType::new(ValueType::F32, false),
         )),
     );
     module.insert(
         "global_f64".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::F64(f64::from_bits(0x4084d00000000000)),
-            GlobalType::new(ValueType::F64, true),
+            GlobalType::new(ValueType::F64, false),
         )),
     );
 
