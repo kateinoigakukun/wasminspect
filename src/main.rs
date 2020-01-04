@@ -1,5 +1,6 @@
 use clap::{App, Arg};
 use wasminspect_core::vm::{WasmInstance, WasmValue};
+use wasminspect_cli;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -34,22 +35,23 @@ fn main() {
         .map(|c| c.collect())
         .unwrap_or(vec![]);
     if let Some(path) = matches.value_of("file") {
-        let mut instance = WasmInstance::new();
-        let module_index = instance
-            .load_module_from_file(None, path.to_string())
-            .ok()
-            .unwrap();
-        match instance.run(
-            module_index,
-            func,
-            arguments
-                .iter()
-                .map(|s| WasmValue::I32(s.parse().unwrap()))
-                .collect(),
-        ) {
-            Ok(result) => println!("1 + 2 = {:?}", result[0]),
-            Err(err) => panic!("{}", err),
-        }
+        wasminspect_cli::process::run_loop();
+        // let mut instance = WasmInstance::new();
+        // let module_index = instance
+        //     .load_module_from_file(None, path.to_string())
+        //     .ok()
+        //     .unwrap();
+        // match instance.run(
+        //     module_index,
+        //     func,
+        //     arguments
+        //         .iter()
+        //         .map(|s| WasmValue::I32(s.parse().unwrap()))
+        //         .collect(),
+        // ) {
+        //     Ok(result) => println!("1 + 2 = {:?}", result[0]),
+        //     Err(err) => panic!("{}", err),
+        // }
     } else {
         eprintln!("error: wasm file is required");
         let _ = app.print_long_help();
