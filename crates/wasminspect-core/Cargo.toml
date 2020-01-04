@@ -6,3 +6,5 @@ edition = "2018"
 
 [dependencies]
 parity-wasm = "0.41"
+thiserror = "1.0.9"
+anyhow = "1.0.26"
