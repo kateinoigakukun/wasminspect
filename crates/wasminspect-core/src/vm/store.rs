@@ -116,6 +116,7 @@ pub enum Error {
     IncompatibleImportFuncType(FunctionType, FunctionType),
     IncompatibleImportGlobalType(ValueType, ValueType),
     IncompatibleImportTableType,
+    IncompatibleImportMemoryType,
 }
 
 impl std::fmt::Display for Error {
@@ -159,7 +160,8 @@ impl std::fmt::Display for Error {
                 "incompatible import type, expected {:?} but got {:?}",
                 expected, actual
             ),
-            Self::IncompatibleImportTableType => write!(f, "incompatible import type",),
+            Self::IncompatibleImportTableType => write!(f, "incompatible import type"),
+            Self::IncompatibleImportMemoryType => write!(f, "incompatible import type"),
         }
     }
 }
@@ -395,23 +397,48 @@ impl Store {
         );
         // Validation
         {
+            let err = || {
+                Error::UndefinedMemory(
+                    import.module().clone().to_string(),
+                    import.field().clone().to_string(),
+                )
+            };
             let name = import.field().to_string();
             let module = self.module_by_name(import.module().to_string());
-            let found = match module {
-                ModuleInstance::Defined(defined) => defined
-                    .exported_memory(name.clone())
-                    .map_err(Error::InvalidImport)?
-                    .is_some(),
-                ModuleInstance::Host(host) => host
-                    .memory_by_name(name.clone())
-                    .map_err(Error::InvalidHostImport)
-                    .map(|m| m.is_some())?,
+            let (initial, max) = match module {
+                ModuleInstance::Defined(defined) => {
+                    let addr = defined
+                        .exported_memory(name.clone())
+                        .map_err(Error::InvalidImport)?
+                        .ok_or(err())?
+                        .clone();
+                    let mem = self.memory(addr).clone();
+                    let initial = mem.borrow().initial();
+                    let max = mem.borrow().max();
+                    (initial, max)
+                }
+                ModuleInstance::Host(host) => {
+                    let mem = host
+                        .memory_by_name(name.clone())
+                        .map_err(Error::InvalidHostImport)?
+                        .ok_or(err())?
+                        .clone();
+                    let initial = mem.borrow().initial;
+                    let max = mem.borrow().max;
+                    (initial, max)
+                }
             };
-            if !found {
-                return Err(Error::UndefinedMemory(
-                    import.module().clone().to_string(),
-                    name.clone(),
-                ));
+            if initial < memory_ty.limits().initial() as usize {
+                return Err(Error::IncompatibleImportMemoryType);
+            }
+            match (max, memory_ty.limits().maximum()) {
+                (Some(found), Some(expected)) => {
+                    if found > expected as usize {
+                        return Err(Error::IncompatibleImportMemoryType);
+                    }
+                }
+                (None, Some(_)) => return Err(Error::IncompatibleImportMemoryType),
+                _ => (),
             }
         }
         let map = self.mems.entry(module_index).or_insert(Vec::new());

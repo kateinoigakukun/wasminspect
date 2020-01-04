@@ -9,7 +9,7 @@ pub enum MemoryInstance {
 }
 
 impl MemoryInstance {
-    fn resolve_memory_instance(
+    pub fn resolve_memory_instance(
         &self,
         store: &Store,
     ) -> std::rc::Rc<std::cell::RefCell<DefinedMemoryInstance>> {
@@ -60,11 +60,26 @@ impl MemoryInstance {
     pub fn load_as<T: FromLittleEndian>(&self, offset: usize, store: &Store) -> Result<T> {
         self.resolve_memory_instance(store).borrow().load_as(offset)
     }
+
+    pub fn max(&self) -> Option<usize> {
+        match self {
+            MemoryInstance::Defined(d) => d.borrow().max,
+            MemoryInstance::External(e) => e.limit.maximum().map(|s| s as usize),
+        }
+    }
+
+    pub fn initial(&self) -> usize {
+        match self {
+            MemoryInstance::Defined(d) => d.borrow().initial,
+            MemoryInstance::External(e) => e.limit.initial() as usize,
+        }
+    }
 }
 
 pub struct DefinedMemoryInstance {
     data: Vec<u8>,
-    max: Option<usize>,
+    pub max: Option<usize>,
+    pub initial: usize,
 }
 
 pub struct ExternalMemoryInstance {
@@ -115,6 +130,7 @@ impl DefinedMemoryInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
             data: std::iter::repeat(0).take(initial * PAGE_SIZE).collect(),
+            initial,
             max: maximum,
         }
     }
