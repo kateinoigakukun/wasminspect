@@ -2,9 +2,7 @@ mod commands;
 mod debugger;
 mod process;
 
-use std::collections::HashMap;
 use std::env;
-use std::io;
 
 fn history_file_path() -> String {
     format!(
@@ -13,13 +11,14 @@ fn history_file_path() -> String {
     )
 }
 
-pub fn run_loop() -> io::Result<()> {
-    let debugger = debugger::MainDebugger::new();
+pub fn run_loop(file: Option<String>) -> Result<(), String> {
+    let debugger = debugger::MainDebugger::new(file)?;
     let mut process = process::Process::new(
         debugger,
         vec![Box::new(commands::run::RunCommand::new())],
         &history_file_path(),
-    )?;
-    process.run_loop()?;
+    )
+    .map_err(|e| format!("{}", e))?;
+    process.run_loop().map_err(|e| format!("{}", e))?;
     Ok(())
 }

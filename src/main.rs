@@ -14,7 +14,7 @@ fn main() {
             ::std::process::exit(1);
         }
     };
-    match wasminspect_cli::run_loop() {
+    match wasminspect_cli::run_loop(matches.value_of("file").map(|s| s.to_string())) {
         Err(err) => eprintln!("{}", err),
         _ => {}
     }

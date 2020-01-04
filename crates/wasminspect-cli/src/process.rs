@@ -46,7 +46,6 @@ impl<D: Debugger> Process<D> {
                 self.interface.add_history_unique(line.clone());
             }
             let cmd_name = extract_command_name(&line);
-            let cmd = &self.commands.get(cmd_name);
             if let Some(cmd) = self.commands.get(cmd_name) {
                 let args = line.split_whitespace();
                 match cmd.run(&mut self.debugger, args.collect()) {
