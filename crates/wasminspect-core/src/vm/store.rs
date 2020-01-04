@@ -176,8 +176,6 @@ impl Store {
         mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs)?);
         let types = types.iter().map(|ty| ty.clone()).collect();
 
-        let start_section = parity_module.start_section().clone();
-
         let instance = DefinedModuleInstance::new_from_parity_module(
             parity_module,
             module_index,
@@ -189,11 +187,6 @@ impl Store {
             self.module_index_by_name.insert(name, module_index);
         }
 
-        if let Some(start_section) = start_section {
-            let func_addr = FuncAddr(module_index, start_section as usize);
-            // TODO: Handle result
-            invoke_func(func_addr, vec![], self).map_err(Error::FailedEntryFunction)?;
-        }
         Ok(module_index)
     }
     pub fn load_parity_module(
@@ -202,8 +195,15 @@ impl Store {
         parity_module: parity_wasm::elements::Module,
     ) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
+        let start_section = parity_module.start_section().clone();
+
         let result: Result<ModuleIndex> =
             self.load_parity_module_internal(name.clone(), parity_module, module_index);
+        if let Some(start_section) = start_section {
+            let func_addr = FuncAddr(module_index, start_section as usize);
+            // TODO: Handle result
+            invoke_func(func_addr, vec![], self).map_err(Error::FailedEntryFunction)?;
+        }
         match result {
             Ok(ok) => Ok(ok),
             Err(err) => {
