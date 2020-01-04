@@ -11,7 +11,9 @@ use super::memory;
 use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
 use super::module;
 use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
-use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
+use super::table::{
+    resolve_table_instance, DefinedTableInstance, ExternalTableInstance, TableInstance,
+};
 use super::utils::*;
 use super::value::Value;
 use parity_wasm;
@@ -113,6 +115,7 @@ pub enum Error {
     FailedEntryFunction(WasmError),
     IncompatibleImportFuncType(FunctionType, FunctionType),
     IncompatibleImportGlobalType(ValueType, ValueType),
+    IncompatibleImportTableType,
 }
 
 impl std::fmt::Display for Error {
@@ -156,6 +159,7 @@ impl std::fmt::Display for Error {
                 "incompatible import type, expected {:?} but got {:?}",
                 expected, actual
             ),
+            Self::IncompatibleImportTableType => write!(f, "incompatible import type",),
         }
     }
 }
@@ -431,21 +435,38 @@ impl Store {
         let module = self.module_by_name(import.module().to_string());
         // Validation
         {
+            let err = || {
+                Error::UndefinedTable(
+                    import.module().clone().to_string(),
+                    import.field().clone().to_string(),
+                )
+            };
             let found = match module {
-                ModuleInstance::Defined(defined) => defined
-                    .exported_table(name.clone())
-                    .map_err(Error::InvalidImport)?
-                    .is_some(),
+                ModuleInstance::Defined(defined) => {
+                    let addr = defined
+                        .exported_table(name.clone())
+                        .map_err(Error::InvalidImport)?
+                        .ok_or(err())?
+                        .clone();
+                    resolve_table_instance(addr, self)
+                }
                 ModuleInstance::Host(host) => host
                     .table_by_name(name.clone())
-                    .map_err(Error::InvalidHostImport)
-                    .map(|m| m.is_some())?,
+                    .map_err(Error::InvalidHostImport)?
+                    .ok_or(err())?
+                    .clone(),
             };
-            if !found {
-                return Err(Error::UndefinedTable(
-                    import.module().clone().to_string(),
-                    name.clone(),
-                ));
+            if found.borrow().initial < table_ty.limits().initial() as usize {
+                return Err(Error::IncompatibleImportTableType);
+            }
+            match (found.clone().borrow().max, table_ty.limits().maximum()) {
+                (Some(found), Some(expected)) => {
+                    if found > expected as usize {
+                        return Err(Error::IncompatibleImportTableType);
+                    }
+                }
+                (None, Some(_)) => return Err(Error::IncompatibleImportTableType),
+                _ => (),
             }
         }
         let map = self.tables.entry(module_index).or_insert(Vec::new());
@@ -586,7 +607,9 @@ impl Store {
                     );
                     let map = self.tables.entry(module_index).or_insert(Vec::new());
                     let table_index = map.len();
-                    map.push(Rc::new(RefCell::new(TableInstance::Defined(instance))));
+                    map.push(Rc::new(RefCell::new(TableInstance::Defined(Rc::new(
+                        RefCell::new(instance),
+                    )))));
                     table_addrs.push(TableAddr(module_index, table_index));
                 }
             }

@@ -1,11 +1,39 @@
-use super::address::FuncAddr;
+use super::address::{FuncAddr, TableAddr};
 use super::module::ModuleInstance;
 use super::store::Store;
 use parity_wasm::elements::ResizableLimits;
 
 pub enum TableInstance {
-    Defined(DefinedTableInstance),
+    Defined(std::rc::Rc<std::cell::RefCell<DefinedTableInstance>>),
     External(ExternalTableInstance),
+}
+
+pub fn resolve_table_instance(
+    addr: TableAddr,
+    store: &Store,
+) -> std::rc::Rc<std::cell::RefCell<DefinedTableInstance>> {
+    match &*store.table(addr).borrow() {
+        TableInstance::Defined(defined) => defined.clone(),
+        TableInstance::External(external) => {
+            let module = store.module_by_name(external.module_name.clone());
+            match module {
+                ModuleInstance::Defined(defined_module) => {
+                    let addr = defined_module
+                        .exported_table(external.name.clone())
+                        .ok()
+                        .unwrap()
+                        .unwrap();
+                    resolve_table_instance(addr, store)
+                }
+                ModuleInstance::Host(host_module) => host_module
+                    .table_by_name(external.name.clone())
+                    .ok()
+                    .unwrap()
+                    .unwrap()
+                    .clone(),
+            }
+        }
+    }
 }
 
 impl TableInstance {
@@ -16,7 +44,7 @@ impl TableInstance {
         store: &mut Store,
     ) -> Result<()> {
         match self {
-            Self::Defined(defined) => defined.initialize(offset, data),
+            Self::Defined(defined) => defined.borrow_mut().initialize(offset, data),
             Self::External(external) => {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
@@ -41,7 +69,7 @@ impl TableInstance {
 
     pub fn buffer_len(&self, store: &Store) -> usize {
         match self {
-            Self::Defined(defined) => defined.buffer_len(),
+            Self::Defined(defined) => defined.borrow().buffer_len(),
             Self::External(external) => {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
@@ -63,7 +91,7 @@ impl TableInstance {
 
     pub fn get_at(&self, index: usize, store: &Store) -> Result<FuncAddr> {
         match self {
-            Self::Defined(defined) => defined.get_at(index),
+            Self::Defined(defined) => defined.borrow().get_at(index),
             Self::External(external) => {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
@@ -117,13 +145,15 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub struct DefinedTableInstance {
     buffer: Vec<Option<FuncAddr>>,
-    max: Option<usize>,
+    pub max: Option<usize>,
+    pub initial: usize,
 }
 
 impl DefinedTableInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
             buffer: std::iter::repeat(None).take(initial).collect(),
+            initial,
             max: maximum,
         }
     }
