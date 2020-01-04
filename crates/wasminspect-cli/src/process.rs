@@ -2,19 +2,22 @@ use super::commands::command::{self, Command};
 use super::commands::debugger::Debugger;
 use linefeed::{DefaultTerminal, Interface, ReadResult};
 use std::collections::HashMap;
-use std::io::{self, Write};
+use std::io;
 
 pub struct Process<D: Debugger> {
     interface: Interface<DefaultTerminal>,
     debugger: D,
-    commands: HashMap<String, Command<D>>,
+    commands: HashMap<String, Box<dyn Command<D>>>,
 
     history_file: String,
 }
 
 impl<D: Debugger> Process<D> {
-
-    pub fn new(debugger: D, commands: HashMap<String, Command<D>>, history_file: &str) -> io::Result<Self> {
+    pub fn new(
+        debugger: D,
+        commands: Vec<Box<dyn Command<D>>>,
+        history_file: &str,
+    ) -> io::Result<Self> {
         let interface = Interface::new("wasminspect")?;
 
         interface.set_prompt("(wasminspect) ")?;
@@ -25,10 +28,14 @@ impl<D: Debugger> Process<D> {
                 eprintln!("Could not load history file {}: {}", history_file, e);
             }
         }
+        let mut cmd_map = HashMap::new();
+        for cmd in commands {
+            cmd_map.insert(cmd.name().to_string(), cmd);
+        }
         Ok(Self {
             interface,
             debugger,
-            commands,
+            commands: cmd_map,
             history_file: history_file.to_string(),
         })
     }
@@ -38,9 +45,11 @@ impl<D: Debugger> Process<D> {
             if !line.trim().is_empty() {
                 self.interface.add_history_unique(line.clone());
             }
-            let (cmd_name, args) = split_first_word(&line);
+            let cmd_name = extract_command_name(&line);
+            let cmd = &self.commands.get(cmd_name);
             if let Some(cmd) = self.commands.get(cmd_name) {
-                match cmd.run(&mut self.debugger, args) {
+                let args = line.split_whitespace();
+                match cmd.run(&mut self.debugger, args.collect()) {
                     Ok(()) => (),
                     Err(command::Error::Command(message)) => {
                         eprintln!("{}", message);
@@ -54,12 +63,12 @@ impl<D: Debugger> Process<D> {
     }
 }
 
-fn split_first_word(s: &str) -> (&str, &str) {
+fn extract_command_name(s: &str) -> &str {
     let s = s.trim();
 
     match s.find(|ch: char| ch.is_whitespace()) {
-        Some(pos) => (&s[..pos], s[pos..].trim_start()),
-        None => (s, ""),
+        Some(pos) => &s[..pos],
+        None => s,
     }
 }
 

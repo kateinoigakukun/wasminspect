@@ -4,26 +4,7 @@ pub enum Error {
     Command(String),
 }
 
-pub struct Command<D>
-where
-    D: Debugger,
-{
-    runner: Box<dyn Fn(&mut D) -> Result<(), Error>>,
-}
-
-impl<D> Command<D>
-where
-    D: Debugger,
-{
-    pub fn new<F>(runner: F) -> Self
-    where
-        F: Fn(&mut D) -> Result<(), Error> + 'static,
-    {
-        Self {
-            runner: Box::new(runner),
-        }
-    }
-    pub fn run(&self, debugger: &mut D, args: &str) -> Result<(), Error> {
-        (*self.runner)(debugger)
-    }
+pub trait Command<D: Debugger> {
+    fn name(&self) -> &str;
+    fn run(&self, debugger: &mut D, args: Vec<&str>) -> Result<(), Error>;
 }
