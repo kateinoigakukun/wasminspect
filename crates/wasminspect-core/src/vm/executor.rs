@@ -47,6 +47,7 @@ impl std::fmt::Display for Trap {
                 expected, actual
             ),
             Self::UndefinedFunc(addr) => write!(f, "uninitialized func at {:?}", addr),
+            Self::Unreachable => write!(f, "unreachable"),
             _ => write!(f, "{:?}", self),
         }
     }

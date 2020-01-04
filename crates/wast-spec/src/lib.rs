@@ -291,7 +291,7 @@ impl WastContext {
         &mut self,
         instance_name: Option<&str>,
         field: &str,
-    ) -> Result<Result<Vec<WasmValue>, WasmError>> {
+    ) -> Result<Result<Vec<WasmValue>>> {
         let module_index = self.get_instance(instance_name.as_ref().map(|x| &**x));
         match self
             .instance
@@ -316,21 +316,22 @@ impl WastContext {
             .run(module_index, Some(func_name.to_string()), args);
     }
 
-    fn perform_execute(
-        &mut self,
-        exec: wast::WastExecute<'_>,
-    ) -> Result<Result<Vec<WasmValue>, WasmError>> {
+    fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Result<Vec<WasmValue>>> {
         match exec {
-            wast::WastExecute::Invoke(i) => {
-                Ok(self.invoke(i.module.map(|s| s.name()), i.name, &i.args))
-            }
+            wast::WastExecute::Invoke(i) => Ok(self
+                .invoke(i.module.map(|s| s.name()), i.name, &i.args)
+                .map_err(|e| anyhow!("{}", e))),
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
                 let module = self.instantiate(&binary, false)?;
-                self.instance.load_module_from_parity_module(None, module);
-                Ok(Ok(Vec::new()))
+                Ok(self
+                    .instance
+                    .load_module_from_parity_module(None, module)
+                    .map(|_| vec![])
+                    .map_err(|e| anyhow!("{}", e)))
             }
-            wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
+            wast::WastExecute::Get { module, global } => self
+                .get(module.map(|s| s.name()), global)
         }
     }
 }

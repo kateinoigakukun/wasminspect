@@ -34,6 +34,10 @@ impl MemoryInstance {
         }
     }
 
+    pub fn validate_region(&self, offset: usize, size: usize, store: &Store) -> Result<()> {
+        self.resolve_memory_instance(store).borrow_mut().validate_region(offset, size)
+    }
+
     pub fn grow(&mut self, n: usize, store: &Store) -> Result<()> {
         self.resolve_memory_instance(store).borrow_mut().grow(n)
     }
@@ -114,7 +118,7 @@ impl DefinedMemoryInstance {
         }
     }
 
-    fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
+    pub fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
         if let Some(max_addr) = offset.checked_add(size) {
             if max_addr > self.data_len() {
                 return Err(Error::AccessOutOfBounds(Some(max_addr), self.data_len()));

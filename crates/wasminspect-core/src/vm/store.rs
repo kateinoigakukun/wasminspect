@@ -415,7 +415,7 @@ impl Store {
         // Validation
         {
             let found = match module {
-                ModuleInstance::Defined(defined) => defined.exported_memory(name.clone()).is_some(),
+                ModuleInstance::Defined(defined) => defined.exported_table(name.clone()).is_some(),
                 ModuleInstance::Host(host) => host.memory_by_name(name.clone()).is_some(),
             };
             if !found {
@@ -623,6 +623,7 @@ impl Store {
 
         let mems = self.mems.entry(module_index).or_insert(Vec::new()).clone();
 
+        let mut offsets_and_value = Vec::new();
         for (index, mem) in mems.iter().enumerate() {
             if let Some(segs) = data_segments.get(&index) {
                 for seg in segs {
@@ -635,11 +636,18 @@ impl Store {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
-                    mem.borrow_mut()
-                        .store(offset as usize, seg.value(), self)
+                    mem.borrow()
+                        .validate_region(offset as usize, seg.value().len(), self)
                         .map_err(Error::InvalidDataSegments)?;
+                    offsets_and_value.push((mem, offset, seg.value()));
                 }
             }
+        }
+
+        for (mem, offset, value) in offsets_and_value {
+            mem.borrow_mut()
+                .store(offset as usize, value, self)
+                .map_err(Error::InvalidDataSegments)?;
         }
         Ok(mem_addrs)
     }
