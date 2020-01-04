@@ -14,7 +14,7 @@ use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::utils::*;
 use super::value::Value;
 use parity_wasm;
-use parity_wasm::elements::{FunctionType, GlobalType};
+use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -109,7 +109,7 @@ pub enum Error {
     UndefinedGlobal(String, String),
     FailedEntryFunction(WasmError),
     IncompatibleImportFuncType(FunctionType, FunctionType),
-    IncompatibleImportGlobalType(GlobalType, GlobalType),
+    IncompatibleImportGlobalType(ValueType, ValueType),
 }
 
 impl std::fmt::Display for Error {
@@ -461,11 +461,12 @@ impl Store {
                     ModuleInstance::Host(host) => host.global_by_name(name).ok_or(err())?.clone(),
                 }
             };
-            let actual_global_ty = actual_global.borrow().ty().clone();
-            if actual_global_ty != global_ty.clone() {
+            let actual_global_ty = actual_global.borrow().ty().content_type().clone();
+            let expected_global_ty = global_ty.content_type().clone();
+            if actual_global_ty != expected_global_ty {
                 return Err(Error::IncompatibleImportGlobalType(
                     actual_global_ty,
-                    global_ty.clone(),
+                    expected_global_ty,
                 ));
             }
         };

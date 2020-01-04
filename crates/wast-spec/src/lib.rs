@@ -95,7 +95,7 @@ impl WastContext {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
                     self.module(module.name.map(|s| s.name()), &bytes, true)
-                        .with_context(|| context(module.span))?;
+                        .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
                 }
                 Register {
                     span: _,
