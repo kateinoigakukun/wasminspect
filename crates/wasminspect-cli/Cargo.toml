@@ -9,3 +9,5 @@ wasminspect-core = { path = "../wasminspect-core" }
 wasmi-validation = "0.3.0"
 linefeed = "0.6.0"
 clap = "2.33.0"
+thiserror = "1.0.9"
+anyhow = "1.0.26"

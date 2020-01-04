@@ -1,5 +1,6 @@
 use super::commands::debugger;
 use wasminspect_core::vm::{ModuleIndex, WasmInstance, WasmValue};
+use anyhow::Result;
 
 pub struct MainDebugger {
     instance: WasmInstance,
@@ -10,9 +11,11 @@ impl MainDebugger {
     pub fn new(file: Option<String>) -> Result<Self, String> {
         let mut instance = WasmInstance::new();
         let module_index = if let Some(file) = file {
-        Some(instance
-            .load_module_from_file(None, file)
-            .map_err(|err| format!("{}", err))?)
+            Some(
+                instance
+                    .load_module_from_file(None, file)
+                    .map_err(|err| format!("{}", err))?,
+            )
         } else {
             None
         };

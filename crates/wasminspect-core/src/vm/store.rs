@@ -7,20 +7,19 @@ use super::global::{
     resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,
 };
 use super::host::HostValue;
-use super::memory;
-use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
-use super::module;
-use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
+use super::memory::{self, DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
+use super::module::{self, DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{
-    resolve_table_instance, DefinedTableInstance, ExternalTableInstance, TableInstance,
+    self, resolve_table_instance, DefinedTableInstance, ExternalTableInstance, TableInstance,
 };
 use super::utils::*;
 use super::value::Value;
-use parity_wasm;
 use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use thiserror::Error;
 
 /// Store
 pub struct Store {
@@ -101,7 +100,6 @@ impl Store {
     }
 }
 
-use super::table;
 pub enum Error {
     InvalidElementSegments(table::Error),
     InvalidDataSegments(memory::Error),
