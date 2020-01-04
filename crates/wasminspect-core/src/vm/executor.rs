@@ -1,8 +1,8 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
+use super::global::*;
 use super::host::*;
 use super::memory;
-use super::global::*;
 use super::memory::MemoryInstance;
 use super::module::*;
 use super::stack;
@@ -834,12 +834,18 @@ pub fn resolve_func_addr(
             let module = store.module_by_name(func.module_name().clone());
             match module {
                 ModuleInstance::Host(host_module) => {
-                    let func = host_module.func_by_name(func.field_name().clone()).unwrap();
+                    let func = host_module
+                        .func_by_name(func.field_name().clone())
+                        .ok()
+                        .unwrap()
+                        .unwrap();
                     return Ok(Either::Right(func));
                 }
                 ModuleInstance::Defined(defined_module) => {
                     let addr = defined_module
                         .exported_func(func.field_name().clone())
+                        .ok()
+                        .unwrap()
                         .unwrap();
                     return resolve_func_addr(addr, store);
                 }

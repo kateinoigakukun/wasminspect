@@ -18,6 +18,17 @@ pub enum HostValue {
     Table(Ref<DefinedTableInstance>),
 }
 
+impl HostValue {
+    pub fn ty(&self) -> &str {
+        match self {
+            Self::Func(_) => "function",
+            Self::Global(_) => "global",
+            Self::Mem(_) => "memory",
+            Self::Table(_) => "table",
+        }
+    }
+}
+
 pub struct HostFuncBody {
     ty: FunctionType,
     code: Box<dyn Fn(&[Value], &mut [Value]) -> Result<(), Trap>>,

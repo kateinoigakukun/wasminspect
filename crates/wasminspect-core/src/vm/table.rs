@@ -21,7 +21,7 @@ impl TableInstance {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
                     ModuleInstance::Defined(defined) => {
-                        let addr = defined.exported_table(external.name.clone());
+                        let addr = defined.exported_table(external.name.clone()).ok().unwrap();
                         store
                             .table(addr.unwrap())
                             .borrow_mut()
@@ -29,6 +29,8 @@ impl TableInstance {
                     }
                     ModuleInstance::Host(host) => host
                         .table_by_name(external.name.clone())
+                        .ok()
+                        .unwrap()
                         .unwrap()
                         .borrow_mut()
                         .initialize(offset, data),
@@ -44,11 +46,13 @@ impl TableInstance {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
                     ModuleInstance::Defined(defined) => {
-                        let addr = defined.exported_table(external.name.clone());
+                        let addr = defined.exported_table(external.name.clone()).ok().unwrap();
                         store.table(addr.unwrap()).borrow().buffer_len(store)
                     }
                     ModuleInstance::Host(host) => host
                         .table_by_name(external.name.clone())
+                        .ok()
+                        .unwrap()
                         .unwrap()
                         .borrow()
                         .buffer_len(),
@@ -64,11 +68,13 @@ impl TableInstance {
                 let module = store.module_by_name(external.module_name.clone());
                 match module {
                     ModuleInstance::Defined(defined) => {
-                        let addr = defined.exported_table(external.name.clone());
+                        let addr = defined.exported_table(external.name.clone()).ok().unwrap();
                         store.table(addr.unwrap()).borrow().get_at(index, store)
                     }
                     ModuleInstance::Host(host) => host
                         .table_by_name(external.name.clone())
+                        .ok()
+                        .unwrap()
                         .unwrap()
                         .borrow()
                         .get_at(index),

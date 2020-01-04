@@ -1,9 +1,9 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
+use super::global::DefinedGlobalInstance;
 use super::host::*;
 use super::memory::DefinedMemoryInstance;
 use super::table::DefinedTableInstance;
-use super::global::DefinedGlobalInstance;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -33,6 +33,24 @@ pub struct DefinedModuleInstance {
     start_func: Option<FuncAddr>,
 }
 
+pub enum DefinedModuleError {
+    TypeMismatch(&'static str, String),
+}
+
+impl std::fmt::Display for DefinedModuleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TypeMismatch(expected, actual) => write!(
+                f,
+                "incompatible import type, expected {} but actual {}",
+                expected, actual
+            ),
+        }
+    }
+}
+
+type DefinedModuleResult<T> = std::result::Result<T, DefinedModuleError>;
+
 impl DefinedModuleInstance {
     pub fn new_from_parity_module(
         module: parity_wasm::elements::Module,
@@ -61,36 +79,60 @@ impl DefinedModuleInstance {
         self.exports.iter().filter(|e| *e.name() == name).next()
     }
 
-    pub fn exported_global(&self, name: String) -> Option<GlobalAddr> {
+    pub fn exported_global(&self, name: String) -> DefinedModuleResult<Option<GlobalAddr>> {
         let export = self.exported_by_name(name);
-        export.and_then(|e| match e.value() {
-            ExternalValue::Global(addr) => Some(addr.clone()),
-            _ => None,
-        })
+        match export {
+            Some(e) => match e.value() {
+                ExternalValue::Global(addr) => Ok(Some(addr.clone())),
+                _ => Err(DefinedModuleError::TypeMismatch(
+                    "global",
+                    e.value().ty().to_string(),
+                )),
+            },
+            None => Ok(None),
+        }
     }
 
-    pub fn exported_func(&self, name: String) -> Option<FuncAddr> {
+    pub fn exported_func(&self, name: String) -> DefinedModuleResult<Option<FuncAddr>> {
         let export = self.exported_by_name(name);
-        export.and_then(|e| match e.value() {
-            ExternalValue::Func(addr) => Some(addr.clone()),
-            _ => None,
-        })
+        match export {
+            Some(e) => match e.value() {
+                ExternalValue::Func(addr) => Ok(Some(addr.clone())),
+                _ => Err(DefinedModuleError::TypeMismatch(
+                    "function",
+                    e.value().ty().to_string(),
+                )),
+            },
+            None => Ok(None),
+        }
     }
 
-    pub fn exported_table(&self, name: String) -> Option<TableAddr> {
+    pub fn exported_table(&self, name: String) -> DefinedModuleResult<Option<TableAddr>> {
         let export = self.exported_by_name(name);
-        export.and_then(|e| match e.value() {
-            ExternalValue::Table(addr) => Some(addr.clone()),
-            _ => None,
-        })
+        match export {
+            Some(e) => match e.value() {
+                ExternalValue::Table(addr) => Ok(Some(addr.clone())),
+                _ => Err(DefinedModuleError::TypeMismatch(
+                    "table",
+                    e.value().ty().to_string(),
+                )),
+            },
+            None => Ok(None),
+        }
     }
 
-    pub fn exported_memory(&self, name: String) -> Option<MemoryAddr> {
+    pub fn exported_memory(&self, name: String) -> DefinedModuleResult<Option<MemoryAddr>> {
         let export = self.exported_by_name(name);
-        export.and_then(|e| match e.value() {
-            ExternalValue::Memory(addr) => Some(addr.clone()),
-            _ => None,
-        })
+        match export {
+            Some(e) => match e.value() {
+                ExternalValue::Memory(addr) => Ok(Some(addr.clone())),
+                _ => Err(DefinedModuleError::TypeMismatch(
+                    "memory",
+                    e.value().ty().to_string(),
+                )),
+            },
+            None => Ok(None),
+        }
     }
 
     pub fn start_func_addr(&self) -> &Option<FuncAddr> {
@@ -106,56 +148,70 @@ pub struct HostModuleInstance {
     values: HashMap<String, HostValue>,
 }
 
+pub enum HostModuleError {
+    TypeMismatch(&'static str, String),
+}
+
+impl std::fmt::Display for HostModuleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TypeMismatch(expected, actual) => write!(
+                f,
+                "incompatible import type, expected {} but actual {}",
+                expected, actual
+            ),
+        }
+    }
+}
+
+type HostModuleResult<T> = std::result::Result<T, HostModuleError>;
+
 impl HostModuleInstance {
     pub fn new(values: HashMap<String, HostValue>) -> Self {
         Self { values }
     }
 
-    pub fn global_by_name(&self, name: String) -> Option<&Rc<RefCell<DefinedGlobalInstance>>> {
-        assert!(
-            self.values.contains_key(&name),
-            "Global {} was not loaded",
-            name
-        );
-        match &self.values[&name] {
-            HostValue::Global(global) => Some(global),
-            _ => None,
+    pub fn global_by_name(
+        &self,
+        name: String,
+    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedGlobalInstance>>>> {
+        match &self.values.get(&name) {
+            Some(HostValue::Global(global)) => Ok(Some(global)),
+            Some(v) => Err(HostModuleError::TypeMismatch("global", v.ty().to_string())),
+            _ => Ok(None),
         }
     }
 
-    pub fn func_by_name(&self, name: String) -> Option<&HostFuncBody> {
-        assert!(
-            self.values.contains_key(&name),
-            "Func {} was not loaded",
-            name
-        );
-        match self.values[&name] {
-            HostValue::Func(ref func) => Some(func),
-            _ => None,
+    pub fn func_by_name(&self, name: String) -> HostModuleResult<Option<&HostFuncBody>> {
+        match self.values.get(&name) {
+            Some(HostValue::Func(ref func)) => Ok(Some(func)),
+            Some(v) => Err(HostModuleError::TypeMismatch(
+                "function",
+                v.ty().to_string(),
+            )),
+            _ => Ok(None),
         }
     }
 
-    pub fn table_by_name(&self, name: String) -> Option<&Rc<RefCell<DefinedTableInstance>>> {
-        assert!(
-            self.values.contains_key(&name),
-            "Table {} was not loaded",
-            name
-        );
-        match &self.values[&name] {
-            HostValue::Table(table) => Some(table),
-            _ => None,
+    pub fn table_by_name(
+        &self,
+        name: String,
+    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedTableInstance>>>> {
+        match &self.values.get(&name) {
+            Some(HostValue::Table(table)) => Ok(Some(table)),
+            Some(v) => Err(HostModuleError::TypeMismatch("table", v.ty().to_string())),
+            _ => Ok(None),
         }
     }
 
-    pub fn memory_by_name(&self, name: String) -> Option<&Rc<RefCell<DefinedMemoryInstance>>> {
-        assert!(
-            self.values.contains_key(&name),
-            "Memory {} was not loaded",
-            name
-        );
-        match &self.values[&name] {
-            HostValue::Mem(mem) => Some(mem),
-            _ => None,
+    pub fn memory_by_name(
+        &self,
+        name: String,
+    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedMemoryInstance>>>> {
+        match &self.values.get(&name) {
+            Some(HostValue::Mem(mem)) => Ok(Some(mem)),
+            Some(v) => Err(HostModuleError::TypeMismatch("memory", v.ty().to_string())),
+            _ => Ok(None),
         }
     }
 }

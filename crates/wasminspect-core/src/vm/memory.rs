@@ -20,13 +20,14 @@ impl MemoryInstance {
                 match module {
                     ModuleInstance::Defined(defined_module) => {
                         let addr = defined_module
-                            .exported_memory(external.name.clone())
+                            .exported_memory(external.name.clone()).ok().unwrap()
                             .unwrap();
                         let memory = store.memory(addr);
                         return memory.borrow_mut().resolve_memory_instance(store);
                     }
                     ModuleInstance::Host(host_module) => host_module
                         .memory_by_name(external.name.clone())
+                        .ok().unwrap()
                         .unwrap()
                         .clone(),
                 }

@@ -52,3 +52,14 @@ pub enum ExternalValue {
     Memory(MemoryAddr),
     Table(TableAddr),
 }
+
+impl ExternalValue {
+    pub fn ty(&self) -> &str {
+        match self {
+            Self::Func(_) => "function",
+            Self::Global(_) => "global",
+            Self::Memory(_) => "memory",
+            Self::Table(_) => "table",
+        }
+    }
+}

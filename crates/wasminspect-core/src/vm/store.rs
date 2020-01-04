@@ -9,6 +9,7 @@ use super::global::{
 use super::host::HostValue;
 use super::memory;
 use super::memory::{DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
+use super::module;
 use super::module::{DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{DefinedTableInstance, ExternalTableInstance, TableInstance};
 use super::utils::*;
@@ -60,7 +61,7 @@ impl Store {
         field: &str,
     ) -> Option<Rc<RefCell<GlobalInstance>>> {
         let module = self.module(module_index).defined().unwrap();
-        let global_addr = module.exported_global(field.to_string());
+        let global_addr = module.exported_global(field.to_string()).ok().unwrap();
         global_addr.map(|addr| self.global(addr))
     }
 
@@ -102,6 +103,8 @@ use super::table;
 pub enum Error {
     InvalidElementSegments(table::Error),
     InvalidDataSegments(memory::Error),
+    InvalidHostImport(module::HostModuleError),
+    InvalidImport(module::DefinedModuleError),
     UnknownType(/* type index: */ u32),
     UndefinedFunction(/* module: */ String, /* name: */ String),
     UndefinedMemory(String, String),
@@ -119,10 +122,14 @@ impl std::fmt::Display for Error {
                 write!(f, "elements segment does not fit: {:?}", err)
             }
             Self::InvalidDataSegments(err) => write!(f, "data segment does not fit: {}", err),
+            Self::InvalidHostImport(err) => write!(f, "invalid host import: {}", err),
+            Self::InvalidImport(err) => write!(f, "invalid import: {}", err),
             Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
-            Self::UndefinedFunction(module, name) => {
-                write!(f, "Undefined function \"{}\" in \"{}\"", name, module)
-            }
+            Self::UndefinedFunction(module, name) => write!(
+                f,
+                "unknown import: Undefined function \"{}\" in \"{}\"",
+                name, module
+            ),
             Self::UndefinedMemory(module, name) => write!(
                 f,
                 "unknown import: Undefined memory \"{}\" in \"{}\"",
@@ -342,15 +349,19 @@ impl Store {
                 };
                 match module {
                     ModuleInstance::Defined(defined) => {
-                        let addr = defined.exported_func(name).ok_or(err())?;
+                        let addr = defined
+                            .exported_func(name)
+                            .map_err(Error::InvalidImport)?
+                            .ok_or(err())?;
                         match resolve_func_addr(addr, self).map_err(|_| err())? {
                             Either::Left((_, f)) => f.ty(),
                             Either::Right(f) => f.ty(),
                         }
                     }
-                    ModuleInstance::Host(host) => {
-                        host.func_by_name(name).ok_or(err()).map(|f| f.ty())?
-                    }
+                    ModuleInstance::Host(host) => host
+                        .func_by_name(name)
+                        .map_err(Error::InvalidHostImport)
+                        .and_then(|f| f.ok_or(err()).map(|f| f.ty()))?,
                 }
             };
             if *actual_func_ty != func_ty {
@@ -383,8 +394,14 @@ impl Store {
             let name = import.field().to_string();
             let module = self.module_by_name(import.module().to_string());
             let found = match module {
-                ModuleInstance::Defined(defined) => defined.exported_memory(name.clone()).is_some(),
-                ModuleInstance::Host(host) => host.memory_by_name(name.clone()).is_some(),
+                ModuleInstance::Defined(defined) => defined
+                    .exported_memory(name.clone())
+                    .map_err(Error::InvalidImport)?
+                    .is_some(),
+                ModuleInstance::Host(host) => host
+                    .memory_by_name(name.clone())
+                    .map_err(Error::InvalidHostImport)
+                    .map(|m| m.is_some())?,
             };
             if !found {
                 return Err(Error::UndefinedMemory(
@@ -415,8 +432,14 @@ impl Store {
         // Validation
         {
             let found = match module {
-                ModuleInstance::Defined(defined) => defined.exported_table(name.clone()).is_some(),
-                ModuleInstance::Host(host) => host.table_by_name(name.clone()).is_some(),
+                ModuleInstance::Defined(defined) => defined
+                    .exported_table(name.clone())
+                    .map_err(Error::InvalidImport)?
+                    .is_some(),
+                ModuleInstance::Host(host) => host
+                    .table_by_name(name.clone())
+                    .map_err(Error::InvalidHostImport)
+                    .map(|m| m.is_some())?,
             };
             if !found {
                 return Err(Error::UndefinedTable(
@@ -455,10 +478,17 @@ impl Store {
                 };
                 match module {
                     ModuleInstance::Defined(defined) => {
-                        let addr = defined.exported_global(name).ok_or(err())?;
+                        let addr = defined
+                            .exported_global(name)
+                            .map_err(Error::InvalidImport)?
+                            .ok_or(err())?;
                         resolve_global_instance(addr, self)
                     }
-                    ModuleInstance::Host(host) => host.global_by_name(name).ok_or(err())?.clone(),
+                    ModuleInstance::Host(host) => host
+                        .global_by_name(name)
+                        .map_err(Error::InvalidHostImport)
+                        .and_then(|f| f.ok_or(err()))?
+                        .clone(),
                 }
             };
             let actual_global_ty = actual_global.borrow().ty().content_type().clone();

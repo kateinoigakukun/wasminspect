@@ -58,7 +58,7 @@ impl WasmInstance {
     ) -> Result<Vec<Value>, WasmError> {
         let module = self.store.module(module_index).defined().unwrap();
         let func_addr = if let Some(func_name) = func_name {
-            if let Some(func_addr) = module.exported_func(func_name.clone()) {
+            if let Some(Some(func_addr)) = module.exported_func(func_name.clone()).ok() {
                 func_addr
             } else {
                 return Err(WasmError::EntryFunctionNotFound(func_name.clone()));
