@@ -17,7 +17,9 @@ use super::value::{
 };
 use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
+use std::cell::RefCell;
 use std::ops::*;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Trap {
@@ -69,18 +71,18 @@ pub enum ReturnValError {
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
-pub struct Executor<'a> {
-    store: &'a mut Store,
+pub struct Executor {
+    store: Rc<RefCell<Store>>,
     pc: ProgramCounter,
     stack: Stack,
 }
 
-impl<'a> Executor<'a> {
+impl Executor {
     pub fn new(
         initial_frame: CallFrame,
         initial_arity: usize,
         pc: ProgramCounter,
-        store: &'a mut Store,
+        store: Rc<RefCell<Store>>,
     ) -> Self {
         let mut stack = Stack::default();
         let _ = stack.set_frame(initial_frame);
@@ -100,15 +102,10 @@ impl<'a> Executor<'a> {
         Ok(results)
     }
 
-    pub fn current_func_insts(&self) -> ExecResult<&[Instruction]> {
-        let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
-        let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
-        Ok(&func.defined().unwrap().code().instructions())
-    }
-
     pub fn execute_step(&mut self) -> ExecResult<Signal> {
-        let func = self
-            .store
+        let store = self.store.clone();
+        let store = store.borrow();
+        let func = store
             .func(self.pc.func_addr())
             .ok_or(Trap::UndefinedFunc(self.pc.func_addr()))?
             .defined()
@@ -161,10 +158,15 @@ impl<'a> Executor<'a> {
                     BlockType::NoResult => 0,
                 }));
                 if val == 0 {
+                    let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
+                    let store = self.store.clone();
+                    let store = store.borrow();
+                    let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+                    let insts = func.defined().unwrap().code().instructions();
                     let mut depth = 1;
                     loop {
                         let index = self.pc.inst_index().0 as usize;
-                        match self.current_func_insts()?[index] {
+                        match insts[index] {
                             Instruction::End => depth -= 1,
                             Instruction::Block(_) => depth += 1,
                             Instruction::If(_) => depth += 1,
@@ -190,8 +192,8 @@ impl<'a> Executor<'a> {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-                    let func = self
-                        .store
+                    let store = self.store.borrow();
+                    let func = store
                         .func(frame.func_addr)
                         .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
@@ -252,21 +254,26 @@ impl<'a> Executor<'a> {
                 let (ty, addr) = {
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                     let addr = TableAddr(frame.module_index(), 0);
-                    let module = self.store.module(frame.module_index()).defined().unwrap();
+                    let store = self.store.borrow();
+                    let module = store
+                        .module(frame.module_index())
+                        .defined()
+                        .unwrap();
                     let ty = match module.get_type(*type_index as usize) {
                         parity_wasm::elements::Type::Function(ty) => ty,
                     };
                     (ty.clone(), addr)
                 };
                 let buf_index: i32 = self.pop_as()?;
-                let table = self.store.table(addr);
+                let table = self.store.borrow().table(addr);
                 let buf_index = buf_index as usize;
                 let func_addr = table
                     .borrow()
-                    .get_at(buf_index, self.store)
+                    .get_at(buf_index, &self.store.borrow())
                     .map_err(Trap::Table)?;
-                let func = self
-                    .store
+                let store = self.store.clone();
+                let store = store.borrow();
+                let func = store
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr))?;
                 if *func.ty() == ty {
@@ -308,14 +315,15 @@ impl<'a> Executor<'a> {
             }
             Instruction::GetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
-                let global = self.store.global(addr);
-                self.stack.push_value(global.borrow().value(self.store));
+                let global = self.store.borrow().global(addr);
+                self.stack
+                    .push_value(global.borrow().value(&self.store.borrow()));
                 Ok(Signal::Next)
             }
             Instruction::SetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
-                let global = resolve_global_instance(addr, self.store);
+                let global = resolve_global_instance(addr, &self.store.borrow());
                 global.borrow_mut().set_value(value);
                 Ok(Signal::Next)
             }
@@ -350,15 +358,18 @@ impl<'a> Executor<'a> {
 
             Instruction::CurrentMemory(_) => {
                 self.stack.push_value(Value::I32(
-                    self.memory()?.borrow().page_count(self.store) as i32
+                    self.memory()?.borrow().page_count(&self.store.borrow()) as i32,
                 ));
                 Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as()?;
                 let mem = self.memory()?;
-                let size = mem.borrow().page_count(self.store);
-                match mem.borrow_mut().grow(grow_page as usize, self.store) {
+                let size = mem.borrow().page_count(&self.store.borrow());
+                match mem
+                    .borrow_mut()
+                    .grow(grow_page as usize, &self.store.borrow())
+                {
                     Ok(_) => {
                         self.stack.push_value(Value::I32(size as i32));
                     }
@@ -574,10 +585,15 @@ impl<'a> Executor<'a> {
                 return self.do_return();
             }
             Label::If(_) | Label::Block(_) => {
+                let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
+                let store = self.store.clone();
+                let store = store.borrow();
+                let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+                let insts = func.defined().unwrap().code().instructions();
                 let mut depth = depth + 1;
                 loop {
                     let index = self.pc.inst_index().0 as usize;
-                    match self.current_func_insts()?[index] {
+                    match insts[index] {
                         Instruction::End => depth -= 1,
                         Instruction::Block(_) => depth += 1,
                         Instruction::If(_) => depth += 1,
@@ -643,7 +659,8 @@ impl<'a> Executor<'a> {
     }
 
     fn invoke(&mut self, addr: FuncAddr) -> ExecResult<Signal> {
-        let func_ty = self.store.func_ty(addr);
+        let store = self.store.borrow();
+        let func_ty = store.func_ty(addr);
 
         let mut args = Vec::new();
         for _ in func_ty.params() {
@@ -651,11 +668,11 @@ impl<'a> Executor<'a> {
         }
         args.reverse();
 
-        let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+        let func = store
+            .func(addr)
+            .ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        let result = {
-            resolve_func_addr(addr, self.store)?.clone()
-        };
+        let result = { resolve_func_addr(addr, &store)?.clone() };
         match result {
             Either::Left((addr, func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
@@ -667,7 +684,7 @@ impl<'a> Executor<'a> {
             }
             Either::Right(host_func_body) => {
                 let mut result = Vec::new();
-                host_func_body.call(&args, &mut result, self.store, addr.0)?;
+                host_func_body.call(&args, &mut result, &mut self.store.borrow_mut(), addr.0)?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);
@@ -678,8 +695,8 @@ impl<'a> Executor<'a> {
     }
     fn do_return(&mut self) -> ExecResult<Signal> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-        let func = self
-            .store
+        let store = self.store.borrow();
+        let func = store
             .func(frame.func_addr)
             .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
@@ -712,7 +729,7 @@ impl<'a> Executor<'a> {
     fn memory(&self) -> ExecResult<std::rc::Rc<std::cell::RefCell<MemoryInstance>>> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?;
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        Ok(self.store.memory(mem_addr))
+        Ok(self.store.borrow().memory(mem_addr))
     }
 
     fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult<Signal> {
@@ -726,7 +743,7 @@ impl<'a> Executor<'a> {
         val.into_le(&mut buf);
         self.memory()?
             .borrow_mut()
-            .store(addr, &buf, self.store)
+            .store(addr, &buf, &self.store.borrow())
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
@@ -747,7 +764,7 @@ impl<'a> Executor<'a> {
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
         self.memory()?
             .borrow_mut()
-            .store(addr, &buf, self.store)
+            .store(addr, &buf, &self.store.borrow())
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
@@ -764,7 +781,7 @@ impl<'a> Executor<'a> {
         let result: T = self
             .memory()?
             .borrow_mut()
-            .load_as(addr, self.store)
+            .load_as(addr, &self.store.borrow())
             .map_err(Trap::Memory)?;
         self.stack.push_value(result.into());
         Ok(Signal::Next)
@@ -781,7 +798,7 @@ impl<'a> Executor<'a> {
         let result: T = self
             .memory()?
             .borrow_mut()
-            .load_as(addr, self.store)
+            .load_as(addr, &self.store.borrow())
             .map_err(Trap::Memory)?;
         let result = result.extend_into();
         self.stack.push_value(result.into());
@@ -860,12 +877,17 @@ pub fn resolve_func_addr(
 pub fn invoke_func(
     func_addr: FuncAddr,
     arguments: Vec<Value>,
-    store: &mut Store,
+    store: Rc<RefCell<Store>>,
 ) -> Result<Vec<Value>, WasmError> {
-    match resolve_func_addr(func_addr, &store).map_err(WasmError::ExecutionError)? {
+    match resolve_func_addr(func_addr, &store.borrow()).map_err(WasmError::ExecutionError)? {
         Either::Right(host_func_body) => {
             let mut results = Vec::new();
-            match host_func_body.call(&arguments, &mut results, store, func_addr.0) {
+            match host_func_body.call(
+                &arguments,
+                &mut results,
+                &mut store.borrow_mut(),
+                func_addr.0,
+            ) {
                 Ok(_) => Ok(results),
                 Err(_) => Err(WasmError::HostExecutionError),
             }
@@ -877,7 +899,7 @@ pub fn invoke_func(
                 (frame, ret_types)
             };
             let pc = ProgramCounter::new(func_addr, InstIndex::zero());
-            let mut executor = Executor::new(frame, ret_types.len(), pc, store);
+            let mut executor = Executor::new(frame, ret_types.len(), pc, store.clone());
             loop {
                 let result = executor.execute_step();
                 match result {

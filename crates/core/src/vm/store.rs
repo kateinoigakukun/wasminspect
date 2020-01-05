@@ -30,7 +30,7 @@ pub struct Store {
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 
-    embedded_contexts: HashMap<std::any::TypeId, Rc<RefCell<Box<dyn std::any::Any>>>>,
+    embedded_contexts: HashMap<std::any::TypeId, Box<dyn std::any::Any>>,
 }
 
 impl Store {
@@ -108,12 +108,12 @@ impl Store {
 
     pub fn add_embed_context<T: std::any::Any>(&mut self, ctx: Box<T>) {
         let type_id = std::any::TypeId::of::<T>();
-        self.embedded_contexts.insert(type_id, Rc::new(RefCell::new(ctx)));
+        self.embedded_contexts.insert(type_id, ctx);
     }
 
-    pub fn get_embed_context<T: std::any::Any>(&self) -> Option<&Rc<RefCell<Box<dyn std::any::Any>>>> {
+    pub fn get_embed_context<T: std::any::Any>(&mut self) -> Option<&mut Box<dyn std::any::Any>> {
         let type_id = std::any::TypeId::of::<T>();
-        self.embedded_contexts.get(&type_id)
+        self.embedded_contexts.get_mut(&type_id)
     }
 }
 
@@ -225,15 +225,9 @@ impl Store {
         parity_module: parity_wasm::elements::Module,
     ) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
-        let start_section = parity_module.start_section().clone();
 
         let result: Result<ModuleIndex> =
             self.load_parity_module_internal(name.clone(), parity_module, module_index);
-        if let Some(start_section) = start_section {
-            let func_addr = FuncAddr(module_index, start_section as usize);
-            // TODO: Handle result
-            invoke_func(func_addr, vec![], self).map_err(Error::FailedEntryFunction)?;
-        }
         match result {
             Ok(ok) => Ok(ok),
             Err(err) => {

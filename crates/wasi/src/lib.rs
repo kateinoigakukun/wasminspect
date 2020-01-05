@@ -23,9 +23,11 @@ pub fn instantiate_wasi() -> (WasiCtx, HashMap<String, HostValue>) {
     ) -> HostValue {
         let ty = FunctionType::new(args_ty, ret_ty);
         return HostValue::Func(HostFuncBody::new(ty, move |args, ret, ctx, store| {
-            let mut wasi_ctx = store.get_embed_context::<WasiCtx>().unwrap().borrow_mut();
-            let wasi_ctx = wasi_ctx.downcast_mut::<Box<WasiCtx>>().unwrap();
-            f(args, ret, ctx, wasi_ctx)
+            let mut wasi_ctx = store.get_embed_context::<WasiCtx>().unwrap();
+            let mut wasi_ctx = wasi_ctx
+                .downcast_mut::<WasiCtx>()
+                .unwrap();
+            f(args, ret, ctx, &mut *wasi_ctx)
         }));
     }
 
