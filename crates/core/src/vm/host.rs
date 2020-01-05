@@ -38,13 +38,13 @@ impl HostValue {
 
 pub struct HostFuncBody {
     ty: FunctionType,
-    code: Box<dyn Fn(&[Value], &mut [Value], &mut HostContext, &mut Store) -> Result<(), Trap>>,
+    code: Box<dyn Fn(&[Value], &mut [Value], &mut HostContext, &Store) -> Result<(), Trap>>,
 }
 
 impl HostFuncBody {
     pub fn new<F>(ty: FunctionType, code: F) -> Self
     where
-        F: Fn(&[Value], &mut [Value], &mut HostContext, &mut Store) -> Result<(), Trap>,
+        F: Fn(&[Value], &mut [Value], &mut HostContext, &Store) -> Result<(), Trap>,
         F: 'static,
     {
         Self {
@@ -57,7 +57,7 @@ impl HostFuncBody {
         &self,
         param: &[Value],
         results: &mut [Value],
-        store: &mut Store,
+        store: &Store,
         module_index: ModuleIndex,
     ) -> Result<(), Trap> {
         let mem_addr = MemoryAddr(module_index, 0);

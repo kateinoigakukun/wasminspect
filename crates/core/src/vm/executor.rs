@@ -667,7 +667,7 @@ impl<'a> Executor<'a> {
             }
             Either::Right(host_func_body) => {
                 let mut result = Vec::new();
-                host_func_body.call(&args, &mut result, &mut self.store, addr.0)?;
+                host_func_body.call(&args, &mut result, self.store, addr.0)?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);

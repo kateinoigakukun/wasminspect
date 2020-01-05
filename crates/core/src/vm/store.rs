@@ -30,7 +30,7 @@ pub struct Store {
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 
-    embedded_contexts: HashMap<std::any::TypeId, Box<dyn std::any::Any>>,
+    embedded_contexts: HashMap<std::any::TypeId, Rc<RefCell<Box<dyn std::any::Any>>>>,
 }
 
 impl Store {
@@ -104,12 +104,12 @@ impl Store {
 
     pub fn add_embed_context<T: std::any::Any>(&mut self, ctx: Box<T>) {
         let type_id = std::any::TypeId::of::<T>();
-        self.embedded_contexts.insert(type_id, ctx);
+        self.embedded_contexts.insert(type_id, Rc::new(RefCell::new(ctx)));
     }
 
-    pub fn get_embed_context<T: std::any::Any>(&mut self) -> Option<&Box<T>> {
+    pub fn get_embed_context<T: std::any::Any>(&self) -> Option<&Rc<RefCell<Box<dyn std::any::Any>>>> {
         let type_id = std::any::TypeId::of::<T>();
-        self.embedded_contexts.get(&type_id)?.downcast_ref::<Box<T>>()
+        self.embedded_contexts.get(&type_id)
     }
 }
 
@@ -124,7 +124,7 @@ pub enum Error {
     UndefinedTable(String, String),
     UndefinedGlobal(String, String),
     FailedEntryFunction(WasmError),
-    IncompatibleImportFuncType(FunctionType, FunctionType),
+    IncompatibleImportFuncType(String, FunctionType, FunctionType),
     IncompatibleImportGlobalType(ValueType, ValueType),
     IncompatibleImportGlobalMutability,
     IncompatibleImportTableType,
@@ -162,10 +162,10 @@ impl std::fmt::Display for Error {
                 name, module
             ),
             Self::FailedEntryFunction(e) => write!(f, "{}", e),
-            Self::IncompatibleImportFuncType(expected, actual) => write!(
+            Self::IncompatibleImportFuncType(name, expected, actual) => write!(
                 f,
-                "incompatible import type, expected {:?} but got {:?}",
-                expected, actual
+                "incompatible import type, \"{}\" expected {:?} but got {:?}",
+                name, expected, actual
             ),
             Self::IncompatibleImportGlobalType(expected, actual) => write!(
                 f,
@@ -385,6 +385,7 @@ impl Store {
             };
             if *actual_func_ty != func_ty {
                 return Err(Error::IncompatibleImportFuncType(
+                    import.field().to_string(),
                     func_ty,
                     actual_func_ty.clone(),
                 ));
