@@ -9,8 +9,8 @@ name = "wasminspect"
 path = "src/main.rs"
 
 [dependencies]
-wasminspect-cli = { path = "crates/wasminspect-cli" }
-wasminspect-core = { path = "crates/wasminspect-core" }
+wasminspect-cli = { path = "crates/cli" }
+wasminspect-core = { path = "crates/core" }
 wast-spec = { path = "crates/wast-spec" }
 clap = "2.33.0"
 wasmi-validation = "0.3.0"
