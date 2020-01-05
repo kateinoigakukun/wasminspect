@@ -66,7 +66,11 @@ impl WasmInstance {
         } else if let Some(start_func_addr) = module.start_func_addr() {
             *start_func_addr
         } else {
-            panic!()
+            if let Some(Some(func_addr)) = module.exported_func("_start".to_string()).ok() {
+                func_addr
+            } else {
+                return Err(WasmError::EntryFunctionNotFound("_start".to_string()));
+            }
         };
         invoke_func(func_addr, arguments, &mut self.store)
     }
