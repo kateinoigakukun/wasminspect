@@ -16,10 +16,11 @@ mod instance;
 
 pub use self::address::*;
 pub use self::executor::{Trap, WasmError};
-pub use self::host::{HostFuncBody, HostValue};
+pub use self::host::{HostFuncBody, HostValue, HostContext};
 pub use self::memory::DefinedMemoryInstance as HostMemory;
 pub use self::module::ModuleIndex;
 pub use self::global::DefinedGlobalInstance as HostGlobal;
 pub use self::table::DefinedTableInstance as HostTable;
 pub use self::value::Value as WasmValue;
 pub use self::instance::WasmInstance;
+pub use self::store::Store;

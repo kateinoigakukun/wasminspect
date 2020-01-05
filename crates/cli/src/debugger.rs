@@ -1,6 +1,6 @@
 use super::commands::debugger;
 use wasminspect_core::vm::{ModuleIndex, WasmInstance, WasmValue};
-use anyhow::Result;
+use wasminspect_wasi::instantiate_wasi;
 
 pub struct MainDebugger {
     instance: WasmInstance,
@@ -10,6 +10,8 @@ pub struct MainDebugger {
 impl MainDebugger {
     pub fn new(file: Option<String>) -> Result<Self, String> {
         let mut instance = WasmInstance::new();
+        let (ctx, wasi_snapshot_preview) = instantiate_wasi();
+        instance.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
         let module_index = if let Some(file) = file {
             Some(
                 instance

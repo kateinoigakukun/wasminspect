@@ -3,13 +3,20 @@ use super::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::address::MemoryAddr;
 use super::executor::Trap;
 use super::global::DefinedGlobalInstance;
 use super::memory::DefinedMemoryInstance;
+use super::module::ModuleIndex;
+use super::store::Store;
 use super::table::DefinedTableInstance;
 use parity_wasm::elements::FunctionType;
 
 type Ref<T> = Rc<RefCell<T>>;
+
+pub struct HostContext<'a> {
+    pub mem: &'a mut [u8],
+}
 
 pub enum HostValue {
     Func(HostFuncBody),
@@ -31,13 +38,13 @@ impl HostValue {
 
 pub struct HostFuncBody {
     ty: FunctionType,
-    code: Box<dyn Fn(&[Value], &mut [Value]) -> Result<(), Trap>>,
+    code: Box<dyn Fn(&[Value], &mut [Value], &mut HostContext, &mut Store) -> Result<(), Trap>>,
 }
 
 impl HostFuncBody {
     pub fn new<F>(ty: FunctionType, code: F) -> Self
     where
-        F: Fn(&[Value], &mut [Value]) -> Result<(), Trap>,
+        F: Fn(&[Value], &mut [Value], &mut HostContext, &mut Store) -> Result<(), Trap>,
         F: 'static,
     {
         Self {
@@ -46,8 +53,20 @@ impl HostFuncBody {
         }
     }
 
-    pub fn call(&self, param: &[Value], results: &mut [Value]) -> Result<(), Trap> {
-        (self.code)(param, results)
+    pub fn call(
+        &self,
+        param: &[Value],
+        results: &mut [Value],
+        store: &mut Store,
+        module_index: ModuleIndex,
+    ) -> Result<(), Trap> {
+        let mem_addr = MemoryAddr(module_index, 0);
+        let mem = store.memory(mem_addr);
+        let mem = mem.borrow().resolve_memory_instance(store).clone();
+        let mem = &mut mem.borrow_mut();
+        let raw_mem = mem.raw_data_mut();
+        let mut ctx = HostContext { mem: raw_mem };
+        (self.code)(param, results, &mut ctx, store)
     }
 
     pub fn ty(&self) -> &FunctionType {

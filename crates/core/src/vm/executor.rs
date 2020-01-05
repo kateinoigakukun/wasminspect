@@ -653,7 +653,10 @@ impl<'a> Executor<'a> {
 
         let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        match resolve_func_addr(addr, self.store)? {
+        let result = {
+            resolve_func_addr(addr, self.store)?.clone()
+        };
+        match result {
             Either::Left((addr, func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
                 let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
@@ -664,7 +667,7 @@ impl<'a> Executor<'a> {
             }
             Either::Right(host_func_body) => {
                 let mut result = Vec::new();
-                host_func_body.call(&args, &mut result)?;
+                host_func_body.call(&args, &mut result, &mut self.store, addr.0)?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);
@@ -862,7 +865,7 @@ pub fn invoke_func(
     match resolve_func_addr(func_addr, &store).map_err(WasmError::ExecutionError)? {
         Either::Right(host_func_body) => {
             let mut results = Vec::new();
-            match host_func_body.call(&arguments, &mut results) {
+            match host_func_body.call(&arguments, &mut results, store, func_addr.0) {
                 Ok(_) => Ok(results),
                 Err(_) => Err(WasmError::HostExecutionError),
             }

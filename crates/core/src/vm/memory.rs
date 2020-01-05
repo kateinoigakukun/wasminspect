@@ -20,14 +20,17 @@ impl MemoryInstance {
                 match module {
                     ModuleInstance::Defined(defined_module) => {
                         let addr = defined_module
-                            .exported_memory(external.name.clone()).ok().unwrap()
+                            .exported_memory(external.name.clone())
+                            .ok()
+                            .unwrap()
                             .unwrap();
                         let memory = store.memory(addr);
                         return memory.borrow_mut().resolve_memory_instance(store);
                     }
                     ModuleInstance::Host(host_module) => host_module
                         .memory_by_name(external.name.clone())
-                        .ok().unwrap()
+                        .ok()
+                        .unwrap()
                         .unwrap()
                         .clone(),
                 }
@@ -36,7 +39,9 @@ impl MemoryInstance {
     }
 
     pub fn validate_region(&self, offset: usize, size: usize, store: &Store) -> Result<()> {
-        self.resolve_memory_instance(store).borrow_mut().validate_region(offset, size)
+        self.resolve_memory_instance(store)
+            .borrow_mut()
+            .validate_region(offset, size)
     }
 
     pub fn grow(&mut self, n: usize, store: &Store) -> Result<()> {
@@ -102,7 +107,10 @@ impl ExternalMemoryInstance {
 pub enum Error {
     GrowOverMaximumSize(usize),
     GrowOverMaximumPageSize(usize),
-    AccessOutOfBounds(/* try to access */ Option<usize>, /* memory size */ usize),
+    AccessOutOfBounds(
+        /* try to access */ Option<usize>,
+        /* memory size */ usize,
+    ),
 }
 
 impl std::fmt::Display for Error {
@@ -181,5 +189,8 @@ impl DefinedMemoryInstance {
         let mut extra: Vec<u8> = std::iter::repeat(0).take(n * PAGE_SIZE).collect();
         self.data.append(&mut extra);
         return Ok(());
+    }
+    pub fn raw_data_mut(&mut self) -> &mut [u8] {
+        &mut self.data
     }
 }

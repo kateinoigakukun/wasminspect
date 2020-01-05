@@ -6,7 +6,7 @@ use super::func::{
 use super::global::{
     resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,
 };
-use super::host::HostValue;
+use super::host::{HostContext, HostValue};
 use super::memory::{self, DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
 use super::module::{self, DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{
@@ -29,6 +29,8 @@ pub struct Store {
     globals: HashMap<ModuleIndex, Vec<Rc<RefCell<GlobalInstance>>>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
+
+    embedded_contexts: HashMap<std::any::TypeId, Box<dyn std::any::Any>>,
 }
 
 impl Store {
@@ -40,6 +42,7 @@ impl Store {
             globals: HashMap::new(),
             modules: Vec::new(),
             module_index_by_name: HashMap::new(),
+            embedded_contexts: HashMap::new(),
         }
     }
 
@@ -97,6 +100,16 @@ impl Store {
         let instance = HostModuleInstance::new(module);
         self.modules.push(ModuleInstance::Host(instance));
         self.module_index_by_name.insert(name, module_index);
+    }
+
+    pub fn add_embed_context<T: std::any::Any>(&mut self, ctx: Box<T>) {
+        let type_id = std::any::TypeId::of::<T>();
+        self.embedded_contexts.insert(type_id, ctx);
+    }
+
+    pub fn get_embed_context<T: std::any::Any>(&mut self) -> Option<&Box<T>> {
+        let type_id = std::any::TypeId::of::<T>();
+        self.embedded_contexts.get(&type_id)?.downcast_ref::<Box<T>>()
     }
 }
 

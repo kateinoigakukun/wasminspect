@@ -1,0 +1,10 @@
+[package]
+name = "wasminspect-wasi"
+version = "0.1.0"
+authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+wasi-common = "0.8.0"
+wasminspect-core = { path = "../core" }
+parity-wasm = "0.41"
