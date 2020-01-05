@@ -77,6 +77,10 @@ impl Store {
         self.mems[&addr.0][addr.1].clone()
     }
 
+    pub fn memory_count(&self, addr: ModuleIndex) -> usize {
+        self.mems.get(&addr).map(|c| c.len()).unwrap_or_default()
+    }
+
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
         &self.modules[module_index.0 as usize]
     }

@@ -60,13 +60,18 @@ impl HostFuncBody {
         store: &Store,
         module_index: ModuleIndex,
     ) -> Result<(), Trap> {
-        let mem_addr = MemoryAddr(module_index, 0);
-        let mem = store.memory(mem_addr);
-        let mem = mem.borrow().resolve_memory_instance(store).clone();
-        let mem = &mut mem.borrow_mut();
-        let raw_mem = mem.raw_data_mut();
-        let mut ctx = HostContext { mem: raw_mem };
-        (self.code)(param, results, &mut ctx, store)
+        if store.memory_count(module_index) > 0 {
+            let mem_addr = MemoryAddr(module_index, 0);
+            let mem = store.memory(mem_addr);
+            let mem = mem.borrow().resolve_memory_instance(store).clone();
+            let mem = &mut mem.borrow_mut();
+            let raw_mem = mem.raw_data_mut();
+            let mut ctx = HostContext { mem: raw_mem };
+            (self.code)(param, results, &mut ctx, store)
+        } else {
+            let mut ctx = HostContext { mem: &mut vec![] };
+            (self.code)(param, results, &mut ctx, store)
+        }
     }
 
     pub fn ty(&self) -> &FunctionType {
