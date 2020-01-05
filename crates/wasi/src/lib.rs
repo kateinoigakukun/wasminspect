@@ -374,6 +374,15 @@ pub fn instantiate_wasi() -> (WasiCtx, HashMap<String, HostValue>) {
     );
     module.insert("random_get".to_string(), func);
 
+    let func = define_wasi_fn(vec![], Some(ValueType::I32), |args, ret, ctx, wasi_ctx| {
+        unsafe {
+            let result = sched_yield();
+            ret[0] = WasmValue::I32(result as i32);
+        }
+        Ok(())
+    });
+    module.insert("sched_yield".to_string(), func);
+
     let func = define_wasi_fn(
         vec![
             ValueType::I32,
@@ -416,6 +425,33 @@ pub fn instantiate_wasi() -> (WasiCtx, HashMap<String, HostValue>) {
         },
     );
     module.insert("fd_filestat_get".to_string(), func);
+
+    let func = define_wasi_fn(
+        vec![
+            ValueType::I32,
+            ValueType::I32,
+            ValueType::I32,
+            ValueType::I32,
+            ValueType::I32,
+        ],
+        Some(ValueType::I32),
+        |args, ret, ctx, wasi_ctx| {
+            unsafe {
+                let result = path_filestat_get(
+                    wasi_ctx,
+                    ctx.mem,
+                    args[0].as_i32().unwrap() as u32,
+                    args[1].as_i32().unwrap() as u32,
+                    args[2].as_i32().unwrap() as u32,
+                    args[3].as_i32().unwrap() as u32,
+                    args[4].as_i32().unwrap() as u32,
+                );
+                ret[0] = WasmValue::I32(result as i32);
+            }
+            Ok(())
+        },
+    );
+    module.insert("path_filestat_get".to_string(), func);
 
     let func = define_wasi_fn(
         vec![ValueType::I32, ValueType::I32, ValueType::I32],
