@@ -35,6 +35,10 @@ impl WasmInstance {
     pub fn register_name(&mut self, name: String, module_index: ModuleIndex) {
         self.store.register_name(name, module_index)
     }
+
+    pub fn add_embed_context<T: std::any::Any>(&mut self, ctx: T) {
+        self.store.add_embed_context(Box::new(ctx))
+    }
 }
 
 impl WasmInstance {

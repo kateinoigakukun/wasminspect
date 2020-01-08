@@ -30,7 +30,7 @@ pub struct Store {
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 
-    embedded_contexts: HashMap<std::any::TypeId, Rc<RefCell<Box<dyn std::any::Any>>>>,
+    embedded_contexts: HashMap<std::any::TypeId, Box<dyn std::any::Any>>,
 }
 
 impl Store {
@@ -108,12 +108,14 @@ impl Store {
 
     pub fn add_embed_context<T: std::any::Any>(&mut self, ctx: Box<T>) {
         let type_id = std::any::TypeId::of::<T>();
-        self.embedded_contexts.insert(type_id, Rc::new(RefCell::new(ctx)));
+        self.embedded_contexts.insert(type_id, ctx);
     }
 
-    pub fn get_embed_context<T: std::any::Any>(&self) -> Option<&Rc<RefCell<Box<dyn std::any::Any>>>> {
+    pub fn get_embed_context<T: std::any::Any>(&self) -> Option<&T> {
         let type_id = std::any::TypeId::of::<T>();
-        self.embedded_contexts.get(&type_id)
+        self.embedded_contexts.get(&type_id).map(|v| {
+            v.downcast_ref::<T>().unwrap()
+        })
     }
 }
 

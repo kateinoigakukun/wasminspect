@@ -8,7 +8,12 @@ use wasi_common::*;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
 use wasminspect_core::vm::*;
 
-pub fn instantiate_wasi() -> (WasiCtx, HashMap<String, HostValue>) {
+
+pub struct WasiContext {
+    ctx: RefCell<WasiCtx>,
+}
+
+pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let builder = WasiCtxBuilder::new().inherit_stdio();
     let wasi_ctx = builder.build().unwrap();
     let mut module: HashMap<String, HostValue> = HashMap::new();
@@ -23,10 +28,8 @@ pub fn instantiate_wasi() -> (WasiCtx, HashMap<String, HostValue>) {
     ) -> HostValue {
         let ty = FunctionType::new(args_ty, ret_ty);
         return HostValue::Func(HostFuncBody::new(ty, move |args, ret, ctx, store| {
-            let mut wasi_ctx = store.get_embed_context::<WasiCtx>().unwrap();
-            let mut wasi_ctx = wasi_ctx
-                .downcast_mut::<WasiCtx>()
-                .unwrap();
+            let wasi_ctx = store.get_embed_context::<WasiContext>().unwrap();
+            let mut wasi_ctx = wasi_ctx.ctx.borrow_mut();
             f(args, ret, ctx, &mut *wasi_ctx)
         }));
     }
@@ -883,5 +886,6 @@ pub fn instantiate_wasi() -> (WasiCtx, HashMap<String, HostValue>) {
         },
     );
     module.insert("path_symlink".to_string(), func);
-    (wasi_ctx, module)
+    let context = WasiContext { ctx: RefCell::new(wasi_ctx) };
+    (context, module)
 }
