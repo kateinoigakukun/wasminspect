@@ -1,9 +1,10 @@
 use super::commands::debugger;
+use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasminspect_core::vm::{
-    resolve_func_addr, CallFrame, Either, Executor, InstIndex, ModuleIndex, ProgramCounter, Signal,
-    Store, WasmError, WasmInstance, WasmValue, FunctionInstance
+    resolve_func_addr, CallFrame, Either, Executor, FunctionInstance, InstIndex, ModuleIndex,
+    ProgramCounter, Signal, Store, WasmError, WasmInstance, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
@@ -41,13 +42,25 @@ impl MainDebugger {
 }
 
 impl debugger::Debugger for MainDebugger {
+    fn instructions(&self) -> Result<(&[Instruction], usize), String> {
+        if let Some(ref executor) = self.executor {
+            let executor = executor.borrow();
+            let insts = executor
+                .current_func_insts(&self.store)
+                .map_err(|e| format!("Failed to get instructions: {}", e))?;
+            Ok((insts, executor.pc.inst_index().0 as usize))
+        } else {
+            Err(format!("No execution context"))
+        }
+    }
     fn frame(&self) -> Vec<String> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
             let frames = executor.stack.peek_frames();
-            frames.iter().map(|frame| {
-                self.store.func(frame.func_addr).unwrap().name()
-            }).collect()
+            frames
+                .iter()
+                .map(|frame| self.store.func(frame.func_addr).unwrap().name())
+                .collect()
         } else {
             Vec::new()
         }

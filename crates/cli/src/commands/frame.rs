@@ -16,8 +16,8 @@ impl<D: Debugger> Command<D> for FrameCommand {
         "frame"
     }
     fn run(&self, debugger: &mut D, args: Vec<&str>) -> Result<(), command::Error> {
-        for frame in debugger.frame() {
-            println!("{}", frame);
+        for (index, frame) in debugger.frame().iter().rev().enumerate() {
+            println!("{}: {}", index, frame);
         }
         Ok(())
     }
