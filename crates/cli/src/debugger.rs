@@ -53,6 +53,17 @@ impl debugger::Debugger for MainDebugger {
             Err(format!("No execution context"))
         }
     }
+
+    fn stack_values(&self) -> Vec<String> {
+        if let Some(ref executor) = self.executor {
+            let executor = executor.borrow();
+            let values = executor.stack.peek_values();
+            values.iter().map(|v| format!("{:?}", v)).collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     fn frame(&self) -> Vec<String> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
