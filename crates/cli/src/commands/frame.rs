@@ -11,7 +11,7 @@ impl FrameCommand {
     }
 }
 
-impl<'a, D: Debugger<'a>> Command<'a, D> for FrameCommand {
+impl<D: Debugger> Command<D> for FrameCommand {
     fn name(&self) -> &'static str {
         "frame"
     }

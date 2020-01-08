@@ -4,18 +4,18 @@ use linefeed::{DefaultTerminal, Interface, ReadResult};
 use std::collections::HashMap;
 use std::io;
 
-pub struct Process<'a, D: Debugger<'a>> {
+pub struct Process<D: Debugger> {
     interface: Interface<DefaultTerminal>,
     debugger: D,
-    commands: HashMap<String, Box<dyn Command<'a, D>>>,
+    commands: HashMap<String, Box<dyn Command<D>>>,
 
     history_file: String,
 }
 
-impl<'a, D: Debugger<'a>> Process<'a, D> {
+impl<D: Debugger> Process<D> {
     pub fn new(
         debugger: D,
-        commands: Vec<Box<dyn Command<'a, D>>>,
+        commands: Vec<Box<dyn Command<D>>>,
         history_file: &str,
     ) -> io::Result<Self> {
         let interface = Interface::new("wasminspect")?;
@@ -40,7 +40,7 @@ impl<'a, D: Debugger<'a>> Process<'a, D> {
         })
     }
 
-    pub fn run_loop(&'a mut self) -> io::Result<()> {
+    pub fn run_loop(&mut self) -> io::Result<()> {
         while let ReadResult::Input(line) = self.interface.read_line()? {
             if !line.trim().is_empty() {
                 self.interface.add_history_unique(line.clone());
@@ -71,7 +71,7 @@ fn extract_command_name(s: &str) -> &str {
     }
 }
 
-impl<'a, D: Debugger<'a>> Drop for Process<'a, D> {
+impl<'a, D: Debugger> Drop for Process<D> {
     fn drop(&mut self) {
         if let Err(error) = self.interface.save_history(&self.history_file) {
             println!("Error while saving command history: {}", error);
