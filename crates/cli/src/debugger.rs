@@ -12,7 +12,7 @@ impl MainDebugger {
         let mut instance = WasmInstance::new();
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
         instance.add_embed_context(ctx);
-        instance.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        instance.load_host_module("wasi_unstable".to_string(), wasi_snapshot_preview);
         let module_index = if let Some(file) = file {
             Some(
                 instance
