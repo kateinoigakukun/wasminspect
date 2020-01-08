@@ -76,13 +76,13 @@ impl debugger::Debugger for MainDebugger {
                         (frame, ret_types)
                     };
                     let pc = ProgramCounter::new(func_addr, InstIndex::zero());
-                    let executor = Executor::new(frame, ret_types.len(), pc);
-                    self.executor = Some(Rc::new(RefCell::new(executor)));
+                    let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
+                    self.executor = Some(executor.clone());
                     loop {
-                        let result = self.executor.as_ref().unwrap().borrow_mut().execute_step(&self.store);
+                        let result = executor.borrow_mut().execute_step(&self.store);
                         match result {
                             Ok(Signal::Next) => continue,
-                            Ok(Signal::End) => match self.executor.as_ref().unwrap().borrow_mut().pop_result(ret_types) {
+                            Ok(Signal::End) => match executor.borrow_mut().pop_result(ret_types) {
                                 Ok(values) => return Ok(values),
                                 Err(err) => return Err(format!("Return value failure {:?}", err)),
                             },
