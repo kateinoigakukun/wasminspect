@@ -4,17 +4,16 @@ use wasminspect_core::vm::{
     CallFrame, ProgramCounter, Signal, InstIndex
 };
 use wasminspect_wasi::instantiate_wasi;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub struct MainDebugger<'a> {
-    executor: Option<Executor<'a>>,
-    store: Store,
-    instance: WasmInstance,
+    executor: Option<Rc<RefCell<Executor<'a>>>>,
     module_index: Option<ModuleIndex>,
 }
 
 impl<'a> MainDebugger<'a> {
     pub fn new(file: Option<String>) -> Result<Self, String> {
-        let mut instance = WasmInstance::new();
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
 
         let mut store = Store::new();
@@ -33,17 +32,15 @@ impl<'a> MainDebugger<'a> {
         };
         Ok(Self {
             executor: None,
-            store: store,
-            instance,
             module_index,
         })
     }
 }
 
 impl<'a> debugger::Debugger for MainDebugger<'a> {
-    fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String> {
+    fn run(&mut self, name: Option<String>, store: &'a mut Store) -> Result<Vec<WasmValue>, String> {
         if let Some(module_index) = self.module_index {
-            let module = self.store.module(module_index).defined().unwrap();
+            let module = store.module(module_index).defined().unwrap();
             let func_addr = if let Some(func_name) = name {
                 if let Some(Some(func_addr)) = module.exported_func(func_name.clone()).ok() {
                     func_addr
@@ -59,12 +56,12 @@ impl<'a> debugger::Debugger for MainDebugger<'a> {
                     return Err(format!("Entry function _start not found"));
                 }
             };
-            let resolved_addr = resolve_func_addr(func_addr, &self.store)
+            let resolved_addr = resolve_func_addr(func_addr, &store)
                 .map_err(|e| format!("Failed to execute {}", e))?;
             match resolved_addr {
                 Either::Right(host_func_body) => {
                     let mut results = Vec::new();
-                    match host_func_body.call(&vec![], &mut results, &self.store, func_addr.0) {
+                    match host_func_body.call(&vec![], &mut results, &store, func_addr.0) {
                         Ok(_) => return Ok(results),
                         Err(_) => return Err(format!("Failed to execute host func")),
                     }
@@ -77,12 +74,13 @@ impl<'a> debugger::Debugger for MainDebugger<'a> {
                         (frame, ret_types)
                     };
                     let pc = ProgramCounter::new(func_addr, InstIndex::zero());
-                    self.executor = Some(Executor::new(frame, ret_types.len(), pc, &mut self.store));
+                    let executor = Executor::new(frame, ret_types.len(), pc, store);
+                    self.executor = Some(Rc::new(RefCell::new(executor)));
                     loop {
-                        let result = self.executor.unwrap().execute_step();
+                        let result = self.executor.as_ref().unwrap().borrow_mut().execute_step();
                         match result {
                             Ok(Signal::Next) => continue,
-                            Ok(Signal::End) => match self.executor.unwrap().pop_result(ret_types) {
+                            Ok(Signal::End) => match self.executor.as_ref().unwrap().borrow_mut().pop_result(ret_types) {
                                 Ok(values) => return Ok(values),
                                 Err(err) => return Err(format!("Return value failure {:?}", err)),
                             },
