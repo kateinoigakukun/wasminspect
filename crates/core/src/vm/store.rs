@@ -597,14 +597,15 @@ impl Store {
                 .get(func.type_ref() as usize)
                 .ok_or(Error::UnknownType(func.type_ref()))?
                 .clone();
+            let map = self.funcs.entry(module_index).or_insert(Vec::new());
+            let func_index = map.len();
             let defined = DefinedFunctionInstance::new(
                 func_type,
                 module_index,
                 DefinedFuncBody::new(*func, body.clone(), module_index),
+                format!("<module defined func #{}>", func_index),
             );
             let instance = FunctionInstance::Defined(defined);
-            let map = self.funcs.entry(module_index).or_insert(Vec::new());
-            let func_index = map.len();
             map.push(instance);
             func_addrs.push(FuncAddr(module_index, func_index));
         }

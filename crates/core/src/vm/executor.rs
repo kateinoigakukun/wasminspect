@@ -70,8 +70,8 @@ pub enum ReturnValError {
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
 pub struct Executor {
-    pc: ProgramCounter,
-    stack: Stack,
+    pub pc: ProgramCounter,
+    pub stack: Stack,
 }
 
 impl Executor {

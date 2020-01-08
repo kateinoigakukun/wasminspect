@@ -234,6 +234,17 @@ pub struct Stack {
     frame_index: Vec<usize>,
 }
 
+// Debugger
+impl Stack {
+    pub fn peek_frames(&self) -> Vec<&CallFrame> {
+        self.stack.iter()
+            .filter_map(|v| match v {
+                StackValue::Activation(f) => Some(f),
+                _ => None,
+            }).collect()
+    }
+}
+
 impl Stack {
     pub fn pop_while<F: Fn(&StackValue) -> bool>(&mut self, f: F) -> Vec<StackValue> {
         let mut result = vec![];

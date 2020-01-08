@@ -27,4 +27,4 @@ pub use self::table::DefinedTableInstance as HostTable;
 pub use self::value::Value as WasmValue;
 pub use self::utils::Either;
 pub use self::stack::{CallFrame, ProgramCounter};
-pub use self::func::InstIndex;
+pub use self::func::{InstIndex, FunctionInstance};

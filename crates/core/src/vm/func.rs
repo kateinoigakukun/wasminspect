@@ -36,20 +36,36 @@ impl FunctionInstance {
             _ => None,
         }
     }
+
+    pub fn name(&self) -> String {
+        match self {
+            Self::Defined(defined) => defined.name.clone(),
+            Self::External(external) => {
+                format!("{}.{}", external.module_name(), external.field_name())
+            }
+        }
+    }
 }
 
 pub struct DefinedFunctionInstance {
     ty: FunctionType,
     module_index: ModuleIndex,
     code: DefinedFuncBody,
+    name: String,
 }
 
 impl DefinedFunctionInstance {
-    pub fn new(ty: FunctionType, module_index: ModuleIndex, code: DefinedFuncBody) -> Self {
+    pub fn new(
+        ty: FunctionType,
+        module_index: ModuleIndex,
+        code: DefinedFuncBody,
+        name: String,
+    ) -> Self {
         Self {
             ty,
             module_index,
             code,
+            name,
         }
     }
     pub fn ty(&self) -> &FunctionType {

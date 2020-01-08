@@ -1,11 +1,11 @@
 use super::commands::debugger;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasminspect_core::vm::{
-    resolve_func_addr, Either, Executor, ModuleIndex, Store, WasmError, WasmInstance, WasmValue,
-    CallFrame, ProgramCounter, Signal, InstIndex
+    resolve_func_addr, CallFrame, Either, Executor, InstIndex, ModuleIndex, ProgramCounter, Signal,
+    Store, WasmError, WasmInstance, WasmValue, FunctionInstance
 };
 use wasminspect_wasi::instantiate_wasi;
-use std::rc::Rc;
-use std::cell::RefCell;
 
 pub struct MainDebugger {
     store: Store,
@@ -37,9 +37,21 @@ impl MainDebugger {
             module_index,
         })
     }
+
 }
 
 impl debugger::Debugger for MainDebugger {
+    fn frame(&self) -> Vec<String> {
+        if let Some(ref executor) = self.executor {
+            let executor = executor.borrow();
+            let frames = executor.stack.peek_frames();
+            frames.iter().map(|frame| {
+                self.store.func(frame.func_addr).unwrap().name()
+            }).collect()
+        } else {
+            Vec::new()
+        }
+    }
     fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String> {
         if let Some(module_index) = self.module_index {
             let module = self.store.module(module_index).defined().unwrap();
@@ -86,7 +98,7 @@ impl debugger::Debugger for MainDebugger {
                                 Ok(values) => return Ok(values),
                                 Err(err) => return Err(format!("Return value failure {:?}", err)),
                             },
-                            Err(err) => return Err(format!("Function execc failure {:?}", err)),
+                            Err(err) => return Err(format!("Function exec failure {:?}", err)),
                         }
                     }
                 }
