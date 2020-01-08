@@ -796,6 +796,7 @@ dependencies = [
  "anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "linefeed 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi-validation 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasminspect-core 0.1.0",

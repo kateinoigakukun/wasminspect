@@ -76,6 +76,21 @@ pub struct Executor<'a> {
 }
 
 impl<'a> Executor<'a> {
+    pub fn new_from_func(
+        func_addr: FuncAddr,
+        func: &DefinedFunctionInstance,
+        arguments: Vec<Value>,
+        store: &'a mut Store,
+    ) -> Self {
+        let (frame, ret_types) = {
+            let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
+            let frame = CallFrame::new_from_func(func_addr, func, arguments, None);
+            (frame, ret_types)
+        };
+        let pc = ProgramCounter::new(func_addr, InstIndex::zero());
+        return Self::new(frame, ret_types.len(), pc, store);
+    }
+
     pub fn new(
         initial_frame: CallFrame,
         initial_arity: usize,
@@ -653,9 +668,7 @@ impl<'a> Executor<'a> {
 
         let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        let result = {
-            resolve_func_addr(addr, self.store)?.clone()
-        };
+        let result = { resolve_func_addr(addr, self.store)?.clone() };
         match result {
             Either::Left((addr, func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());

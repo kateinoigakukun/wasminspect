@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["/Users/katei/Downloads/a.out"],
+            "args": ["/Users/kateinoigakukun/Downloads/a.out"],
             "cwd": "${workspaceFolder}"
         },
         {

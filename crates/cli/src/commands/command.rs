@@ -4,7 +4,7 @@ pub enum Error {
     Command(String),
 }
 
-pub trait Command<D: Debugger> {
-    fn name(&self) -> &str;
-    fn run(&self, debugger: &mut D, args: Vec<&str>) -> Result<(), Error>;
+pub trait Command<'a, D: Debugger<'a>> {
+    fn name(&self) -> &'static str;
+    fn run(&self, debugger: &'a mut D, args: Vec<&str>) -> Result<(), Error>;
 }

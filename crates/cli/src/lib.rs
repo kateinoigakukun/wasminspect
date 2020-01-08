@@ -15,7 +15,10 @@ pub fn run_loop(file: Option<String>) -> Result<(), String> {
     let debugger = debugger::MainDebugger::new(file)?;
     let mut process = process::Process::new(
         debugger,
-        vec![Box::new(commands::run::RunCommand::new())],
+        vec![
+            Box::new(commands::run::RunCommand::new()),
+            Box::new(commands::frame::FrameCommand::new()),
+        ],
         &history_file_path(),
     )
     .map_err(|e| format!("{}", e))?;
