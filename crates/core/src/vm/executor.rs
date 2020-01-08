@@ -69,18 +69,16 @@ pub enum ReturnValError {
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
-pub struct Executor<'a> {
-    store: &'a mut Store,
+pub struct Executor {
     pc: ProgramCounter,
     stack: Stack,
 }
 
-impl<'a> Executor<'a> {
+impl Executor {
     pub fn new_from_func(
         func_addr: FuncAddr,
         func: &DefinedFunctionInstance,
         arguments: Vec<Value>,
-        store: &'a mut Store,
     ) -> Self {
         let (frame, ret_types) = {
             let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
@@ -88,19 +86,14 @@ impl<'a> Executor<'a> {
             (frame, ret_types)
         };
         let pc = ProgramCounter::new(func_addr, InstIndex::zero());
-        return Self::new(frame, ret_types.len(), pc, store);
+        return Self::new(frame, ret_types.len(), pc);
     }
 
-    pub fn new(
-        initial_frame: CallFrame,
-        initial_arity: usize,
-        pc: ProgramCounter,
-        store: &'a mut Store,
-    ) -> Self {
+    pub fn new(initial_frame: CallFrame, initial_arity: usize, pc: ProgramCounter) -> Self {
         let mut stack = Stack::default();
         let _ = stack.set_frame(initial_frame);
         stack.push_label(Label::Return(initial_arity));
-        Self { store, pc, stack }
+        Self { pc, stack }
     }
 
     pub fn pop_result(&mut self, return_ty: Vec<ValueType>) -> ReturnValResult {
@@ -115,28 +108,28 @@ impl<'a> Executor<'a> {
         Ok(results)
     }
 
-    pub fn current_func_insts(&self) -> ExecResult<&[Instruction]> {
+    pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
         let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
-        let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         Ok(&func.defined().unwrap().code().instructions())
     }
 
-    pub fn execute_step(&mut self) -> ExecResult<Signal> {
-        let func = self
-            .store
+    pub fn execute_step<'a>(&mut self, store: &'a Store) -> ExecResult<Signal> {
+        let func = store
             .func(self.pc.func_addr())
             .ok_or(Trap::UndefinedFunc(self.pc.func_addr()))?
             .defined()
             .unwrap();
         let module_index = func.module_index().clone();
         let inst = func.code().inst(self.pc.inst_index()).clone();
-        return self.execute_inst(&inst, module_index);
+        return self.execute_inst(&inst, module_index, store);
     }
 
     fn execute_inst(
         &mut self,
         inst: &Instruction,
         module_index: ModuleIndex,
+        store: &Store,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
         // println!("{:?}", self.stack);
@@ -179,7 +172,7 @@ impl<'a> Executor<'a> {
                     let mut depth = 1;
                     loop {
                         let index = self.pc.inst_index().0 as usize;
-                        match self.current_func_insts()?[index] {
+                        match self.current_func_insts(store)?[index] {
                             Instruction::End => depth -= 1,
                             Instruction::Block(_) => depth += 1,
                             Instruction::If(_) => depth += 1,
@@ -200,13 +193,12 @@ impl<'a> Executor<'a> {
                 }
                 Ok(Signal::Next)
             }
-            Instruction::Else => self.branch(0),
+            Instruction::Else => self.branch(0, store),
             Instruction::End => {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-                    let func = self
-                        .store
+                    let func = store
                         .func(frame.func_addr)
                         .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
@@ -238,11 +230,11 @@ impl<'a> Executor<'a> {
                     Ok(Signal::Next)
                 }
             }
-            Instruction::Br(depth) => self.branch(*depth),
+            Instruction::Br(depth) => self.branch(*depth, store),
             Instruction::BrIf(depth) => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 if val != Value::I32(0) {
-                    self.branch(*depth)
+                    self.branch(*depth, store)
                 } else {
                     Ok(Signal::Next)
                 }
@@ -255,37 +247,36 @@ impl<'a> Executor<'a> {
                 } else {
                     payload.default
                 };
-                self.branch(depth)
+                self.branch(depth, store)
             }
-            Instruction::Return => self.do_return(),
+            Instruction::Return => self.do_return(store),
             Instruction::Call(func_index) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = FuncAddr(frame.module_index(), *func_index as usize);
-                self.invoke(addr)
+                self.invoke(addr, store)
             }
             Instruction::CallIndirect(type_index, _) => {
                 let (ty, addr) = {
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                     let addr = TableAddr(frame.module_index(), 0);
-                    let module = self.store.module(frame.module_index()).defined().unwrap();
+                    let module = store.module(frame.module_index()).defined().unwrap();
                     let ty = match module.get_type(*type_index as usize) {
                         parity_wasm::elements::Type::Function(ty) => ty,
                     };
                     (ty.clone(), addr)
                 };
                 let buf_index: i32 = self.pop_as()?;
-                let table = self.store.table(addr);
+                let table = store.table(addr);
                 let buf_index = buf_index as usize;
                 let func_addr = table
                     .borrow()
-                    .get_at(buf_index, self.store)
+                    .get_at(buf_index, store)
                     .map_err(Trap::Table)?;
-                let func = self
-                    .store
+                let func = store
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr))?;
                 if *func.ty() == ty {
-                    self.invoke(func_addr)
+                    self.invoke(func_addr, store)
                 } else {
                     Err(Trap::IndirectCallTypeMismatch(ty, func.ty().clone()))
                 }
@@ -323,57 +314,67 @@ impl<'a> Executor<'a> {
             }
             Instruction::GetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
-                let global = self.store.global(addr);
-                self.stack.push_value(global.borrow().value(self.store));
+                let global = store.global(addr);
+                self.stack.push_value(global.borrow().value(store));
                 Ok(Signal::Next)
             }
             Instruction::SetGlobal(index) => {
                 let addr = GlobalAddr(module_index, *index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
-                let global = resolve_global_instance(addr, self.store);
+                let global = resolve_global_instance(addr, store);
                 global.borrow_mut().set_value(value);
                 Ok(Signal::Next)
             }
 
-            Instruction::I32Load(_, offset) => self.load::<i32>(*offset as usize),
-            Instruction::I64Load(_, offset) => self.load::<i64>(*offset as usize),
-            Instruction::F32Load(_, offset) => self.load::<f32>(*offset as usize),
-            Instruction::F64Load(_, offset) => self.load::<f64>(*offset as usize),
+            Instruction::I32Load(_, offset) => self.load::<i32>(*offset as usize, store),
+            Instruction::I64Load(_, offset) => self.load::<i64>(*offset as usize, store),
+            Instruction::F32Load(_, offset) => self.load::<f32>(*offset as usize, store),
+            Instruction::F64Load(_, offset) => self.load::<f64>(*offset as usize, store),
 
-            Instruction::I32Load8S(_, offset) => self.load_extend::<i8, i32>(*offset as usize),
-            Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize),
-            Instruction::I32Load16S(_, offset) => self.load_extend::<i16, i32>(*offset as usize),
-            Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize),
+            Instruction::I32Load8S(_, offset) => self.load_extend::<i8, i32>(*offset as usize, store),
+            Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize, store),
+            Instruction::I32Load16S(_, offset) => self.load_extend::<i16, i32>(*offset as usize, store),
+            Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize, store),
 
-            Instruction::I64Load8S(_, offset) => self.load_extend::<i8, i64>(*offset as usize),
-            Instruction::I64Load8U(_, offset) => self.load_extend::<u8, i64>(*offset as usize),
-            Instruction::I64Load16S(_, offset) => self.load_extend::<i16, i64>(*offset as usize),
-            Instruction::I64Load16U(_, offset) => self.load_extend::<u16, i64>(*offset as usize),
-            Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize),
-            Instruction::I64Load32U(_, offset) => self.load_extend::<u32, i64>(*offset as usize),
+            Instruction::I64Load8S(_, offset) => self.load_extend::<i8, i64>(*offset as usize, store),
+            Instruction::I64Load8U(_, offset) => self.load_extend::<u8, i64>(*offset as usize, store),
+            Instruction::I64Load16S(_, offset) => self.load_extend::<i16, i64>(*offset as usize, store),
+            Instruction::I64Load16U(_, offset) => self.load_extend::<u16, i64>(*offset as usize, store),
+            Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize, store),
+            Instruction::I64Load32U(_, offset) => self.load_extend::<u32, i64>(*offset as usize, store),
 
-            Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize),
-            Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize),
-            Instruction::F32Store(_, offset) => self.store::<f32>(*offset as usize),
-            Instruction::F64Store(_, offset) => self.store::<f64>(*offset as usize),
+            Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize, store),
+            Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize, store),
+            Instruction::F32Store(_, offset) => self.store::<f32>(*offset as usize, store),
+            Instruction::F64Store(_, offset) => self.store::<f64>(*offset as usize, store),
 
-            Instruction::I32Store8(_, offset) => self.store_with_width::<i32>(*offset as usize, 1),
-            Instruction::I32Store16(_, offset) => self.store_with_width::<i32>(*offset as usize, 2),
-            Instruction::I64Store8(_, offset) => self.store_with_width::<i64>(*offset as usize, 1),
-            Instruction::I64Store16(_, offset) => self.store_with_width::<i64>(*offset as usize, 2),
-            Instruction::I64Store32(_, offset) => self.store_with_width::<i64>(*offset as usize, 4),
+            Instruction::I32Store8(_, offset) => {
+                self.store_with_width::<i32>(*offset as usize, 1, store)
+            }
+            Instruction::I32Store16(_, offset) => {
+                self.store_with_width::<i32>(*offset as usize, 2, store)
+            }
+            Instruction::I64Store8(_, offset) => {
+                self.store_with_width::<i64>(*offset as usize, 1, store)
+            }
+            Instruction::I64Store16(_, offset) => {
+                self.store_with_width::<i64>(*offset as usize, 2, store)
+            }
+            Instruction::I64Store32(_, offset) => {
+                self.store_with_width::<i64>(*offset as usize, 4, store)
+            }
 
             Instruction::CurrentMemory(_) => {
                 self.stack.push_value(Value::I32(
-                    self.memory()?.borrow().page_count(self.store) as i32
+                    self.memory(store)?.borrow().page_count(store) as i32
                 ));
                 Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as()?;
-                let mem = self.memory()?;
-                let size = mem.borrow().page_count(self.store);
-                match mem.borrow_mut().grow(grow_page as usize, self.store) {
+                let mem = self.memory(store)?;
+                let size = mem.borrow().page_count(store);
+                match mem.borrow_mut().grow(grow_page as usize, store) {
                     Ok(_) => {
                         self.stack.push_value(Value::I32(size as i32));
                     }
@@ -554,7 +555,7 @@ impl<'a> Executor<'a> {
         ))
     }
 
-    fn branch(&mut self, depth: u32) -> ExecResult<Signal> {
+    fn branch(&mut self, depth: u32, store: &Store) -> ExecResult<Signal> {
         let depth = depth as usize;
         let label = {
             let labels = self.stack.current_frame_labels().map_err(Trap::Stack)?;
@@ -586,13 +587,13 @@ impl<'a> Executor<'a> {
         match label {
             Label::Loop(loop_label) => self.pc.loop_jump(&loop_label),
             Label::Return(_) => {
-                return self.do_return();
+                return self.do_return(store);
             }
             Label::If(_) | Label::Block(_) => {
                 let mut depth = depth + 1;
                 loop {
                     let index = self.pc.inst_index().0 as usize;
-                    match self.current_func_insts()?[index] {
+                    match self.current_func_insts(store)?[index] {
                         Instruction::End => depth -= 1,
                         Instruction::Block(_) => depth += 1,
                         Instruction::If(_) => depth += 1,
@@ -657,8 +658,8 @@ impl<'a> Executor<'a> {
         Ok(Signal::Next)
     }
 
-    fn invoke(&mut self, addr: FuncAddr) -> ExecResult<Signal> {
-        let func_ty = self.store.func_ty(addr);
+    fn invoke(&mut self, addr: FuncAddr, store: &Store) -> ExecResult<Signal> {
+        let func_ty = store.func_ty(addr);
 
         let mut args = Vec::new();
         for _ in func_ty.params() {
@@ -666,9 +667,9 @@ impl<'a> Executor<'a> {
         }
         args.reverse();
 
-        let func = self.store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        let result = { resolve_func_addr(addr, self.store)?.clone() };
+        let result = { resolve_func_addr(addr, store)?.clone() };
         match result {
             Either::Left((addr, func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
@@ -680,7 +681,7 @@ impl<'a> Executor<'a> {
             }
             Either::Right(host_func_body) => {
                 let mut result = Vec::new();
-                host_func_body.call(&args, &mut result, self.store, addr.0)?;
+                host_func_body.call(&args, &mut result, store, addr.0)?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);
@@ -689,10 +690,9 @@ impl<'a> Executor<'a> {
             }
         }
     }
-    fn do_return(&mut self) -> ExecResult<Signal> {
+    fn do_return(&mut self, store: &Store) -> ExecResult<Signal> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-        let func = self
-            .store
+        let func = store
             .func(frame.func_addr)
             .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
@@ -722,13 +722,17 @@ impl<'a> Executor<'a> {
         Ok(Signal::Next)
     }
 
-    fn memory(&self) -> ExecResult<std::rc::Rc<std::cell::RefCell<MemoryInstance>>> {
+    fn memory(&self, store: &Store) -> ExecResult<std::rc::Rc<std::cell::RefCell<MemoryInstance>>> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?;
         let mem_addr = MemoryAddr(frame.module_index(), 0);
-        Ok(self.store.memory(mem_addr))
+        Ok(store.memory(mem_addr))
     }
 
-    fn store<T: NativeValue + IntoLittleEndian>(&mut self, offset: usize) -> ExecResult<Signal> {
+    fn store<T: NativeValue + IntoLittleEndian>(
+        &mut self,
+        offset: usize,
+        store: &Store,
+    ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
         let base_addr = base_addr as usize;
@@ -737,9 +741,9 @@ impl<'a> Executor<'a> {
             .take(std::mem::size_of::<T>())
             .collect();
         val.into_le(&mut buf);
-        self.memory()?
+        self.memory(store)?
             .borrow_mut()
-            .store(addr, &buf, self.store)
+            .store(addr, &buf, store)
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
@@ -748,6 +752,7 @@ impl<'a> Executor<'a> {
         &mut self,
         offset: usize,
         width: usize,
+        store: &Store,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
@@ -758,14 +763,14 @@ impl<'a> Executor<'a> {
             .collect();
         val.into_le(&mut buf);
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
-        self.memory()?
+        self.memory(store)?
             .borrow_mut()
-            .store(addr, &buf, self.store)
+            .store(addr, &buf, store)
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
 
-    fn load<T>(&mut self, offset: usize) -> ExecResult<Signal>
+    fn load<T>(&mut self, offset: usize, store: &Store) -> ExecResult<Signal>
     where
         T: NativeValue + FromLittleEndian,
         T: Into<Value>,
@@ -775,9 +780,9 @@ impl<'a> Executor<'a> {
         let addr: usize = base_addr + offset;
 
         let result: T = self
-            .memory()?
+            .memory(store)?
             .borrow_mut()
-            .load_as(addr, self.store)
+            .load_as(addr, store)
             .map_err(Trap::Memory)?;
         self.stack.push_value(result.into());
         Ok(Signal::Next)
@@ -786,15 +791,16 @@ impl<'a> Executor<'a> {
     fn load_extend<T: FromLittleEndian + ExtendInto<U>, U: Into<Value>>(
         &mut self,
         offset: usize,
+        store: &Store,
     ) -> ExecResult<Signal> {
         let base_addr: i32 = self.pop_as()?;
         let base_addr = base_addr as usize;
         let addr: usize = base_addr + offset;
 
         let result: T = self
-            .memory()?
+            .memory(store)?
             .borrow_mut()
-            .load_as(addr, self.store)
+            .load_as(addr, store)
             .map_err(Trap::Memory)?;
         let result = result.extend_into();
         self.stack.push_value(result.into());
@@ -890,9 +896,9 @@ pub fn invoke_func(
                 (frame, ret_types)
             };
             let pc = ProgramCounter::new(func_addr, InstIndex::zero());
-            let mut executor = Executor::new(frame, ret_types.len(), pc, store);
+            let mut executor = Executor::new(frame, ret_types.len(), pc);
             loop {
-                let result = executor.execute_step();
+                let result = executor.execute_step(store);
                 match result {
                     Ok(Signal::Next) => continue,
                     Ok(Signal::End) => match executor.pop_result(ret_types) {
