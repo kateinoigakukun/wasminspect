@@ -1,12 +1,10 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::{eval_const_expr, invoke_func, resolve_func_addr, WasmError};
-use super::func::{
-    DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
-};
+use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::{
     resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,
 };
-use super::host::{HostContext, HostValue};
+use super::host::HostValue;
 use super::memory::{self, DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
 use super::module::{self, DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
 use super::table::{
@@ -18,8 +16,6 @@ use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-
-use thiserror::Error;
 
 /// Store
 pub struct Store {
@@ -113,9 +109,9 @@ impl Store {
 
     pub fn get_embed_context<T: std::any::Any>(&self) -> Option<&T> {
         let type_id = std::any::TypeId::of::<T>();
-        self.embedded_contexts.get(&type_id).map(|v| {
-            v.downcast_ref::<T>().unwrap()
-        })
+        self.embedded_contexts
+            .get(&type_id)
+            .map(|v| v.downcast_ref::<T>().unwrap())
     }
 }
 

@@ -3,11 +3,6 @@ use parity_wasm::elements::*;
 
 use std::iter;
 
-pub struct TypeIndex {
-    module_index: ModuleIndex,
-    index: u32,
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct InstIndex(pub u32);
 

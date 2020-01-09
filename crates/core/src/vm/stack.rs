@@ -1,10 +1,8 @@
 use super::address::FuncAddr;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
-use super::value::{NativeValue, Value};
-use parity_wasm::elements::{FunctionType, ValueType};
-
-use std::fmt;
+use super::value::Value;
+use parity_wasm::elements::ValueType;
 
 #[derive(Debug)]
 pub enum StackValueType {
@@ -237,11 +235,13 @@ pub struct Stack {
 // Debugger
 impl Stack {
     pub fn peek_frames(&self) -> Vec<&CallFrame> {
-        self.stack.iter()
+        self.stack
+            .iter()
             .filter_map(|v| match v {
                 StackValue::Activation(f) => Some(f),
                 _ => None,
-            }).collect()
+            })
+            .collect()
     }
 }
 

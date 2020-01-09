@@ -39,7 +39,6 @@ impl ExportInstance {
                     let addr = TableAddr(module_index, *table_index as usize);
                     ExternalValue::Table(addr)
                 }
-                _ => panic!(),
             },
         }
     }
