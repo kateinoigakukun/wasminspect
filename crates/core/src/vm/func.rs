@@ -1,4 +1,6 @@
 use super::module::*;
+use super::address::FuncAddr;
+use super::host::HostFuncBody;
 use parity_wasm::elements::*;
 
 use std::iter;
@@ -14,14 +16,14 @@ impl InstIndex {
 
 pub enum FunctionInstance {
     Defined(DefinedFunctionInstance),
-    External(ExternalFunctionInstance),
+    Host(HostFunctionInstance),
 }
 
 impl FunctionInstance {
     pub fn ty(&self) -> &FunctionType {
         match self {
             Self::Defined(defined) => defined.ty(),
-            Self::External(host) => host.ty(),
+            Self::Host(host) => host.ty(),
         }
     }
 
@@ -29,15 +31,6 @@ impl FunctionInstance {
         match self {
             Self::Defined(defined) => Some(defined),
             _ => None,
-        }
-    }
-
-    pub fn name(&self) -> String {
-        match self {
-            Self::Defined(defined) => defined.name.clone(),
-            Self::External(external) => {
-                format!("{}.{}", external.module_name(), external.field_name())
-            }
         }
     }
 }
@@ -93,13 +86,13 @@ impl DefinedFunctionInstance {
     }
 }
 
-pub struct ExternalFunctionInstance {
+pub struct HostFunctionInstance {
     ty: FunctionType,
     module_name: String,
     field_name: String,
 }
 
-impl ExternalFunctionInstance {
+impl HostFunctionInstance {
     pub fn ty(&self) -> &FunctionType {
         &self.ty
     }

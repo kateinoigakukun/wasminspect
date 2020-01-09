@@ -852,7 +852,7 @@ pub fn resolve_func_addr(
     let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
     match func {
         FunctionInstance::Defined(defined) => Ok(Either::Left((addr, defined))),
-        FunctionInstance::External(func) => {
+        FunctionInstance::Host(func) => {
             let module = store.module_by_name(func.module_name().clone());
             match module {
                 ModuleInstance::Host(host_module) => {
