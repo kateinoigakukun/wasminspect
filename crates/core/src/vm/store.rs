@@ -1,7 +1,7 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::{eval_const_expr, invoke_func, resolve_func_addr, WasmError};
 use super::func::{
-    DefinedFuncBody, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
+    DefinedFunctionInstance, FunctionInstance, HostFunctionInstance,
 };
 use super::global::{
     resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,
@@ -600,10 +600,10 @@ impl Store {
             let map = self.funcs.entry(module_index).or_insert(Vec::new());
             let func_index = map.len();
             let defined = DefinedFunctionInstance::new(
+                format!("<module defined func #{}>", func_index),
                 func_type,
                 module_index,
-                DefinedFuncBody::new(*func, body.clone(), module_index),
-                format!("<module defined func #{}>", func_index),
+                body.clone(),
             );
             let instance = FunctionInstance::Defined(defined);
             map.push(instance);

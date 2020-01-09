@@ -111,7 +111,7 @@ impl Executor {
     pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
         let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
         let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
-        Ok(&func.defined().unwrap().code().instructions())
+        Ok(&func.defined().unwrap().instructions())
     }
 
     pub fn execute_step<'a>(&mut self, store: &'a Store) -> ExecResult<Signal> {
@@ -121,7 +121,7 @@ impl Executor {
             .defined()
             .unwrap();
         let module_index = func.module_index().clone();
-        let inst = func.code().inst(self.pc.inst_index()).clone();
+        let inst = func.inst(self.pc.inst_index()).clone();
         return self.execute_inst(&inst, module_index, store);
     }
 

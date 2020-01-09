@@ -48,49 +48,19 @@ impl FunctionInstance {
 }
 
 pub struct DefinedFunctionInstance {
+    name: String,
     ty: FunctionType,
     module_index: ModuleIndex,
-    code: DefinedFuncBody,
-    name: String,
-}
-
-impl DefinedFunctionInstance {
-    pub fn new(
-        ty: FunctionType,
-        module_index: ModuleIndex,
-        code: DefinedFuncBody,
-        name: String,
-    ) -> Self {
-        Self {
-            ty,
-            module_index,
-            code,
-            name,
-        }
-    }
-    pub fn ty(&self) -> &FunctionType {
-        &self.ty
-    }
-
-    pub fn code(&self) -> &DefinedFuncBody {
-        &self.code
-    }
-    pub fn module_index(&self) -> ModuleIndex {
-        self.module_index
-    }
-}
-
-pub struct DefinedFuncBody {
-    type_index: TypeIndex,
     locals: Vec<ValueType>,
     instructions: Vec<Instruction>,
 }
 
-impl DefinedFuncBody {
+impl DefinedFunctionInstance {
     pub fn new(
-        func: parity_wasm::elements::Func,
-        body: parity_wasm::elements::FuncBody,
+        name: String,
+        ty: FunctionType,
         module_index: ModuleIndex,
+        body: parity_wasm::elements::FuncBody,
     ) -> Self {
         let locals = body
             .locals()
@@ -99,23 +69,32 @@ impl DefinedFuncBody {
             .collect();
         let instructions = body.code().elements().to_vec();
         Self {
-            type_index: TypeIndex {
-                module_index,
-                index: func.type_ref(),
-            },
+            name,
+            ty,
+            module_index,
             locals,
             instructions,
         }
     }
 
+    pub fn ty(&self) -> &FunctionType {
+        &self.ty
+    }
+
+    pub fn module_index(&self) -> ModuleIndex {
+        self.module_index
+    }
+
     pub fn instructions(&self) -> &[Instruction] {
         &self.instructions
     }
+
+    pub fn locals(&self) -> &[ValueType] {
+        &self.locals
+    }
+
     pub fn inst(&self, index: InstIndex) -> &Instruction {
         &self.instructions[index.0 as usize]
-    }
-    pub fn locals(&self) -> &Vec<ValueType> {
-        &self.locals
     }
 }
 

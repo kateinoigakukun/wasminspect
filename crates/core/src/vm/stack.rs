@@ -138,7 +138,7 @@ impl CallFrame {
         pc: Option<ProgramCounter>,
     ) -> Self {
         let mut local_tys = func.ty().params().to_vec();
-        local_tys.append(&mut func.code().locals().clone());
+        local_tys.append(&mut func.locals().to_vec());
         Self::new(func_addr, &local_tys, args, pc)
     }
 
