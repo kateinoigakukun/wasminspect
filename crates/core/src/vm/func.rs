@@ -14,7 +14,7 @@ impl InstIndex {
 
 pub enum FunctionInstance {
     Defined(DefinedFunctionInstance),
-    External(HostFunctionInstance),
+    External(ExternalFunctionInstance),
 }
 
 impl FunctionInstance {
@@ -93,13 +93,13 @@ impl DefinedFunctionInstance {
     }
 }
 
-pub struct HostFunctionInstance {
+pub struct ExternalFunctionInstance {
     ty: FunctionType,
     module_name: String,
     field_name: String,
 }
 
-impl HostFunctionInstance {
+impl ExternalFunctionInstance {
     pub fn ty(&self) -> &FunctionType {
         &self.ty
     }

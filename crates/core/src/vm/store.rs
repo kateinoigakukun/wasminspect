@@ -1,6 +1,6 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::{eval_const_expr, invoke_func, resolve_func_addr, WasmError};
-use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
+use super::func::{DefinedFunctionInstance, FunctionInstance, ExternalFunctionInstance};
 use super::global::{
     resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,
 };
@@ -352,7 +352,7 @@ impl Store {
             .get(type_index)
             .ok_or(Error::UnknownType(type_index as u32))?
             .clone();
-        let instance = HostFunctionInstance::new(
+        let instance = ExternalFunctionInstance::new(
             func_ty.clone(),
             import.module().to_string(),
             import.field().to_string(),
