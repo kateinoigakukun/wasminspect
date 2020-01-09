@@ -17,44 +17,14 @@ impl InstIndex {
     }
 }
 
-pub enum FunctionInstance {
-    Defined(DefinedFunctionInstance),
-    External(HostFunctionInstance),
-}
-
-impl FunctionInstance {
-    pub fn ty(&self) -> &FunctionType {
-        match self {
-            Self::Defined(defined) => defined.ty(),
-            Self::External(host) => host.ty(),
-        }
-    }
-
-    pub fn defined(&self) -> Option<&DefinedFunctionInstance> {
-        match self {
-            Self::Defined(defined) => Some(defined),
-            _ => None,
-        }
-    }
-
-    pub fn name(&self) -> String {
-        match self {
-            Self::Defined(defined) => defined.name.clone(),
-            Self::External(external) => {
-                format!("{}.{}", external.module_name(), external.field_name())
-            }
-        }
-    }
-}
-
-pub struct DefinedFunctionInstance {
+pub struct FunctionInstance {
     ty: FunctionType,
     module_index: ModuleIndex,
     code: DefinedFuncBody,
     name: String,
 }
 
-impl DefinedFunctionInstance {
+impl FunctionInstance {
     pub fn new(
         ty: FunctionType,
         module_index: ModuleIndex,
@@ -116,33 +86,5 @@ impl DefinedFuncBody {
     }
     pub fn locals(&self) -> &Vec<ValueType> {
         &self.locals
-    }
-}
-
-pub struct HostFunctionInstance {
-    ty: FunctionType,
-    module_name: String,
-    field_name: String,
-}
-
-impl HostFunctionInstance {
-    pub fn ty(&self) -> &FunctionType {
-        &self.ty
-    }
-
-    pub fn module_name(&self) -> &String {
-        &self.module_name
-    }
-
-    pub fn field_name(&self) -> &String {
-        &self.field_name
-    }
-
-    pub fn new(ty: FunctionType, module_name: String, field_name: String) -> Self {
-        Self {
-            ty,
-            module_name,
-            field_name,
-        }
     }
 }
