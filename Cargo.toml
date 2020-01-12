@@ -14,3 +14,11 @@ wasminspect-core = { path = "crates/core" }
 wast-spec = { path = "crates/wast-spec" }
 clap = "2.33.0"
 wasmi-validation = "0.3.0"
+
+[workspace]
+members = [
+  "crates/cli",
+  "crates/core",
+  "crates/wast-spec",
+  "crates/wasi",
+]
