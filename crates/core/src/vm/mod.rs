@@ -13,6 +13,7 @@ mod table;
 mod utils;
 mod validator;
 mod value;
+mod linker;
 
 pub use self::address::*;
 pub use self::executor::{Executor, Signal};

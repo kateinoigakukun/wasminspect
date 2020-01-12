@@ -1,4 +1,3 @@
-use super::address::FuncAddr;
 use super::host::HostFuncBody;
 use super::module::*;
 use parity_wasm::elements::*;
