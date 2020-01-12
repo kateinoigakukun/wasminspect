@@ -164,7 +164,7 @@ type HostModuleResult<T> = std::result::Result<T, HostModuleError>;
 
 pub enum HostExport {
     Func(ExecutableFuncAddr),
-    Global(Rc<RefCell<DefinedGlobalInstance>>),
+    Global(ResolvedGlobalAddr),
     Mem(ResolvedMemoryAddr),
     Table(ResolvedTableAddr),
 }
@@ -188,7 +188,7 @@ impl HostModuleInstance {
     pub fn global_by_name(
         &self,
         name: String,
-    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedGlobalInstance>>>> {
+    ) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Global(global)) => Ok(Some(global)),
             Some(v) => Err(HostModuleError::TypeMismatch("global", v.ty().to_string())),

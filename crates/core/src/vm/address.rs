@@ -1,10 +1,6 @@
 use super::linker::{GlobalAddress, LinkableAddress};
 use super::module::ModuleIndex;
 
-// Addresses
-#[derive(Clone, Copy, Debug)]
-pub struct GlobalAddr(pub ModuleIndex, pub usize);
-
 // Internal representation of global function address to reference same function instances
 
 use super::func::FunctionInstance;
@@ -20,3 +16,7 @@ pub type ResolvedTableAddr = GlobalAddress<Rc<RefCell<TableInstance>>>;
 use super::memory::MemoryInstance;
 pub type MemoryAddr = LinkableAddress<Rc<RefCell<MemoryInstance>>>;
 pub type ResolvedMemoryAddr = GlobalAddress<Rc<RefCell<MemoryInstance>>>;
+
+use super::global::GlobalInstance;
+pub type GlobalAddr = LinkableAddress<Rc<RefCell<GlobalInstance>>>;
+pub type ResolvedGlobalAddr = GlobalAddress<Rc<RefCell<GlobalInstance>>>;

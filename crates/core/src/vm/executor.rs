@@ -288,15 +288,15 @@ impl Executor {
                 self.set_local(*index as usize)
             }
             Instruction::GetGlobal(index) => {
-                let addr = GlobalAddr(module_index, *index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *index as usize);
                 let global = store.global(addr);
-                self.stack.push_value(global.borrow().value(store));
+                self.stack.push_value(global.borrow().value());
                 Ok(Signal::Next)
             }
             Instruction::SetGlobal(index) => {
-                let addr = GlobalAddr(module_index, *index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
-                let global = resolve_global_instance(addr, store);
+                let global = store.global(addr);
                 global.borrow_mut().set_value(value);
                 Ok(Signal::Next)
             }
@@ -807,8 +807,8 @@ pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: Module
         Instruction::F32Const(val) => Value::F32(f32::from_bits(val)),
         Instruction::F64Const(val) => Value::F64(f64::from_bits(val)),
         Instruction::GetGlobal(index) => {
-            let addr = GlobalAddr(module_index, index as usize);
-            store.global(addr).borrow().value(store)
+            let addr = GlobalAddr::new_unsafe(module_index, index as usize);
+            store.global(addr).borrow().value()
         }
         _ => panic!("Unsupported init_expr {}", inst),
     }

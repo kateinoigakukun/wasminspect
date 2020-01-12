@@ -28,7 +28,7 @@ impl ExportInstance {
                     ExternalValue::Func(addr)
                 }
                 Internal::Global(global_index) => {
-                    let addr = GlobalAddr(module_index, *global_index as usize);
+                    let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
                     ExternalValue::Global(addr)
                 }
                 Internal::Memory(memory_index) => {

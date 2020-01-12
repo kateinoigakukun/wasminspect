@@ -1,9 +1,7 @@
 use super::address::*;
 use super::executor::{eval_const_expr, invoke_func, WasmError};
 use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
-use super::global::{
-    resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,
-};
+use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
 use super::host::HostValue;
 use super::linker::LinkableCollection;
 use super::memory::{self, MemoryInstance};
@@ -22,7 +20,7 @@ pub struct Store {
     funcs: LinkableCollection<FunctionInstance>,
     tables: LinkableCollection<Rc<RefCell<TableInstance>>>,
     mems: LinkableCollection<Rc<RefCell<MemoryInstance>>>,
-    globals: HashMap<ModuleIndex, Vec<Rc<RefCell<GlobalInstance>>>>,
+    globals: LinkableCollection<Rc<RefCell<GlobalInstance>>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 
@@ -35,7 +33,7 @@ impl Store {
             funcs: LinkableCollection::new(),
             tables: LinkableCollection::new(),
             mems: LinkableCollection::new(),
-            globals: HashMap::new(),
+            globals: LinkableCollection::new(),
             modules: Vec::new(),
             module_index_by_name: HashMap::new(),
             embedded_contexts: HashMap::new(),
@@ -51,7 +49,7 @@ impl Store {
     }
 
     pub fn global(&self, addr: GlobalAddr) -> Rc<RefCell<GlobalInstance>> {
-        self.globals[&addr.0][addr.1].clone()
+        self.globals.get(addr).unwrap().0.clone()
     }
 
     pub fn scan_global_by_name(
@@ -106,7 +104,8 @@ impl Store {
                     values.insert(field, HostExport::Func(addr));
                 }
                 HostValue::Global(g) => {
-                    values.insert(field, HostExport::Global(g));
+                    let addr = self.globals.push_global(g);
+                    values.insert(field, HostExport::Global(addr));
                 }
                 HostValue::Table(t) => {
                     let addr = self.tables.push_global(t);
@@ -256,7 +255,7 @@ impl Store {
                 self.funcs.remove_module(&module_index);
                 self.tables.remove_module(&module_index);
                 self.mems.remove_module(&module_index);
-                self.globals.remove(&module_index);
+                self.globals.remove_module(&module_index);
                 let module_index = module_index.0 as usize;
                 if module_index < self.modules.len() {
                     self.modules.remove(module_index);
@@ -510,37 +509,31 @@ impl Store {
         import: &parity_wasm::elements::ImportEntry,
         global_ty: parity_wasm::elements::GlobalType,
     ) -> Result<GlobalAddr> {
-        let instance = ExternalGlobalInstance::new(
-            import.module().to_string(),
-            import.field().to_string(),
-            global_ty.clone(),
-        );
+        let name = import.field().to_string();
+        let module = self.module_by_name(import.module().to_string());
+        let err = || {
+            Error::UndefinedGlobal(
+                import.module().clone().to_string(),
+                import.field().clone().to_string(),
+            )
+        };
+        let resolved_addr = match module {
+            ModuleInstance::Defined(defined) => {
+                let addr = defined
+                    .exported_global(name)
+                    .map_err(Error::InvalidImport)?
+                    .ok_or(err())?;
+                self.globals.resolve(addr).ok_or_else(err)?.clone()
+            }
+            ModuleInstance::Host(host) => host
+                .global_by_name(name)
+                .map_err(Error::InvalidHostImport)
+                .and_then(|f| f.ok_or(err()))?
+                .clone(),
+        };
         // Validation
         {
-            let actual_global = {
-                let name = import.field().to_string();
-                let module = self.module_by_name(import.module().to_string());
-                let err = || {
-                    Error::UndefinedGlobal(
-                        import.module().clone().to_string(),
-                        import.field().clone().to_string(),
-                    )
-                };
-                match module {
-                    ModuleInstance::Defined(defined) => {
-                        let addr = defined
-                            .exported_global(name)
-                            .map_err(Error::InvalidImport)?
-                            .ok_or(err())?;
-                        resolve_global_instance(addr, self)
-                    }
-                    ModuleInstance::Host(host) => host
-                        .global_by_name(name)
-                        .map_err(Error::InvalidHostImport)
-                        .and_then(|f| f.ok_or(err()))?
-                        .clone(),
-                }
-            };
+            let actual_global = self.globals.get_global(resolved_addr);
             let actual_global_ty = actual_global.borrow().ty().content_type().clone();
             let expected_global_ty = global_ty.content_type().clone();
             if actual_global.borrow().is_mutable() != global_ty.is_mutable() {
@@ -553,10 +546,7 @@ impl Store {
                 ));
             }
         };
-        let map = self.globals.entry(module_index).or_insert(Vec::new());
-        let global_index = map.len();
-        map.push(Rc::new(RefCell::new(GlobalInstance::External(instance))));
-        return Ok(GlobalAddr(module_index, global_index));
+        Ok(self.globals.link(resolved_addr, module_index))
     }
 
     fn load_functions(
@@ -605,12 +595,10 @@ impl Store {
         for entry in globals {
             let value = eval_const_expr(entry.init_expr(), &self, module_index);
             let instance = DefinedGlobalInstance::new(value, entry.global_type().clone());
-            let map = self.globals.entry(module_index).or_insert(Vec::new());
-            let global_index = map.len();
-            map.push(Rc::new(RefCell::new(GlobalInstance::Defined(Rc::new(
-                RefCell::new(instance),
-            )))));
-            global_addrs.push(GlobalAddr(module_index, global_index));
+            let addr = self
+                .globals
+                .push(module_index, Rc::new(RefCell::new(instance)));
+            global_addrs.push(addr);
         }
         global_addrs
     }

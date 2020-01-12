@@ -4,62 +4,7 @@ use super::store::Store;
 use super::value::Value;
 use parity_wasm::elements::GlobalType;
 
-pub enum GlobalInstance {
-    Defined(std::rc::Rc<std::cell::RefCell<DefinedGlobalInstance>>),
-    External(ExternalGlobalInstance),
-}
-
-pub fn resolve_global_instance(
-    addr: GlobalAddr,
-    store: &Store,
-) -> std::rc::Rc<std::cell::RefCell<DefinedGlobalInstance>> {
-    match &*store.global(addr).borrow() {
-        GlobalInstance::Defined(defined) => defined.clone(),
-        GlobalInstance::External(external) => {
-            let module = store.module_by_name(external.module_name.clone());
-            match module {
-                ModuleInstance::Defined(defined_module) => {
-                    let addr = defined_module
-                        .exported_global(external.name.clone())
-                        .ok()
-                        .unwrap()
-                        .unwrap();
-                    resolve_global_instance(addr, store)
-                }
-                ModuleInstance::Host(host_module) => host_module
-                    .global_by_name(external.name.clone())
-                    .ok()
-                    .unwrap()
-                    .unwrap()
-                    .clone(),
-            }
-        }
-    }
-}
-
-impl GlobalInstance {
-    pub fn value(&self, store: &Store) -> Value {
-        match self {
-            GlobalInstance::Defined(defined) => defined.borrow().value(),
-            GlobalInstance::External(external) => {
-                let module = store.module_by_name(external.module_name.clone());
-                match module {
-                    ModuleInstance::Host(host) => host
-                        .global_by_name(external.name.clone())
-                        .ok()
-                        .unwrap()
-                        .unwrap()
-                        .borrow()
-                        .value(),
-                    ModuleInstance::Defined(defined) => {
-                        let addr = defined.exported_global(external.name.clone()).ok().unwrap();
-                        store.global(addr.unwrap()).borrow().value(store)
-                    }
-                }
-            }
-        }
-    }
-}
+pub type GlobalInstance = DefinedGlobalInstance;
 
 pub struct DefinedGlobalInstance {
     ty: GlobalType,
