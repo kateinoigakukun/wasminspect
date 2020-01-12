@@ -270,7 +270,7 @@ impl WastContext {
                         Err(t) => bail!("{}\nunexpected trap: {}", context(span), t),
                     }
                 }
-                other => panic!("unsupported"),
+                _ => panic!("unsupported"),
             }
         }
         Ok(())

@@ -1,10 +1,7 @@
-use parity_wasm::elements::{FunctionType, GlobalType, ValueType};
+use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use wasi_common::hostcalls::*;
-use wasi_common::wasi::*;
-use wasi_common::*;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
 use wasminspect_core::vm::*;
 
@@ -36,7 +33,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
 
     let func = define_wasi_fn(vec![ValueType::I32], None, |args, ret, ctx, wasi_ctx| {
         unsafe {
-            let result = proc_exit(args[0].as_i32().unwrap() as u32);
+            proc_exit(args[0].as_i32().unwrap() as u32);
         }
         Ok(())
     });

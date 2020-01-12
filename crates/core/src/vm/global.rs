@@ -92,7 +92,7 @@ impl DefinedGlobalInstance {
 pub struct ExternalGlobalInstance {
     pub module_name: String,
     pub name: String,
-    ty: GlobalType,
+    pub ty: GlobalType,
 }
 
 impl ExternalGlobalInstance {

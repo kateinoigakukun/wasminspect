@@ -188,9 +188,9 @@ impl DefinedTableInstance {
 }
 
 pub struct ExternalTableInstance {
-    module_name: String,
-    name: String,
-    limit: ResizableLimits,
+    pub module_name: String,
+    pub name: String,
+    pub limit: ResizableLimits,
 }
 
 impl ExternalTableInstance {
