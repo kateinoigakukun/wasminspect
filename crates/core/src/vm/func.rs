@@ -1,7 +1,6 @@
 use super::host::HostFuncBody;
 use super::module::*;
 use parity_wasm::elements::*;
-
 use std::iter;
 
 #[derive(Clone, Copy, Debug)]

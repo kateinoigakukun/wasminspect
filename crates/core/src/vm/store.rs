@@ -214,14 +214,13 @@ impl Store {
         let elem_segs = Self::get_element_segments(&parity_module);
         let data_segs = Self::get_data_segments(&parity_module);
 
-        let (mut func_addrs, mut mem_addrs, mut table_addrs, mut global_addrs) =
-            self.load_imports(&parity_module, module_index, types)?;
-        func_addrs.append(&mut self.load_functions(&parity_module, module_index, types)?);
+        self.load_imports(&parity_module, module_index, types)?;
+        self.load_functions(&parity_module, module_index, types)?;
 
-        global_addrs.append(&mut self.load_globals(&parity_module, module_index));
-        table_addrs.append(&mut self.load_tables(&parity_module, module_index, elem_segs)?);
+        self.load_globals(&parity_module, module_index);
+        self.load_tables(&parity_module, module_index, elem_segs)?;
+        self.load_mems(&parity_module, module_index, data_segs)?;
 
-        mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs)?);
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
@@ -315,46 +314,28 @@ impl Store {
         parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: &[parity_wasm::elements::Type],
-    ) -> Result<(
-        Vec<FuncAddr>,
-        Vec<MemoryAddr>,
-        Vec<TableAddr>,
-        Vec<GlobalAddr>,
-    )> {
+    ) -> Result<()> {
         let imports = parity_module
             .import_section()
             .map(|sec| sec.entries())
             .unwrap_or_default();
-        let mut func_addrs = Vec::new();
-        let mut mem_addrs = Vec::new();
-        let mut table_addrs = Vec::new();
-        let mut global_addrs = Vec::new();
         for import in imports {
             match import.external() {
                 parity_wasm::elements::External::Function(type_index) => {
-                    let addr = self.load_import_function(
-                        module_index,
-                        import,
-                        *type_index as usize,
-                        &types,
-                    )?;
-                    func_addrs.push(addr);
+                    self.load_import_function(module_index, import, *type_index as usize, &types)?;
                 }
                 parity_wasm::elements::External::Memory(memory_ty) => {
-                    let addr = self.load_import_memory(module_index, import, *memory_ty)?;
-                    mem_addrs.push(addr);
+                    self.load_import_memory(module_index, import, *memory_ty)?;
                 }
                 parity_wasm::elements::External::Table(table_ty) => {
-                    let addr = self.load_import_table(module_index, import, *table_ty)?;
-                    table_addrs.push(addr);
+                    self.load_import_table(module_index, import, *table_ty)?;
                 }
                 parity_wasm::elements::External::Global(global_ty) => {
-                    let addr = self.load_import_global(module_index, import, *global_ty)?;
-                    global_addrs.push(addr);
+                    self.load_import_global(module_index, import, *global_ty)?;
                 }
             }
         }
-        Ok((func_addrs, mem_addrs, table_addrs, global_addrs))
+        Ok(())
     }
 
     fn load_import_function(
@@ -363,7 +344,7 @@ impl Store {
         import: &parity_wasm::elements::ImportEntry,
         type_index: usize,
         types: &[parity_wasm::elements::Type],
-    ) -> Result<FuncAddr> {
+    ) -> Result<()> {
         let func_ty = {
             let ty = types
                 .get(type_index)
@@ -403,8 +384,8 @@ impl Store {
                 actual_func_ty.clone(),
             ));
         }
-        let func_index = self.funcs.link(exec_addr, module_index);
-        return Ok(func_index);
+        self.funcs.link(exec_addr, module_index);
+        Ok(())
     }
 
     fn load_import_memory(
@@ -412,7 +393,7 @@ impl Store {
         module_index: ModuleIndex,
         import: &parity_wasm::elements::ImportEntry,
         memory_ty: parity_wasm::elements::MemoryType,
-    ) -> Result<MemoryAddr> {
+    ) -> Result<()> {
         let err = || {
             Error::UndefinedMemory(
                 import.module().clone().to_string(),
@@ -452,7 +433,8 @@ impl Store {
                 _ => (),
             }
         }
-        Ok(self.mems.link(resolved_addr, module_index))
+        self.mems.link(resolved_addr, module_index);
+        Ok(())
     }
 
     fn load_import_table(
@@ -460,7 +442,7 @@ impl Store {
         module_index: ModuleIndex,
         import: &parity_wasm::elements::ImportEntry,
         table_ty: parity_wasm::elements::TableType,
-    ) -> Result<TableAddr> {
+    ) -> Result<()> {
         let name = import.field().to_string();
         let module = self.module_by_name(import.module().to_string());
         let err = || {
@@ -500,7 +482,8 @@ impl Store {
             }
         }
 
-        Ok(self.tables.link(resolved_addr, module_index))
+        self.tables.link(resolved_addr, module_index);
+        Ok(())
     }
 
     fn load_import_global(
@@ -508,7 +491,7 @@ impl Store {
         module_index: ModuleIndex,
         import: &parity_wasm::elements::ImportEntry,
         global_ty: parity_wasm::elements::GlobalType,
-    ) -> Result<GlobalAddr> {
+    ) -> Result<()> {
         let name = import.field().to_string();
         let module = self.module_by_name(import.module().to_string());
         let err = || {
@@ -546,7 +529,8 @@ impl Store {
                 ));
             }
         };
-        Ok(self.globals.link(resolved_addr, module_index))
+        self.globals.link(resolved_addr, module_index);
+        Ok(())
     }
 
     fn load_functions(

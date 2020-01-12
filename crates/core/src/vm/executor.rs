@@ -1,6 +1,5 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
-
 use super::memory;
 use super::memory::MemoryInstance;
 use super::module::*;

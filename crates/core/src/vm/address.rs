@@ -1,4 +1,6 @@
 use super::linker::{GlobalAddress, LinkableAddress};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 // Internal representation of global function address to reference same function instances
 
@@ -7,8 +9,6 @@ pub type FuncAddr = LinkableAddress<FunctionInstance>;
 pub type ExecutableFuncAddr = GlobalAddress<FunctionInstance>;
 
 use super::table::TableInstance;
-use std::cell::RefCell;
-use std::rc::Rc;
 pub type TableAddr = LinkableAddress<Rc<RefCell<TableInstance>>>;
 pub type ResolvedTableAddr = GlobalAddress<Rc<RefCell<TableInstance>>>;
 
