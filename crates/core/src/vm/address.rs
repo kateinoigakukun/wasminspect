@@ -1,5 +1,5 @@
-use super::module::ModuleIndex;
 use super::linker::{GlobalAddress, LinkableAddress};
+use super::module::ModuleIndex;
 
 // Addresses
 #[derive(Clone, Copy, Debug)]

@@ -1,8 +1,6 @@
 use super::command::{self, Command};
 use super::debugger::Debugger;
 
-
-
 pub struct FrameCommand {}
 
 impl FrameCommand {

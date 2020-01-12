@@ -287,11 +287,7 @@ impl WastContext {
     }
 
     /// Get the value of an exported global from an instance.
-    fn get(
-        &mut self,
-        instance_name: Option<&str>,
-        field: &str,
-    ) -> Result<Result<Vec<WasmValue>>> {
+    fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Result<Vec<WasmValue>>> {
         let module_index = self.get_instance(instance_name.as_ref().map(|x| &**x));
         match self
             .instance
@@ -330,8 +326,7 @@ impl WastContext {
                     .map(|_| vec![])
                     .map_err(|e| anyhow!("{}", e)))
             }
-            wast::WastExecute::Get { module, global } => self
-                .get(module.map(|s| s.name()), global)
+            wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
         }
     }
 }

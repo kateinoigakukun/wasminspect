@@ -7,7 +7,9 @@ use super::global::{
 use super::host::HostValue;
 use super::linker::LinkableCollection;
 use super::memory::{self, DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
-use super::module::{self, DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance, HostExport};
+use super::module::{
+    self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
+};
 use super::table::{
     self, resolve_table_instance, DefinedTableInstance, ExternalTableInstance, TableInstance,
 };

@@ -5,7 +5,6 @@ use wasi_common::hostcalls::*;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
 use wasminspect_core::vm::*;
 
-
 pub struct WasiContext {
     ctx: RefCell<WasiCtx>,
 }
@@ -16,7 +15,12 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let mut module: HashMap<String, HostValue> = HashMap::new();
 
     fn define_wasi_fn<
-        F: Fn(&[WasmValue], &mut Vec<WasmValue>, &mut HostContext, &mut WasiCtx) -> Result<(), Trap>
+        F: Fn(
+                &[WasmValue],
+                &mut Vec<WasmValue>,
+                &mut HostContext,
+                &mut WasiCtx,
+            ) -> Result<(), Trap>
             + 'static,
     >(
         args_ty: Vec<ValueType>,
@@ -50,7 +54,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -68,7 +72,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -85,7 +89,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -103,7 +107,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[1].as_i32().unwrap() as u64,
                     args[2].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -121,7 +125,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -139,7 +143,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -152,7 +156,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         |args, ret, _ctx, wasi_ctx| {
             unsafe {
                 let result = fd_close(wasi_ctx, args[0].as_i32().unwrap() as u32);
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -170,7 +174,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -187,7 +191,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u16,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -205,7 +209,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -230,7 +234,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[2].as_i32().unwrap() as u8,
                     args[3].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -248,7 +252,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -267,7 +271,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[1].as_i32().unwrap() as u32,
                     args[2].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -292,7 +296,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[2].as_i32().unwrap() as u32,
                     args[3].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -317,7 +321,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[2].as_i32().unwrap() as u32,
                     args[3].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -352,7 +356,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[7].as_i32().unwrap() as u16,
                     args[8].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -369,20 +373,24 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
     );
     module.insert("random_get".to_string(), func);
 
-    let func = define_wasi_fn(vec![], Some(ValueType::I32), |_args, ret, _ctx, _wasi_ctx| {
-        unsafe {
-            let result = sched_yield();
-           ret.push(WasmValue::I32(result as i32));
-        }
-        Ok(())
-    });
+    let func = define_wasi_fn(
+        vec![],
+        Some(ValueType::I32),
+        |_args, ret, _ctx, _wasi_ctx| {
+            unsafe {
+                let result = sched_yield();
+                ret.push(WasmValue::I32(result as i32));
+            }
+            Ok(())
+        },
+    );
     module.insert("sched_yield".to_string(), func);
 
     let func = define_wasi_fn(
@@ -403,7 +411,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[2].as_i32().unwrap() as u32,
                     args[3].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -421,7 +429,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -448,7 +456,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[3].as_i32().unwrap() as u32,
                     args[4].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -467,7 +475,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[1].as_i32().unwrap() as u32,
                     args[2].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -486,7 +494,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[1].as_i32().unwrap() as u32,
                     args[2].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -504,7 +512,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[1].as_i64().unwrap() as u64,
                     args[2].as_i64().unwrap() as u64,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -528,7 +536,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[2].as_i64().unwrap() as u64,
                     args[3].as_i32().unwrap() as u8,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -541,7 +549,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         |args, ret, _ctx, wasi_ctx| {
             unsafe {
                 let result = fd_datasync(wasi_ctx, args[0].as_i32().unwrap() as u32);
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -554,7 +562,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         |args, ret, _ctx, wasi_ctx| {
             unsafe {
                 let result = fd_sync(wasi_ctx, args[0].as_i32().unwrap() as u32);
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -572,7 +580,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[1].as_i64().unwrap() as u64,
                     args[2].as_i64().unwrap() as u64,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -589,7 +597,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -613,7 +621,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[2].as_i64().unwrap() as u64,
                     args[3].as_i32().unwrap() as u16,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -640,7 +648,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[3].as_i64().unwrap() as u64,
                     args[4].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -667,7 +675,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[3].as_i64().unwrap() as u64,
                     args[4].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -694,7 +702,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[3].as_i64().unwrap() as u64,
                     args[4].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -711,7 +719,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -742,7 +750,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[5].as_i64().unwrap() as u64,
                     args[6].as_i32().unwrap() as u16,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -773,7 +781,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[5].as_i32().unwrap() as u32,
                     args[6].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -802,7 +810,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[4].as_i32().unwrap() as u32,
                     args[5].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -821,7 +829,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[1].as_i32().unwrap() as u32,
                     args[2].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -850,7 +858,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[4].as_i32().unwrap() as u32,
                     args[5].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
@@ -877,12 +885,14 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                     args[3].as_i32().unwrap() as u32,
                     args[4].as_i32().unwrap() as u32,
                 );
-               ret.push(WasmValue::I32(result as i32));
+                ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
         },
     );
     module.insert("path_symlink".to_string(), func);
-    let context = WasiContext { ctx: RefCell::new(wasi_ctx) };
+    let context = WasiContext {
+        ctx: RefCell::new(wasi_ctx),
+    };
     (context, module)
 }

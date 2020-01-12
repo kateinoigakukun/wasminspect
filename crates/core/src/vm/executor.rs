@@ -73,7 +73,6 @@ pub struct Executor {
 }
 
 impl Executor {
-
     pub fn new(initial_frame: CallFrame, initial_arity: usize, pc: ProgramCounter) -> Self {
         let mut stack = Stack::default();
         let _ = stack.set_frame(initial_frame);
@@ -100,10 +99,7 @@ impl Executor {
     }
 
     pub fn execute_step<'a>(&mut self, store: &'a Store) -> ExecResult<Signal> {
-        let func = store
-            .func_global(self.pc.exec_addr())
-            .defined()
-            .unwrap();
+        let func = store.func_global(self.pc.exec_addr()).defined().unwrap();
         let module_index = func.module_index().clone();
         let inst = func.inst(self.pc.inst_index()).clone();
         return self.execute_inst(&inst, module_index, store);

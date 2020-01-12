@@ -40,7 +40,6 @@ impl<T> Clone for LinkableAddress<T> {
 
 impl<T> Copy for LinkableAddress<T> {}
 
-
 impl<T> fmt::Debug for LinkableAddress<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{:?}, func_index: {}", self.0, self.1)

@@ -1,5 +1,5 @@
-pub mod debugger;
 pub mod command;
-pub mod run;
+pub mod debugger;
 pub mod frame;
 pub mod list;
+pub mod run;
