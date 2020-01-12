@@ -10,7 +10,6 @@ use super::module::{self, DefinedModuleInstance, HostModuleInstance, ModuleIndex
 use super::table::{
     self, resolve_table_instance, DefinedTableInstance, ExternalTableInstance, TableInstance,
 };
-use super::utils::*;
 use super::value::Value;
 use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;
@@ -400,30 +399,28 @@ impl Store {
                 import.field().clone().to_string(),
             )
         };
-        let actual_func_ty = match module {
+        let exec_addr = match module {
             ModuleInstance::Defined(defined) => {
                 let func_addr = defined
                     .exported_func(name)
                     .map_err(Error::InvalidImport)?
                     .ok_or_else(err)?;
-                let exec_addr = self.convert_func_addr(func_addr).ok_or_else(err)?.clone();
-                self.funcs
-                    .entry(module_index)
-                    .or_insert(Vec::new())
-                    .push(exec_addr);
-                self.func_by_exec_addr(exec_addr).ok_or_else(err)?.ty().clone()
+                self.convert_func_addr(func_addr).ok_or_else(err)?.clone()
             }
-            ModuleInstance::Host(host) => {
-                let exec_addr = *host
-                    .func_by_name(import.field().to_string())
-                    .ok_or_else(err)?;
-                let map = self.funcs.entry(module_index).or_insert(Vec::new());
-                map.push(exec_addr);
-                self.func_by_exec_addr(exec_addr).ok_or_else(err)?.ty().clone()
-            }
+            ModuleInstance::Host(host) => *host
+                .func_by_name(import.field().to_string())
+                .ok_or_else(err)?,
         };
+        self.funcs
+            .entry(module_index)
+            .or_insert(Vec::new())
+            .push(exec_addr);
+        let actual_func_ty = self
+            .func_by_exec_addr(exec_addr)
+            .ok_or_else(err)?
+            .ty();
         // Validation
-        if actual_func_ty != func_ty {
+        if *actual_func_ty != func_ty {
             return Err(Error::IncompatibleImportFuncType(
                 import.field().to_string(),
                 func_ty,

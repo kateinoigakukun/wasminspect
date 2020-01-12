@@ -871,7 +871,7 @@ pub fn resolve_func_addr(
 ) -> ExecResult<(FuncAddr, &FunctionInstance)> {
     let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
     match func {
-        FunctionInstance::Defined(defined) => Ok((addr, func)),
+        FunctionInstance::Defined(_) => Ok((addr, func)),
         FunctionInstance::Host(func) => {
             let module = store.module_by_name(func.module_name().clone());
             match module {
