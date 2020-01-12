@@ -1,6 +1,5 @@
 use super::linker::{GlobalAddress, LinkableAddress};
 
-
 // Internal representation of global function address to reference same function instances
 
 use super::func::FunctionInstance;

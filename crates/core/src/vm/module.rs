@@ -1,12 +1,8 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
 
-
-
-
 use std::collections::HashMap;
 use std::hash::Hash;
-
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ModuleIndex(pub u32);
@@ -185,10 +181,7 @@ impl HostModuleInstance {
         Self { values }
     }
 
-    pub fn global_by_name(
-        &self,
-        name: String,
-    ) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
+    pub fn global_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Global(global)) => Ok(Some(global)),
             Some(v) => Err(HostModuleError::TypeMismatch("global", v.ty().to_string())),

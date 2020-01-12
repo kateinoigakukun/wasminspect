@@ -1,6 +1,3 @@
-
-
-
 use super::value::Value;
 use parity_wasm::elements::GlobalType;
 
