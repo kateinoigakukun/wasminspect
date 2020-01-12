@@ -1,5 +1,5 @@
 use super::linker::{GlobalAddress, LinkableAddress};
-use super::module::ModuleIndex;
+
 
 // Internal representation of global function address to reference same function instances
 

@@ -1,6 +1,6 @@
-use super::address::GlobalAddr;
-use super::module::ModuleInstance;
-use super::store::Store;
+
+
+
 use super::value::Value;
 use parity_wasm::elements::GlobalType;
 

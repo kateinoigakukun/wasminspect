@@ -1,7 +1,7 @@
 use super::address::*;
 use super::executor::{eval_const_expr, invoke_func, WasmError};
 use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
-use super::global::{DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance};
+use super::global::{DefinedGlobalInstance, GlobalInstance};
 use super::host::HostValue;
 use super::linker::LinkableCollection;
 use super::memory::{self, MemoryInstance};

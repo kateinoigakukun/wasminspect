@@ -1,12 +1,12 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
-use super::global::DefinedGlobalInstance;
 
 
-use std::cell::RefCell;
+
+
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::rc::Rc;
+
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ModuleIndex(pub u32);
