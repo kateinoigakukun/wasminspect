@@ -331,17 +331,37 @@ impl Executor {
             Instruction::F32Load(_, offset) => self.load::<f32>(*offset as usize, store),
             Instruction::F64Load(_, offset) => self.load::<f64>(*offset as usize, store),
 
-            Instruction::I32Load8S(_, offset) => self.load_extend::<i8, i32>(*offset as usize, store),
-            Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize, store),
-            Instruction::I32Load16S(_, offset) => self.load_extend::<i16, i32>(*offset as usize, store),
-            Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize, store),
+            Instruction::I32Load8S(_, offset) => {
+                self.load_extend::<i8, i32>(*offset as usize, store)
+            }
+            Instruction::I32Load8U(_, offset) => {
+                self.load_extend::<u8, i32>(*offset as usize, store)
+            }
+            Instruction::I32Load16S(_, offset) => {
+                self.load_extend::<i16, i32>(*offset as usize, store)
+            }
+            Instruction::I32Load16U(_, offset) => {
+                self.load_extend::<u16, i32>(*offset as usize, store)
+            }
 
-            Instruction::I64Load8S(_, offset) => self.load_extend::<i8, i64>(*offset as usize, store),
-            Instruction::I64Load8U(_, offset) => self.load_extend::<u8, i64>(*offset as usize, store),
-            Instruction::I64Load16S(_, offset) => self.load_extend::<i16, i64>(*offset as usize, store),
-            Instruction::I64Load16U(_, offset) => self.load_extend::<u16, i64>(*offset as usize, store),
-            Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize, store),
-            Instruction::I64Load32U(_, offset) => self.load_extend::<u32, i64>(*offset as usize, store),
+            Instruction::I64Load8S(_, offset) => {
+                self.load_extend::<i8, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load8U(_, offset) => {
+                self.load_extend::<u8, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load16S(_, offset) => {
+                self.load_extend::<i16, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load16U(_, offset) => {
+                self.load_extend::<u16, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load32S(_, offset) => {
+                self.load_extend::<i32, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load32U(_, offset) => {
+                self.load_extend::<u32, i64>(*offset as usize, store)
+            }
 
             Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize, store),
             Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize, store),
@@ -671,7 +691,7 @@ impl Executor {
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         let result = { resolve_func_addr(addr, store)?.clone() };
         match result {
-            Either::Left((addr, func)) => {
+            (addr, FunctionInstance::Defined(func)) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
                 let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
@@ -679,9 +699,9 @@ impl Executor {
                 self.pc = pc;
                 Ok(Signal::Next)
             }
-            Either::Right(host_func_body) => {
+            (_, FunctionInstance::Host(func)) => {
                 let mut result = Vec::new();
-                host_func_body.call(&args, &mut result, store, addr.0)?;
+                func.code().call(&args, &mut result, store, addr.0)?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);
@@ -848,20 +868,17 @@ impl std::fmt::Display for WasmError {
 pub fn resolve_func_addr(
     addr: FuncAddr,
     store: &Store,
-) -> ExecResult<Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody>> {
+) -> ExecResult<(FuncAddr, &FunctionInstance)> {
     let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
     match func {
-        FunctionInstance::Defined(defined) => Ok(Either::Left((addr, defined))),
+        FunctionInstance::Defined(defined) => Ok((addr, func)),
         FunctionInstance::Host(func) => {
             let module = store.module_by_name(func.module_name().clone());
             match module {
                 ModuleInstance::Host(host_module) => {
-                    let func = host_module
-                        ._func_by_name(func.field_name().clone())
-                        .ok()
-                        .unwrap()
-                        .unwrap();
-                    return Ok(Either::Right(func));
+                    let exec_addr = host_module.func_by_name(func.field_name().clone()).unwrap();
+                    let func = store.func_by_exec_addr(*exec_addr).unwrap();
+                    return Ok((addr, func));
                 }
                 ModuleInstance::Defined(defined_module) => {
                     let addr = defined_module
@@ -882,14 +899,14 @@ pub fn invoke_func(
     store: &mut Store,
 ) -> Result<Vec<Value>, WasmError> {
     match resolve_func_addr(func_addr, &store).map_err(WasmError::ExecutionError)? {
-        Either::Right(host_func_body) => {
+        (_, FunctionInstance::Host(host)) => {
             let mut results = Vec::new();
-            match host_func_body.call(&arguments, &mut results, store, func_addr.0) {
+            match host.code().call(&arguments, &mut results, store, func_addr.0) {
                 Ok(_) => Ok(results),
                 Err(_) => Err(WasmError::HostExecutionError),
             }
         }
-        Either::Left((func_addr, func)) => {
+        (func_addr, FunctionInstance::Defined(func)) => {
             let (frame, ret_types) = {
                 let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
                 let frame = CallFrame::new_from_func(func_addr, func, arguments, None);

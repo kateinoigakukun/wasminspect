@@ -106,6 +106,10 @@ impl HostFunctionInstance {
         &self.field_name
     }
 
+    pub fn code(&self) -> &HostFuncBody {
+        &self.code
+    }
+
     pub fn new(
         ty: FunctionType,
         module_name: String,

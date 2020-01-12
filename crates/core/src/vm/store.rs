@@ -35,7 +35,7 @@ impl Store {
         self.funcs.get(&addr.0).and_then(|m| m.get(addr.1))
     }
 
-    fn _func(&self, addr: ExecutableFuncAddr) -> Option<&FunctionInstance> {
+    pub fn func_by_exec_addr(&self, addr: ExecutableFuncAddr) -> Option<&FunctionInstance> {
         self.funcs_by_addr.get(addr.0)
     }
 }
@@ -56,7 +56,7 @@ impl Store {
 
     pub fn func(&self, addr: FuncAddr) -> Option<&FunctionInstance> {
         let exec_addr = *self.convert_func_addr(addr)?;
-        self._func(exec_addr)
+        self.func_by_exec_addr(exec_addr)
     }
 
     pub fn func_ty(&self, addr: FuncAddr) -> &FunctionType {
@@ -132,7 +132,6 @@ impl Store {
                 HostValue::Mem(m) => {
                     mems_addrs.insert(field, m);
                 }
-                _ => {}
             }
         }
         let instance = HostModuleInstance::new(func_addrs, globals_addrs, tables_addrs, mems_addrs);
@@ -412,7 +411,7 @@ impl Store {
                     .entry(module_index)
                     .or_insert(Vec::new())
                     .push(exec_addr);
-                self._func(exec_addr).ok_or_else(err)?.ty().clone()
+                self.func_by_exec_addr(exec_addr).ok_or_else(err)?.ty().clone()
             }
             ModuleInstance::Host(host) => {
                 let exec_addr = *host
@@ -420,7 +419,7 @@ impl Store {
                     .ok_or_else(err)?;
                 let map = self.funcs.entry(module_index).or_insert(Vec::new());
                 map.push(exec_addr);
-                self._func(exec_addr).ok_or_else(err)?.ty().clone()
+                self.func_by_exec_addr(exec_addr).ok_or_else(err)?.ty().clone()
             }
         };
         // Validation
