@@ -658,28 +658,28 @@ impl Store {
             }
         }
         for (index, table_addr) in self.tables.items(module_index).unwrap().iter().enumerate() {
-            if let Some(segs) = element_segments.get(&index) {
-                for seg in segs {
-                    let offset = match seg
-                        .offset()
-                        .as_ref()
-                        .map(|e| eval_const_expr(&e, self, module_index))
-                        .unwrap()
-                    {
-                        Value::I32(v) => v,
-                        _ => panic!(),
-                    };
-                    let data = seg
-                        .members()
-                        .iter()
-                        .map(|func_index| FuncAddr::new_unsafe(module_index, *func_index as usize))
-                        .collect();
-                    let table = self.tables.get_global(*table_addr);
-                    table
-                        .borrow_mut()
-                        .initialize(offset as usize, data)
-                        .map_err(Error::InvalidElementSegments)?;
-                }
+            let segs = match element_segments.get(&index) {
+                Some(segs) => segs,
+                None => continue,
+            };
+            for seg in segs {
+                let offset = match seg.offset().as_ref()
+                    .map(|e| eval_const_expr(&e, self, module_index))
+                    .unwrap()
+                {
+                    Value::I32(v) => v,
+                    _ => panic!(),
+                };
+                let data = seg
+                    .members()
+                    .iter()
+                    .map(|func_index| FuncAddr::new_unsafe(module_index, *func_index as usize))
+                    .collect();
+                let table = self.tables.get_global(*table_addr);
+                table
+                    .borrow_mut()
+                    .initialize(offset as usize, data)
+                    .map_err(Error::InvalidElementSegments)?;
             }
         }
         Ok(table_addrs)
