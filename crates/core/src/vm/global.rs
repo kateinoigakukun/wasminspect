@@ -1,14 +1,12 @@
 use super::value::Value;
 use parity_wasm::elements::GlobalType;
 
-pub type GlobalInstance = DefinedGlobalInstance;
-
-pub struct DefinedGlobalInstance {
+pub struct GlobalInstance {
     ty: GlobalType,
     value: Value,
 }
 
-impl DefinedGlobalInstance {
+impl GlobalInstance {
     pub fn new(value: Value, ty: GlobalType) -> Self {
         Self { value, ty }
     }
@@ -28,21 +26,5 @@ impl DefinedGlobalInstance {
 
     pub fn ty(&self) -> &GlobalType {
         &self.ty
-    }
-}
-
-pub struct ExternalGlobalInstance {
-    pub module_name: String,
-    pub name: String,
-    pub ty: GlobalType,
-}
-
-impl ExternalGlobalInstance {
-    pub fn new(module_name: String, name: String, ty: GlobalType) -> Self {
-        Self {
-            module_name,
-            name,
-            ty,
-        }
     }
 }

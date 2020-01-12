@@ -1,7 +1,7 @@
 use super::address::*;
 use super::executor::{eval_const_expr, invoke_func, WasmError};
 use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
-use super::global::{DefinedGlobalInstance, GlobalInstance};
+use super::global::GlobalInstance;
 use super::host::HostValue;
 use super::linker::LinkableCollection;
 use super::memory::{self, MemoryInstance};
@@ -594,7 +594,7 @@ impl Store {
         let mut global_addrs = Vec::new();
         for entry in globals {
             let value = eval_const_expr(entry.init_expr(), &self, module_index);
-            let instance = DefinedGlobalInstance::new(value, entry.global_type().clone());
+            let instance = GlobalInstance::new(value, entry.global_type().clone());
             let addr = self
                 .globals
                 .push(module_index, Rc::new(RefCell::new(instance)));
