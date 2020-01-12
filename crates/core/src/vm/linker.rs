@@ -124,7 +124,10 @@ impl<T> LinkableCollection<T> {
         self.items.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
+    pub fn is_empty(&self, module_index: ModuleIndex) -> bool {
+        self.item_addrs_by_module
+            .get(&module_index)
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
     }
 }

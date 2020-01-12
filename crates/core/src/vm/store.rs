@@ -642,7 +642,7 @@ impl Store {
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut table_addrs = Vec::new();
-        if tables.is_empty() && self.tables.is_empty() {
+        if tables.is_empty() && self.tables.is_empty(module_index) {
             return Ok(table_addrs);
         }
         for entry in tables.iter() {
