@@ -5,6 +5,7 @@ authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-wasi-common = "0.8.0"
 wasminspect-vm = { path = "../vm" }
+wasminspect-api = { path = "../api" }
+wasi-common = "0.8.0"
 parity-wasm = "0.41"

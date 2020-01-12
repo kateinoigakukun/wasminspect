@@ -1,4 +1,4 @@
-use super::value::Value;
+use wasminspect_api::value::Value;
 
 use std::cell::RefCell;
 use std::rc::Rc;

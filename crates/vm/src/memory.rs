@@ -1,4 +1,4 @@
-use super::value::FromLittleEndian;
+use wasminspect_api::value::FromLittleEndian;
 use super::WASM_PAGE_SIZE;
 
 pub struct MemoryInstance {

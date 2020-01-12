@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal, Store,
-    WasmValue,
 };
+use wasminspect_api::value::Value;
 use wasminspect_wasi::instantiate_wasi;
 
 pub struct MainDebugger {
@@ -64,7 +64,7 @@ impl debugger::Debugger for MainDebugger {
             Vec::new()
         }
     }
-    fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String> {
+    fn run(&mut self, name: Option<String>) -> Result<Vec<Value>, String> {
         if let Some(module_index) = self.module_index {
             let module = self.store.module(module_index).defined().unwrap();
             let func_addr = if let Some(func_name) = name {

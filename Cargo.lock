@@ -784,9 +784,17 @@ version = "0.1.0"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi-validation 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasminspect-api 0.1.0",
  "wasminspect-cli 0.1.0",
  "wasminspect-vm 0.1.0",
  "wast-spec 0.1.0",
+]
+
+[[package]]
+name = "wasminspect-api"
+version = "0.1.0"
+dependencies = [
+ "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -799,6 +807,7 @@ dependencies = [
  "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi-validation 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasminspect-api 0.1.0",
  "wasminspect-vm 0.1.0",
  "wasminspect-wasi 0.1.0",
 ]
@@ -810,6 +819,7 @@ dependencies = [
  "anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasminspect-api 0.1.0",
 ]
 
 [[package]]
@@ -818,6 +828,7 @@ version = "0.1.0"
 dependencies = [
  "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasi-common 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasminspect-api 0.1.0",
  "wasminspect-vm 0.1.0",
 ]
 
@@ -844,6 +855,7 @@ dependencies = [
  "anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi-validation 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasminspect-api 0.1.0",
  "wasminspect-vm 0.1.0",
  "wast 5.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

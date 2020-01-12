@@ -9,7 +9,7 @@ use super::module::{
     self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
 };
 use super::table::{self, TableInstance};
-use super::value::Value;
+use wasminspect_api::value::Value;
 use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;
 use std::collections::HashMap;
