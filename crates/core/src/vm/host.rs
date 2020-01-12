@@ -6,7 +6,7 @@ use std::rc::Rc;
 use super::address::MemoryAddr;
 use super::executor::Trap;
 use super::global::DefinedGlobalInstance;
-use super::memory::DefinedMemoryInstance;
+use super::memory::MemoryInstance;
 use super::module::ModuleIndex;
 use super::store::Store;
 use super::table::DefinedTableInstance;
@@ -21,7 +21,7 @@ pub struct HostContext<'a> {
 pub enum HostValue {
     Func(HostFuncBody),
     Global(Rc<RefCell<DefinedGlobalInstance>>),
-    Mem(Ref<DefinedMemoryInstance>),
+    Mem(Ref<MemoryInstance>),
     Table(Ref<DefinedTableInstance>),
 }
 

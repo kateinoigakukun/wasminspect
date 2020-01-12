@@ -20,7 +20,7 @@ pub use self::func::{FunctionInstance, InstIndex};
 pub use self::global::DefinedGlobalInstance as HostGlobal;
 pub use self::host::{HostContext, HostFuncBody, HostValue};
 pub use self::instance::WasmInstance;
-pub use self::memory::DefinedMemoryInstance as HostMemory;
+pub use self::memory::MemoryInstance as HostMemory;
 pub use self::module::ModuleIndex;
 pub use self::stack::{CallFrame, ProgramCounter};
 pub use self::store::Store;

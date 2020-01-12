@@ -6,7 +6,7 @@ use super::global::{
 };
 use super::host::HostValue;
 use super::linker::LinkableCollection;
-use super::memory::{self, DefinedMemoryInstance, MemoryInstance};
+use super::memory::{self, MemoryInstance};
 use super::module::{
     self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
 };
@@ -688,7 +688,7 @@ impl Store {
             return Ok(mem_addrs);
         }
         for entry in mem_sec.iter() {
-            let instance = DefinedMemoryInstance::new(
+            let instance = MemoryInstance::new(
                 entry.limits().initial() as usize,
                 entry.limits().maximum().map(|mx| mx as usize),
             );

@@ -1,8 +1,6 @@
 use super::value::FromLittleEndian;
 
-pub type MemoryInstance = DefinedMemoryInstance;
-
-pub struct DefinedMemoryInstance {
+pub struct MemoryInstance {
     data: Vec<u8>,
     pub max: Option<usize>,
     pub initial: usize,
@@ -39,7 +37,7 @@ impl std::fmt::Display for Error {
 type Result<T> = std::result::Result<T, Error>;
 
 static PAGE_SIZE: usize = 65536;
-impl DefinedMemoryInstance {
+impl MemoryInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
             data: std::iter::repeat(0).take(initial * PAGE_SIZE).collect(),
