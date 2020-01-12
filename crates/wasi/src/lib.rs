@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use wasi_common::hostcalls::*;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
-use wasminspect_core::vm::*;
+use wasminspect_vm::*;
 
 pub struct WasiContext {
     ctx: RefCell<WasiCtx>,

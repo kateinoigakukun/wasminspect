@@ -1,4 +1,4 @@
-use wasminspect_core::vm::WasmValue;
+use wasminspect_vm::WasmValue;
 
 use parity_wasm::elements::Instruction;
 

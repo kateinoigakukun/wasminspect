@@ -5,7 +5,7 @@ authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-wasminspect-core = { path = "../core" }
+wasminspect-vm = { path = "../vm" }
 wast = "5.0.1"
 anyhow = "1.0.26"
 parity-wasm = "0.41"

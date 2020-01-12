@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 wasminspect-cli = { path = "crates/cli" }
-wasminspect-core = { path = "crates/core" }
+wasminspect-vm = { path = "crates/vm" }
 wast-spec = { path = "crates/wast-spec" }
 clap = "2.33.0"
 wasmi-validation = "0.3.0"
@@ -18,7 +18,7 @@ wasmi-validation = "0.3.0"
 [workspace]
 members = [
   "crates/cli",
-  "crates/core",
+  "crates/vm",
   "crates/wast-spec",
   "crates/wasi",
 ]

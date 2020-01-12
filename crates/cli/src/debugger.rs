@@ -2,7 +2,7 @@ use super::commands::debugger;
 use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
 use std::rc::Rc;
-use wasminspect_core::vm::{
+use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal, Store,
     WasmValue,
 };
