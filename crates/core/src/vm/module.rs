@@ -68,7 +68,7 @@ impl DefinedModuleInstance {
                 .unwrap_or_default(),
             start_func: module
                 .start_section()
-                .map(|func_index| FuncAddr(module_index, func_index as usize)),
+                .map(|func_index| FuncAddr::new_unsafe(module_index, func_index as usize)),
         }
     }
 

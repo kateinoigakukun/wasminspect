@@ -1,13 +1,43 @@
 use super::module::ModuleIndex;
 use std::collections::HashMap;
+use std::fmt;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct GlobalAddress<T>(usize, std::marker::PhantomData<T>);
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+
+impl<T> Clone for GlobalAddress<T> {
+    fn clone(&self) -> Self {
+        Self(self.0, self.1)
+    }
+}
+
+impl<T> Copy for GlobalAddress<T> {}
+
+#[derive(PartialEq, Eq, Hash)]
 pub struct LinkableAddress<T>(ModuleIndex, usize, std::marker::PhantomData<T>);
+
 impl<T> LinkableAddress<T> {
     pub fn new_unsafe(module: ModuleIndex, index: usize) -> Self {
         Self(module, index, std::marker::PhantomData)
+    }
+
+    pub fn module_index(&self) -> ModuleIndex {
+        self.0
+    }
+}
+
+impl<T> Clone for LinkableAddress<T> {
+    fn clone(&self) -> Self {
+        Self::new_unsafe(self.0, self.1)
+    }
+}
+
+impl<T> Copy for LinkableAddress<T> {}
+
+
+impl<T> fmt::Debug for LinkableAddress<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{:?}, func_index: {}", self.0, self.1)
     }
 }
 

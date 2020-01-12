@@ -250,7 +250,7 @@ impl Executor {
             Instruction::Return => self.do_return(store),
             Instruction::Call(func_index) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                let addr = FuncAddr(frame.module_index(), *func_index as usize);
+                let addr = FuncAddr::new_unsafe(frame.module_index(), *func_index as usize);
                 self.invoke(addr, store)
             }
             Instruction::CallIndirect(type_index, _) => {
@@ -697,7 +697,8 @@ impl Executor {
             }
             FunctionInstance::Host(func) => {
                 let mut result = Vec::new();
-                func.code().call(&args, &mut result, store, addr.0)?;
+                func.code()
+                    .call(&args, &mut result, store, addr.module_index())?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);
@@ -874,7 +875,7 @@ pub fn invoke_func(
             let mut results = Vec::new();
             match host
                 .code()
-                .call(&arguments, &mut results, store, func_addr.0)
+                .call(&arguments, &mut results, store, func_addr.module_index())
             {
                 Ok(_) => Ok(results),
                 Err(_) => Err(WasmError::HostExecutionError),

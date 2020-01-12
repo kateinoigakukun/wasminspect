@@ -149,7 +149,7 @@ impl CallFrame {
     }
 
     pub fn module_index(&self) -> ModuleIndex {
-        self.func_addr.0
+        self.func_addr.module_index()
     }
 }
 

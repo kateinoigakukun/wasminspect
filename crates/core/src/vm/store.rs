@@ -391,7 +391,7 @@ impl Store {
                     .exported_func(name)
                     .map_err(Error::InvalidImport)?
                     .ok_or_else(err)?;
-                self.funcs.resolve(func_addr).ok_or_else(err)?
+                self.funcs.resolve(func_addr).ok_or_else(err)?.clone()
             }
             ModuleInstance::Host(host) => *host
                 .func_by_name(import.field().to_string())

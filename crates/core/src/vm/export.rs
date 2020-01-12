@@ -24,7 +24,7 @@ impl ExportInstance {
             name: parity_entry.field().to_string(),
             value: match parity_entry.internal() {
                 Internal::Function(func_index) => {
-                    let addr = FuncAddr(module_index, *func_index as usize);
+                    let addr = FuncAddr::new_unsafe(module_index, *func_index as usize);
                     ExternalValue::Func(addr)
                 }
                 Internal::Global(global_index) => {
