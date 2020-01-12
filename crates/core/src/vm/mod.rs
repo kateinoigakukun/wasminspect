@@ -11,7 +11,6 @@ mod module;
 mod stack;
 mod store;
 mod table;
-mod validator;
 mod value;
 
 pub use self::address::*;

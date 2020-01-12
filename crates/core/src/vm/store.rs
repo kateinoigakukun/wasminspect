@@ -30,12 +30,6 @@ pub struct Store {
 }
 
 impl Store {
-    fn func_by_exec_addr(&self, addr: ExecutableFuncAddr) -> &FunctionInstance {
-        self.funcs.get_global(addr)
-    }
-}
-
-impl Store {
     pub fn new() -> Self {
         Self {
             funcs: LinkableCollection::new(),

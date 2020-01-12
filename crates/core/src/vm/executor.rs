@@ -1,4 +1,4 @@
-use super::address::{ExecutableFuncAddr, FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
+use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::global::*;
 use super::memory;
@@ -73,20 +73,6 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new_from_func(
-        func_addr: FuncAddr,
-        exec_addr: ExecutableFuncAddr,
-        func: &DefinedFunctionInstance,
-        arguments: Vec<Value>,
-    ) -> Self {
-        let (frame, ret_types) = {
-            let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-            let frame = CallFrame::new_from_func(exec_addr, func, arguments, None);
-            (frame, ret_types)
-        };
-        let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
-        return Self::new(frame, ret_types.len(), pc);
-    }
 
     pub fn new(initial_frame: CallFrame, initial_arity: usize, pc: ProgramCounter) -> Self {
         let mut stack = Stack::default();

@@ -1,7 +1,6 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
 use super::global::DefinedGlobalInstance;
-use super::host::*;
 use super::memory::DefinedMemoryInstance;
 use super::table::DefinedTableInstance;
 use std::cell::RefCell;
