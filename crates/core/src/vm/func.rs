@@ -1,6 +1,6 @@
-use super::module::*;
 use super::address::FuncAddr;
 use super::host::HostFuncBody;
+use super::module::*;
 use parity_wasm::elements::*;
 
 use std::iter;
@@ -90,6 +90,7 @@ pub struct HostFunctionInstance {
     ty: FunctionType,
     module_name: String,
     field_name: String,
+    code: HostFuncBody,
 }
 
 impl HostFunctionInstance {
@@ -105,11 +106,17 @@ impl HostFunctionInstance {
         &self.field_name
     }
 
-    pub fn new(ty: FunctionType, module_name: String, field_name: String) -> Self {
+    pub fn new(
+        ty: FunctionType,
+        module_name: String,
+        field_name: String,
+        code: HostFuncBody,
+    ) -> Self {
         Self {
             ty,
             module_name,
             field_name,
+            code,
         }
     }
 }

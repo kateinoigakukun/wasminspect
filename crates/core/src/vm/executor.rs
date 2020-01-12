@@ -857,7 +857,7 @@ pub fn resolve_func_addr(
             match module {
                 ModuleInstance::Host(host_module) => {
                     let func = host_module
-                        .func_by_name(func.field_name().clone())
+                        ._func_by_name(func.field_name().clone())
                         .ok()
                         .unwrap()
                         .unwrap();

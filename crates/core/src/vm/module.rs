@@ -143,7 +143,9 @@ impl DefinedModuleInstance {
 
 pub struct HostModuleInstance {
     funcs: HashMap<String, ExecutableFuncAddr>,
-    values: HashMap<String, HostValue>,
+    globals: HashMap<String, Rc<RefCell<DefinedGlobalInstance>>>,
+    tables: HashMap<String, Rc<RefCell<DefinedTableInstance>>>,
+    mems: HashMap<String, Rc<RefCell<DefinedMemoryInstance>>>,
 }
 
 pub enum HostModuleError {
@@ -166,21 +168,24 @@ type HostModuleResult<T> = std::result::Result<T, HostModuleError>;
 
 impl HostModuleInstance {
     pub fn new(
-        values: HashMap<String, HostValue>,
         funcs: HashMap<String, ExecutableFuncAddr>,
+        globals: HashMap<String, Rc<RefCell<DefinedGlobalInstance>>>,
+        tables: HashMap<String, Rc<RefCell<DefinedTableInstance>>>,
+        mems: HashMap<String, Rc<RefCell<DefinedMemoryInstance>>>,
     ) -> Self {
-        Self { values, funcs }
+        Self {
+            funcs,
+            globals,
+            tables,
+            mems,
+        }
     }
 
     pub fn global_by_name(
         &self,
         name: String,
     ) -> HostModuleResult<Option<&Rc<RefCell<DefinedGlobalInstance>>>> {
-        match &self.values.get(&name) {
-            Some(HostValue::Global(global)) => Ok(Some(global)),
-            Some(v) => Err(HostModuleError::TypeMismatch("global", v.ty().to_string())),
-            _ => Ok(None),
-        }
+        Ok(self.globals.get(&name))
     }
     pub fn func_by_name(&self, name: String) -> Option<&ExecutableFuncAddr> {
         self.funcs.get(&name)
@@ -188,35 +193,20 @@ impl HostModuleInstance {
 
     #[deprecated]
     pub fn _func_by_name(&self, name: String) -> HostModuleResult<Option<&HostFuncBody>> {
-        match self.values.get(&name) {
-            Some(HostValue::Func(ref func)) => Ok(Some(func)),
-            Some(v) => Err(HostModuleError::TypeMismatch(
-                "function",
-                v.ty().to_string(),
-            )),
-            _ => Ok(None),
-        }
+        panic!()
     }
 
     pub fn table_by_name(
         &self,
         name: String,
     ) -> HostModuleResult<Option<&Rc<RefCell<DefinedTableInstance>>>> {
-        match &self.values.get(&name) {
-            Some(HostValue::Table(table)) => Ok(Some(table)),
-            Some(v) => Err(HostModuleError::TypeMismatch("table", v.ty().to_string())),
-            _ => Ok(None),
-        }
+        Ok(self.tables.get(&name))
     }
 
     pub fn memory_by_name(
         &self,
         name: String,
     ) -> HostModuleResult<Option<&Rc<RefCell<DefinedMemoryInstance>>>> {
-        match &self.values.get(&name) {
-            Some(HostValue::Mem(mem)) => Ok(Some(mem)),
-            Some(v) => Err(HostModuleError::TypeMismatch("memory", v.ty().to_string())),
-            _ => Ok(None),
-        }
+        Ok(self.mems.get(&name))
     }
 }

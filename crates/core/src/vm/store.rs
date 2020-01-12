@@ -111,19 +111,31 @@ impl Store {
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
         let module_index = ModuleIndex(self.modules.len() as u32);
         let mut func_addrs = HashMap::new();
-        for (field, entry) in &module {
+        let mut globals_addrs = HashMap::new();
+        let mut tables_addrs = HashMap::new();
+        let mut mems_addrs = HashMap::new();
+        for (field, entry) in module {
             match entry {
                 HostValue::Func(f) => {
                     let instance =
-                        HostFunctionInstance::new(f.ty().clone(), name.clone(), field.clone());
+                        HostFunctionInstance::new(f.ty().clone(), name.clone(), field.clone(), f);
                     let addr = ExecutableFuncAddr(self.funcs_by_addr.len());
                     self.funcs_by_addr.push(FunctionInstance::Host(instance));
-                    func_addrs.insert(field.clone(), addr);
+                    func_addrs.insert(field, addr);
+                }
+                HostValue::Global(g) => {
+                    globals_addrs.insert(field, g);
+                }
+                HostValue::Table(t) => {
+                    tables_addrs.insert(field, t);
+                }
+                HostValue::Mem(m) => {
+                    mems_addrs.insert(field, m);
                 }
                 _ => {}
             }
         }
-        let instance = HostModuleInstance::new(module, func_addrs);
+        let instance = HostModuleInstance::new(func_addrs, globals_addrs, tables_addrs, mems_addrs);
         self.modules.push(ModuleInstance::Host(instance));
         self.module_index_by_name.insert(name, module_index);
     }
