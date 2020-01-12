@@ -214,10 +214,7 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn memory_by_name(
-        &self,
-        name: String,
-    ) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
+    pub fn memory_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Mem(mem)) => Ok(Some(mem)),
             Some(v) => Err(HostModuleError::TypeMismatch("memory", v.ty().to_string())),
