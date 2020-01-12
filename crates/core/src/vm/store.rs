@@ -10,9 +10,7 @@ use super::memory::{self, DefinedMemoryInstance, ExternalMemoryInstance, MemoryI
 use super::module::{
     self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
 };
-use super::table::{
-    self, DefinedTableInstance, TableInstance,
-};
+use super::table::{self, DefinedTableInstance, TableInstance};
 use super::value::Value;
 use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;

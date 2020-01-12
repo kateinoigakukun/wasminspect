@@ -14,7 +14,7 @@ pub type FuncAddr = LinkableAddress<FunctionInstance>;
 pub type ExecutableFuncAddr = GlobalAddress<FunctionInstance>;
 
 use super::table::TableInstance;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 pub type TableAddr = LinkableAddress<Rc<RefCell<TableInstance>>>;
 pub type ResolvedTableAddr = GlobalAddress<Rc<RefCell<TableInstance>>>;

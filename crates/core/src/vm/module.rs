@@ -2,7 +2,7 @@ use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
 use super::global::DefinedGlobalInstance;
 use super::memory::DefinedMemoryInstance;
-use super::table::DefinedTableInstance;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -206,10 +206,7 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn table_by_name(
-        &self,
-        name: String,
-    ) -> HostModuleResult<Option<&ResolvedTableAddr>> {
+    pub fn table_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedTableAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Table(table)) => Ok(Some(table)),
             Some(v) => Err(HostModuleError::TypeMismatch("table", v.ty().to_string())),
