@@ -1,4 +1,5 @@
 use super::value::FromLittleEndian;
+use super::WASM_PAGE_SIZE;
 
 pub struct MemoryInstance {
     data: Vec<u8>,
@@ -36,11 +37,10 @@ impl std::fmt::Display for Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-static PAGE_SIZE: usize = 65536;
 impl MemoryInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
-            data: std::iter::repeat(0).take(initial * PAGE_SIZE).collect(),
+            data: std::iter::repeat(0).take(initial * WASM_PAGE_SIZE).collect(),
             initial,
             max: maximum,
         }
@@ -75,7 +75,7 @@ impl MemoryInstance {
     }
 
     pub fn page_count(&self) -> usize {
-        self.data_len() / PAGE_SIZE
+        self.data_len() / WASM_PAGE_SIZE
     }
 
     pub fn grow(&mut self, n: usize) -> Result<()> {
@@ -89,7 +89,7 @@ impl MemoryInstance {
                 return Err(Error::GrowOverMaximumSize(max));
             }
         }
-        let mut extra: Vec<u8> = std::iter::repeat(0).take(n * PAGE_SIZE).collect();
+        let mut extra: Vec<u8> = std::iter::repeat(0).take(n * WASM_PAGE_SIZE).collect();
         self.data.append(&mut extra);
         return Ok(());
     }
