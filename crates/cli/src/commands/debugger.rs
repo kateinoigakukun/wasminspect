@@ -1,5 +1,5 @@
 use wasminspect_core::vm::WasmValue;
-use wasminspect_core::vm::Store;
+
 use parity_wasm::elements::Instruction;
 
 pub trait Debugger {
