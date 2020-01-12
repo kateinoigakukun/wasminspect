@@ -2,7 +2,7 @@ use super::module::ModuleIndex;
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct GlobalAddress<T>(usize, std::marker::PhantomData<T>);
 
 impl<T> Clone for GlobalAddress<T> {
@@ -12,6 +12,12 @@ impl<T> Clone for GlobalAddress<T> {
 }
 
 impl<T> Copy for GlobalAddress<T> {}
+
+impl<T> fmt::Debug for GlobalAddress<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "GlobalAddress({})", self.0)
+    }
+}
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct LinkableAddress<T>(ModuleIndex, usize, std::marker::PhantomData<T>);
@@ -72,12 +78,14 @@ impl<T> LinkableCollection<T> {
         LinkableAddress::new_unsafe(dist, index)
     }
 
-    pub fn get_global(&self, address: GlobalAddress<T>) -> Option<&T> {
-        self.items.get(address.0)
+    pub fn get_global(&self, address: GlobalAddress<T>) -> &T {
+        // Never panic because GlobalAddress is always valid
+        self.items.get(address.0).unwrap()
     }
 
-    pub fn get(&self, address: LinkableAddress<T>) -> Option<&T> {
-        self.items.get(self.resolve(address)?.0)
+    pub fn get(&self, address: LinkableAddress<T>) -> Option<(&T, GlobalAddress<T>)> {
+        let addr = self.resolve(address)?;
+        Some((self.items.get(addr.0)?, addr))
     }
 
     pub fn push_global(&mut self, item: T) -> GlobalAddress<T> {

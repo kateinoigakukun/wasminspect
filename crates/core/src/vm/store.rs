@@ -7,7 +7,7 @@ use super::global::{
 use super::host::HostValue;
 use super::linker::LinkableCollection;
 use super::memory::{self, DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
-use super::module::{self, DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance};
+use super::module::{self, DefinedModuleInstance, HostModuleInstance, ModuleIndex, ModuleInstance, HostExport};
 use super::table::{
     self, resolve_table_instance, DefinedTableInstance, ExternalTableInstance, TableInstance,
 };
@@ -30,7 +30,7 @@ pub struct Store {
 }
 
 impl Store {
-    fn func_by_exec_addr(&self, addr: ExecutableFuncAddr) -> Option<&FunctionInstance> {
+    fn func_by_exec_addr(&self, addr: ExecutableFuncAddr) -> &FunctionInstance {
         self.funcs.get_global(addr)
     }
 }
@@ -48,7 +48,11 @@ impl Store {
         }
     }
 
-    pub fn func(&self, addr: FuncAddr) -> Option<&FunctionInstance> {
+    pub fn func_global(&self, addr: ExecutableFuncAddr) -> &FunctionInstance {
+        self.funcs.get_global(addr)
+    }
+
+    pub fn func(&self, addr: FuncAddr) -> Option<(&FunctionInstance, ExecutableFuncAddr)> {
         self.funcs.get(addr)
     }
 
@@ -98,30 +102,27 @@ impl Store {
 impl Store {
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
         let module_index = ModuleIndex(self.modules.len() as u32);
-        let mut func_addrs = HashMap::new();
-        let mut globals_addrs = HashMap::new();
-        let mut tables_addrs = HashMap::new();
-        let mut mems_addrs = HashMap::new();
+        let mut values = HashMap::new();
         for (field, entry) in module {
             match entry {
                 HostValue::Func(f) => {
                     let instance =
                         HostFunctionInstance::new(f.ty().clone(), name.clone(), field.clone(), f);
                     let addr = self.funcs.push_global(FunctionInstance::Host(instance));
-                    func_addrs.insert(field, addr);
+                    values.insert(field, HostExport::Func(addr));
                 }
                 HostValue::Global(g) => {
-                    globals_addrs.insert(field, g);
+                    values.insert(field, HostExport::Global(g));
                 }
                 HostValue::Table(t) => {
-                    tables_addrs.insert(field, t);
+                    values.insert(field, HostExport::Table(t));
                 }
                 HostValue::Mem(m) => {
-                    mems_addrs.insert(field, m);
+                    values.insert(field, HostExport::Mem(m));
                 }
             }
         }
-        let instance = HostModuleInstance::new(func_addrs, globals_addrs, tables_addrs, mems_addrs);
+        let instance = HostModuleInstance::new(values);
         self.modules.push(ModuleInstance::Host(instance));
         self.module_index_by_name.insert(name, module_index);
     }
@@ -395,10 +396,11 @@ impl Store {
             }
             ModuleInstance::Host(host) => *host
                 .func_by_name(import.field().to_string())
+                .map_err(Error::InvalidHostImport)?
                 .ok_or_else(err)?,
         };
         let func_index = self.funcs.link(exec_addr, module_index);
-        let actual_func_ty = self.funcs.get_global(exec_addr).ok_or_else(err)?.ty();
+        let actual_func_ty = self.funcs.get_global(exec_addr).ty();
         // Validation
         if *actual_func_ty != func_ty {
             return Err(Error::IncompatibleImportFuncType(

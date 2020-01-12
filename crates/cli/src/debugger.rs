@@ -58,7 +58,7 @@ impl debugger::Debugger for MainDebugger {
             let frames = executor.stack.peek_frames();
             frames
                 .iter()
-                .map(|frame| self.store.func(frame.func_addr).unwrap().name().clone())
+                .map(|frame| self.store.func_global(frame.exec_addr).name().clone())
                 .collect()
         } else {
             Vec::new()
@@ -87,7 +87,7 @@ impl debugger::Debugger for MainDebugger {
                 .func(func_addr)
                 .ok_or(format!("Function not found"))?;
             match func {
-                FunctionInstance::Host(host) => {
+                (FunctionInstance::Host(host), _) => {
                     let mut results = Vec::new();
                     match host.code().call(
                         &vec![],
@@ -99,14 +99,14 @@ impl debugger::Debugger for MainDebugger {
                         Err(_) => return Err(format!("Failed to execute host func")),
                     }
                 }
-                FunctionInstance::Defined(func) => {
+                (FunctionInstance::Defined(func), exec_addr) => {
                     let (frame, ret_types) = {
                         let ret_types =
                             func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-                        let frame = CallFrame::new_from_func(func_addr, func, vec![], None);
+                        let frame = CallFrame::new_from_func(exec_addr, func, vec![], None);
                         (frame, ret_types)
                     };
-                    let pc = ProgramCounter::new(func_addr, InstIndex::zero());
+                    let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                     let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
                     self.executor = Some(executor.clone());
                     loop {

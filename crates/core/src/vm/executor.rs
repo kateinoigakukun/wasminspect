@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
+use super::address::{ExecutableFuncAddr, FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::global::*;
 use super::memory;
@@ -75,15 +75,16 @@ pub struct Executor {
 impl Executor {
     pub fn new_from_func(
         func_addr: FuncAddr,
+        exec_addr: ExecutableFuncAddr,
         func: &DefinedFunctionInstance,
         arguments: Vec<Value>,
     ) -> Self {
         let (frame, ret_types) = {
             let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-            let frame = CallFrame::new_from_func(func_addr, func, arguments, None);
+            let frame = CallFrame::new_from_func(exec_addr, func, arguments, None);
             (frame, ret_types)
         };
-        let pc = ProgramCounter::new(func_addr, InstIndex::zero());
+        let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
         return Self::new(frame, ret_types.len(), pc);
     }
 
@@ -108,14 +109,13 @@ impl Executor {
 
     pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
         let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
-        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+        let func = store.func_global(addr);
         Ok(&func.defined().unwrap().instructions())
     }
 
     pub fn execute_step<'a>(&mut self, store: &'a Store) -> ExecResult<Signal> {
         let func = store
-            .func(self.pc.func_addr())
-            .ok_or(Trap::UndefinedFunc(self.pc.func_addr()))?
+            .func_global(self.pc.exec_addr())
             .defined()
             .unwrap();
         let module_index = func.module_index().clone();
@@ -196,9 +196,7 @@ impl Executor {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-                    let func = store
-                        .func(frame.func_addr)
-                        .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
+                    let func = store.func_global(frame.exec_addr);
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
                     let mut result = vec![];
                     for _ in 0..arity {
@@ -270,7 +268,7 @@ impl Executor {
                     .borrow()
                     .get_at(buf_index, store)
                     .map_err(Trap::Table)?;
-                let func = store
+                let (func, _) = store
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr))?;
                 if *func.ty() == ty {
@@ -677,7 +675,7 @@ impl Executor {
     }
 
     fn invoke(&mut self, addr: FuncAddr, store: &Store) -> ExecResult<Signal> {
-        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+        let (func, exec_addr) = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
 
         let mut args = Vec::new();
         for _ in func.ty().params() {
@@ -686,10 +684,10 @@ impl Executor {
         args.reverse();
 
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        match store.func(addr).ok_or(Trap::UndefinedFunc(addr))? {
+        match func {
             FunctionInstance::Defined(func) => {
-                let pc = ProgramCounter::new(addr, InstIndex::zero());
-                let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
+                let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
+                let frame = CallFrame::new_from_func(exec_addr, &func, args, Some(self.pc));
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Return(arity));
                 self.pc = pc;
@@ -709,9 +707,7 @@ impl Executor {
     }
     fn do_return(&mut self, store: &Store) -> ExecResult<Signal> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-        let func = store
-            .func(frame.func_addr)
-            .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
+        let func = store.func_global(frame.exec_addr);
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         let mut result = vec![];
         for _ in 0..arity {
@@ -871,7 +867,7 @@ pub fn invoke_func(
         .func(func_addr)
         .ok_or(WasmError::ExecutionError(Trap::UndefinedFunc(func_addr)))?
     {
-        FunctionInstance::Host(host) => {
+        (FunctionInstance::Host(host), _) => {
             let mut results = Vec::new();
             match host
                 .code()
@@ -881,13 +877,13 @@ pub fn invoke_func(
                 Err(_) => Err(WasmError::HostExecutionError),
             }
         }
-        FunctionInstance::Defined(func) => {
+        (FunctionInstance::Defined(func), exec_addr) => {
             let (frame, ret_types) = {
                 let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-                let frame = CallFrame::new_from_func(func_addr, func, arguments, None);
+                let frame = CallFrame::new_from_func(exec_addr, func, arguments, None);
                 (frame, ret_types)
             };
-            let pc = ProgramCounter::new(func_addr, InstIndex::zero());
+            let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
             let mut executor = Executor::new(frame, ret_types.len(), pc);
             loop {
                 let result = executor.execute_step(store);

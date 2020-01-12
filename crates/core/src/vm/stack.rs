@@ -1,4 +1,4 @@
-use super::address::FuncAddr;
+use super::address::*;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
 use super::value::Value;
@@ -65,20 +65,30 @@ impl Label {
 
 #[derive(Clone, Copy)]
 pub struct ProgramCounter {
-    func_addr: FuncAddr,
+    module_index: ModuleIndex,
+    exec_addr: ExecutableFuncAddr,
     inst_index: InstIndex,
 }
 
 impl ProgramCounter {
-    pub fn new(func_addr: FuncAddr, inst_index: InstIndex) -> Self {
+    pub fn new(
+        module_index: ModuleIndex,
+        exec_addr: ExecutableFuncAddr,
+        inst_index: InstIndex,
+    ) -> Self {
         Self {
-            func_addr,
+            module_index,
+            exec_addr,
             inst_index,
         }
     }
 
-    pub fn func_addr(&self) -> FuncAddr {
-        self.func_addr
+    pub fn module_index(&self) -> ModuleIndex {
+        self.module_index
+    }
+
+    pub fn exec_addr(&self) -> ExecutableFuncAddr {
+        self.exec_addr
     }
 
     pub fn inst_index(&self) -> InstIndex {
@@ -96,14 +106,16 @@ impl ProgramCounter {
 
 #[derive(Clone)]
 pub struct CallFrame {
-    pub func_addr: FuncAddr,
+    pub module_index: ModuleIndex,
+    pub exec_addr: ExecutableFuncAddr,
     pub locals: Vec<Value>,
     pub ret_pc: Option<ProgramCounter>,
 }
 
 impl CallFrame {
     fn new(
-        func_addr: FuncAddr,
+        module_index: ModuleIndex,
+        exec_addr: ExecutableFuncAddr,
         local_tys: &[ValueType],
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
@@ -123,21 +135,22 @@ impl CallFrame {
             locals[i] = arg;
         }
         Self {
-            func_addr,
+            module_index,
+            exec_addr,
             locals,
             ret_pc: pc,
         }
     }
 
     pub fn new_from_func(
-        func_addr: FuncAddr,
+        exec_addr: ExecutableFuncAddr,
         func: &DefinedFunctionInstance,
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
         let mut local_tys = func.ty().params().to_vec();
         local_tys.append(&mut func.locals().to_vec());
-        Self::new(func_addr, &local_tys, args, pc)
+        Self::new(func.module_index(), exec_addr, &local_tys, args, pc)
     }
 
     pub fn set_local(&mut self, index: usize, value: Value) {
@@ -149,7 +162,7 @@ impl CallFrame {
     }
 
     pub fn module_index(&self) -> ModuleIndex {
-        self.func_addr.module_index()
+        self.module_index
     }
 }
 
@@ -334,8 +347,8 @@ impl Stack {
         }
     }
 
-    pub fn current_func_addr(&self) -> Result<FuncAddr> {
-        self.current_frame().map(|f| f.func_addr)
+    pub fn current_func_addr(&self) -> Result<ExecutableFuncAddr> {
+        self.current_frame().map(|f| f.exec_addr)
     }
 
     pub fn is_over_top_level(&self) -> bool {
