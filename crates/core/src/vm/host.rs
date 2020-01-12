@@ -9,7 +9,7 @@ use super::global::DefinedGlobalInstance;
 use super::memory::MemoryInstance;
 use super::module::ModuleIndex;
 use super::store::Store;
-use super::table::DefinedTableInstance;
+use super::table::TableInstance;
 use parity_wasm::elements::FunctionType;
 
 type Ref<T> = Rc<RefCell<T>>;
@@ -22,7 +22,7 @@ pub enum HostValue {
     Func(HostFuncBody),
     Global(Rc<RefCell<DefinedGlobalInstance>>),
     Mem(Ref<MemoryInstance>),
-    Table(Ref<DefinedTableInstance>),
+    Table(Ref<TableInstance>),
 }
 
 impl HostValue {

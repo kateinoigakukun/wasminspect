@@ -10,7 +10,7 @@ use super::memory::{self, MemoryInstance};
 use super::module::{
     self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
 };
-use super::table::{self, DefinedTableInstance, TableInstance};
+use super::table::{self, TableInstance};
 use super::value::Value;
 use parity_wasm::elements::{FunctionType, ValueType};
 use std::cell::RefCell;
@@ -632,7 +632,7 @@ impl Store {
         for entry in tables.iter() {
             match entry.elem_type() {
                 parity_wasm::elements::TableElementType::AnyFunc => {
-                    let instance = DefinedTableInstance::new(
+                    let instance = TableInstance::new(
                         entry.limits().initial() as usize,
                         entry.limits().maximum().map(|mx| mx as usize),
                     );

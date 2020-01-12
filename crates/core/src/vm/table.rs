@@ -1,7 +1,5 @@
 use super::address::FuncAddr;
 
-pub type TableInstance = DefinedTableInstance;
-
 #[derive(Debug)]
 pub enum Error {
     AccessOutOfBounds(
@@ -33,13 +31,13 @@ impl std::fmt::Display for Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub struct DefinedTableInstance {
+pub struct TableInstance {
     buffer: Vec<Option<FuncAddr>>,
     pub max: Option<usize>,
     pub initial: usize,
 }
 
-impl DefinedTableInstance {
+impl TableInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
             buffer: std::iter::repeat(None).take(initial).collect(),
