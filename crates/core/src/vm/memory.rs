@@ -1,7 +1,4 @@
-
-
 use super::value::FromLittleEndian;
-use parity_wasm::elements::ResizableLimits;
 
 pub type MemoryInstance = DefinedMemoryInstance;
 
@@ -9,22 +6,6 @@ pub struct DefinedMemoryInstance {
     data: Vec<u8>,
     pub max: Option<usize>,
     pub initial: usize,
-}
-
-pub struct ExternalMemoryInstance {
-    module_name: String,
-    name: String,
-    limit: ResizableLimits,
-}
-
-impl ExternalMemoryInstance {
-    pub fn new(module_name: String, name: String, limit: ResizableLimits) -> Self {
-        Self {
-            module_name,
-            name,
-            limit,
-        }
-    }
 }
 
 #[derive(Debug)]
