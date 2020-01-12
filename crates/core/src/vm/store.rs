@@ -1,4 +1,4 @@
-use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
+use super::address::{ExecutableFuncAddr, FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::executor::{eval_const_expr, invoke_func, resolve_func_addr, WasmError};
 use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::{
@@ -17,8 +17,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct ExecutableFuncAddr(usize);
 /// Store
 pub struct Store {
     funcs_by_addr: Vec<FunctionInstance>,
@@ -30,6 +28,16 @@ pub struct Store {
     module_index_by_name: HashMap<String, ModuleIndex>,
 
     embedded_contexts: HashMap<std::any::TypeId, Box<dyn std::any::Any>>,
+}
+
+impl Store {
+    fn convert_func_addr(&self, addr: FuncAddr) -> Option<&ExecutableFuncAddr> {
+        self.funcs.get(&addr.0).and_then(|m| m.get(addr.1))
+    }
+
+    fn _func(&self, addr: ExecutableFuncAddr) -> Option<&FunctionInstance> {
+        self.funcs_by_addr.get(addr.0)
+    }
 }
 
 impl Store {
@@ -47,8 +55,8 @@ impl Store {
     }
 
     pub fn func(&self, addr: FuncAddr) -> Option<&FunctionInstance> {
-        let exec_addr = self.funcs.get(&addr.0).and_then(|m| m.get(addr.1))?;
-        self.funcs_by_addr.get(exec_addr.0)
+        let exec_addr = *self.convert_func_addr(addr)?;
+        self._func(exec_addr)
     }
 
     pub fn func_ty(&self, addr: FuncAddr) -> &FunctionType {
@@ -102,7 +110,20 @@ impl Store {
 impl Store {
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
         let module_index = ModuleIndex(self.modules.len() as u32);
-        let instance = HostModuleInstance::new(module);
+        let mut func_addrs = HashMap::new();
+        for (field, entry) in &module {
+            match entry {
+                HostValue::Func(f) => {
+                    let instance =
+                        HostFunctionInstance::new(f.ty().clone(), name.clone(), field.clone());
+                    let addr = ExecutableFuncAddr(self.funcs_by_addr.len());
+                    self.funcs_by_addr.push(FunctionInstance::Host(instance));
+                    func_addrs.insert(field.clone(), addr);
+                }
+                _ => {}
+            }
+        }
+        let instance = HostModuleInstance::new(module, func_addrs);
         self.modules.push(ModuleInstance::Host(instance));
         self.module_index_by_name.insert(name, module_index);
     }
@@ -209,12 +230,8 @@ impl Store {
         mem_addrs.append(&mut self.load_mems(&parity_module, module_index, data_segs)?);
         let types = types.iter().map(|ty| ty.clone()).collect();
 
-        let instance = DefinedModuleInstance::new_from_parity_module(
-            parity_module,
-            module_index,
-            types,
-            func_addrs,
-        );
+        let instance =
+            DefinedModuleInstance::new_from_parity_module(parity_module, module_index, types);
         self.modules.push(ModuleInstance::Defined(instance));
         if let Some(name) = name {
             self.module_index_by_name.insert(name, module_index);
@@ -353,52 +370,49 @@ impl Store {
         type_index: usize,
         types: &[parity_wasm::elements::Type],
     ) -> Result<FuncAddr> {
-        let parity_wasm::elements::Type::Function(func_ty) = types
-            .get(type_index)
-            .ok_or(Error::UnknownType(type_index as u32))?
-            .clone();
-        let map = self.funcs.entry(module_index).or_insert(Vec::new());
-        let func_index = map.len();
-        // Validation
-        let actual_func_ty = {
-            let name = import.field().to_string();
-            let module = self.module_by_name(import.module().to_string());
-            let err = || {
-                Error::UndefinedFunction(
-                    import.module().clone().to_string(),
-                    import.field().clone().to_string(),
-                )
-            };
-            match module {
-                ModuleInstance::Defined(defined) => {
-                    let addr = defined
-                        .exported_func(name)
-                        .map_err(Error::InvalidImport)?
-                        .ok_or(err())?;
-                    let exec_addr = self
-                        .funcs
-                        .get(&addr.0)
-                        .and_then(|m| m.get(addr.1))
-                        .ok_or(err())?;
-                    map.push(*exec_addr);
-                    self.funcs_by_addr.get(exec_addr.0).ok_or(err())?.ty()
-                }
-                ModuleInstance::Host(host) => {
-                    let instance = HostFunctionInstance::new(
-                        func_ty.clone(),
-                        import.module().to_string(),
-                        import.field().to_string(),
-                    );
-                    let exec_addr = ExecutableFuncAddr(self.funcs_by_addr.len());
-                    self.funcs_by_addr.push(FunctionInstance::Host(instance));
-                    map.push(exec_addr);
-                    host.func_by_name(name)
-                        .map_err(Error::InvalidHostImport)
-                        .and_then(|f| f.ok_or(err()).map(|f| f.ty()))?
-                }
+        let func_ty = {
+            let ty = types
+                .get(type_index)
+                .ok_or(Error::UnknownType(type_index as u32))?
+                .clone();
+            match ty {
+                parity_wasm::elements::Type::Function(ty) => ty,
             }
         };
-        if *actual_func_ty != func_ty {
+        let func_index = self.funcs.get(&module_index).unwrap_or(&vec![]).len();
+
+        let name = import.field().to_string();
+        let module = self.module_by_name(import.module().to_string());
+        let err = || {
+            Error::UndefinedFunction(
+                import.module().clone().to_string(),
+                import.field().clone().to_string(),
+            )
+        };
+        let actual_func_ty = match module {
+            ModuleInstance::Defined(defined) => {
+                let func_addr = defined
+                    .exported_func(name)
+                    .map_err(Error::InvalidImport)?
+                    .ok_or_else(err)?;
+                let exec_addr = self.convert_func_addr(func_addr).ok_or_else(err)?.clone();
+                self.funcs
+                    .entry(module_index)
+                    .or_insert(Vec::new())
+                    .push(exec_addr);
+                self._func(exec_addr).ok_or_else(err)?.ty().clone()
+            }
+            ModuleInstance::Host(host) => {
+                let exec_addr = *host
+                    .func_by_name(import.field().to_string())
+                    .ok_or_else(err)?;
+                let map = self.funcs.entry(module_index).or_insert(Vec::new());
+                map.push(exec_addr);
+                self._func(exec_addr).ok_or_else(err)?.ty().clone()
+            }
+        };
+        // Validation
+        if actual_func_ty != func_ty {
             return Err(Error::IncompatibleImportFuncType(
                 import.field().to_string(),
                 func_ty,

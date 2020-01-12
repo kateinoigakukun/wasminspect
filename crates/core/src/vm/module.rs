@@ -28,7 +28,6 @@ impl ModuleInstance {
 
 pub struct DefinedModuleInstance {
     types: Vec<parity_wasm::elements::Type>,
-    func_addrs: Vec<FuncAddr>,
     pub exports: Vec<ExportInstance>,
     start_func: Option<FuncAddr>,
 }
@@ -56,11 +55,9 @@ impl DefinedModuleInstance {
         module: parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: Vec<parity_wasm::elements::Type>,
-        func_addrs: Vec<FuncAddr>,
     ) -> Self {
         Self {
             types,
-            func_addrs,
             exports: module
                 .export_section()
                 .map(|sec| sec.entries().iter())
@@ -145,6 +142,7 @@ impl DefinedModuleInstance {
 }
 
 pub struct HostModuleInstance {
+    funcs: HashMap<String, ExecutableFuncAddr>,
     values: HashMap<String, HostValue>,
 }
 
@@ -167,8 +165,11 @@ impl std::fmt::Display for HostModuleError {
 type HostModuleResult<T> = std::result::Result<T, HostModuleError>;
 
 impl HostModuleInstance {
-    pub fn new(values: HashMap<String, HostValue>) -> Self {
-        Self { values }
+    pub fn new(
+        values: HashMap<String, HostValue>,
+        funcs: HashMap<String, ExecutableFuncAddr>,
+    ) -> Self {
+        Self { values, funcs }
     }
 
     pub fn global_by_name(
@@ -181,8 +182,12 @@ impl HostModuleInstance {
             _ => Ok(None),
         }
     }
+    pub fn func_by_name(&self, name: String) -> Option<&ExecutableFuncAddr> {
+        self.funcs.get(&name)
+    }
 
-    pub fn func_by_name(&self, name: String) -> HostModuleResult<Option<&HostFuncBody>> {
+    #[deprecated]
+    pub fn _func_by_name(&self, name: String) -> HostModuleResult<Option<&HostFuncBody>> {
         match self.values.get(&name) {
             Some(HostValue::Func(ref func)) => Ok(Some(func)),
             Some(v) => Err(HostModuleError::TypeMismatch(
