@@ -3,8 +3,8 @@ use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasminspect_core::vm::{
-    CallFrame, Either, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal,
-    Store, WasmError, WasmInstance, WasmValue,
+    CallFrame, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal, Store,
+    WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
