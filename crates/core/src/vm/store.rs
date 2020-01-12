@@ -1,5 +1,5 @@
 use super::address::{ExecutableFuncAddr, FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
-use super::executor::{eval_const_expr, invoke_func, resolve_func_addr, WasmError};
+use super::executor::{eval_const_expr, invoke_func, WasmError};
 use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::{
     resolve_global_instance, DefinedGlobalInstance, ExternalGlobalInstance, GlobalInstance,

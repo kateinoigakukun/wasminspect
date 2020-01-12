@@ -1,7 +1,6 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::global::*;
-use super::host::*;
 use super::memory;
 use super::memory::MemoryInstance;
 use super::module::*;
@@ -9,7 +8,6 @@ use super::stack;
 use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
 use super::store::*;
 use super::table;
-use super::utils::*;
 use super::value;
 use super::value::{
     ExtendInto, FromLittleEndian, IntoLittleEndian, NativeValue, Value, F32, F64, I32, I64, U32,
@@ -689,9 +687,8 @@ impl Executor {
 
         let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        let result = { resolve_func_addr(addr, store)?.clone() };
-        match result {
-            (addr, FunctionInstance::Defined(func)) => {
+        match store.func(addr).ok_or(Trap::UndefinedFunc(addr))? {
+            FunctionInstance::Defined(func) => {
                 let pc = ProgramCounter::new(addr, InstIndex::zero());
                 let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
@@ -699,7 +696,7 @@ impl Executor {
                 self.pc = pc;
                 Ok(Signal::Next)
             }
-            (_, FunctionInstance::Host(func)) => {
+            FunctionInstance::Host(func) => {
                 let mut result = Vec::new();
                 func.code().call(&args, &mut result, store, addr.0)?;
                 assert_eq!(result.len(), arity);
@@ -865,48 +862,26 @@ impl std::fmt::Display for WasmError {
     }
 }
 
-pub fn resolve_func_addr(
-    addr: FuncAddr,
-    store: &Store,
-) -> ExecResult<(FuncAddr, &FunctionInstance)> {
-    let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
-    match func {
-        FunctionInstance::Defined(_) => Ok((addr, func)),
-        FunctionInstance::Host(func) => {
-            let module = store.module_by_name(func.module_name().clone());
-            match module {
-                ModuleInstance::Host(host_module) => {
-                    let exec_addr = host_module.func_by_name(func.field_name().clone()).unwrap();
-                    let func = store.func_by_exec_addr(*exec_addr).unwrap();
-                    return Ok((addr, func));
-                }
-                ModuleInstance::Defined(defined_module) => {
-                    let addr = defined_module
-                        .exported_func(func.field_name().clone())
-                        .ok()
-                        .unwrap()
-                        .unwrap();
-                    return resolve_func_addr(addr, store);
-                }
-            }
-        }
-    }
-}
-
 pub fn invoke_func(
     func_addr: FuncAddr,
     arguments: Vec<Value>,
     store: &mut Store,
 ) -> Result<Vec<Value>, WasmError> {
-    match resolve_func_addr(func_addr, &store).map_err(WasmError::ExecutionError)? {
-        (_, FunctionInstance::Host(host)) => {
+    match store
+        .func(func_addr)
+        .ok_or(WasmError::ExecutionError(Trap::UndefinedFunc(func_addr)))?
+    {
+        FunctionInstance::Host(host) => {
             let mut results = Vec::new();
-            match host.code().call(&arguments, &mut results, store, func_addr.0) {
+            match host
+                .code()
+                .call(&arguments, &mut results, store, func_addr.0)
+            {
                 Ok(_) => Ok(results),
                 Err(_) => Err(WasmError::HostExecutionError),
             }
         }
-        (func_addr, FunctionInstance::Defined(func)) => {
+        FunctionInstance::Defined(func) => {
             let (frame, ret_types) = {
                 let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
                 let frame = CallFrame::new_from_func(func_addr, func, arguments, None);
