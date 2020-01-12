@@ -110,7 +110,21 @@ impl<T> LinkableCollection<T> {
         self.item_addrs_by_module.remove(index);
     }
 
+    pub fn items(&self, module_index: ModuleIndex) -> Option<Vec<GlobalAddress<T>>> {
+        let item_addrs = self.item_addrs_by_module.get(&module_index)?;
+        Some(
+            item_addrs
+                .iter()
+                .map(|index| GlobalAddress(*index, std::marker::PhantomData))
+                .collect(),
+        )
+    }
+
     pub fn len(&self) -> usize {
         self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
 }

@@ -11,7 +11,7 @@ use super::module::{
     self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
 };
 use super::table::{
-    self, resolve_table_instance, DefinedTableInstance, ExternalTableInstance, TableInstance,
+    self, DefinedTableInstance, TableInstance,
 };
 use super::value::Value;
 use parity_wasm::elements::{FunctionType, ValueType};
@@ -22,7 +22,7 @@ use std::rc::Rc;
 /// Store
 pub struct Store {
     funcs: LinkableCollection<FunctionInstance>,
-    tables: HashMap<ModuleIndex, Vec<Rc<RefCell<TableInstance>>>>,
+    tables: LinkableCollection<Rc<RefCell<TableInstance>>>,
     mems: HashMap<ModuleIndex, Vec<Rc<RefCell<MemoryInstance>>>>,
     globals: HashMap<ModuleIndex, Vec<Rc<RefCell<GlobalInstance>>>>,
     modules: Vec<ModuleInstance>,
@@ -35,7 +35,7 @@ impl Store {
     pub fn new() -> Self {
         Self {
             funcs: LinkableCollection::new(),
-            tables: HashMap::new(),
+            tables: LinkableCollection::new(),
             mems: HashMap::new(),
             globals: HashMap::new(),
             modules: Vec::new(),
@@ -67,7 +67,7 @@ impl Store {
     }
 
     pub fn table(&self, addr: TableAddr) -> Rc<RefCell<TableInstance>> {
-        self.tables[&addr.0][addr.1].clone()
+        self.tables.get(addr).unwrap().0.clone()
     }
 
     pub fn memory(&self, addr: MemoryAddr) -> Rc<RefCell<MemoryInstance>> {
@@ -111,7 +111,8 @@ impl Store {
                     values.insert(field, HostExport::Global(g));
                 }
                 HostValue::Table(t) => {
-                    values.insert(field, HostExport::Table(t));
+                    let addr = self.tables.push_global(t);
+                    values.insert(field, HostExport::Table(addr));
                 }
                 HostValue::Mem(m) => {
                     values.insert(field, HostExport::Mem(m));
@@ -254,7 +255,7 @@ impl Store {
             Err(err) => {
                 // If fail, cleanup states
                 self.funcs.remove_module(&module_index);
-                self.tables.remove(&module_index);
+                self.tables.remove_module(&module_index);
                 self.mems.remove(&module_index);
                 self.globals.remove(&module_index);
                 let module_index = module_index.0 as usize;
@@ -477,36 +478,31 @@ impl Store {
         import: &parity_wasm::elements::ImportEntry,
         table_ty: parity_wasm::elements::TableType,
     ) -> Result<TableAddr> {
-        let instance = ExternalTableInstance::new(
-            import.module().to_string(),
-            import.field().to_string(),
-            table_ty.limits().clone(),
-        );
         let name = import.field().to_string();
         let module = self.module_by_name(import.module().to_string());
+        let err = || {
+            Error::UndefinedTable(
+                import.module().clone().to_string(),
+                import.field().clone().to_string(),
+            )
+        };
+        let resolved_addr = match module {
+            ModuleInstance::Defined(defined) => {
+                let addr = defined
+                    .exported_table(name.clone())
+                    .map_err(Error::InvalidImport)?
+                    .ok_or_else(err)?;
+                self.tables.resolve(addr).ok_or_else(err)?.clone()
+            }
+            ModuleInstance::Host(host) => host
+                .table_by_name(name.clone())
+                .map_err(Error::InvalidHostImport)?
+                .ok_or_else(err)?
+                .clone(),
+        };
+        let found = self.tables.get_global(resolved_addr);
         // Validation
         {
-            let err = || {
-                Error::UndefinedTable(
-                    import.module().clone().to_string(),
-                    import.field().clone().to_string(),
-                )
-            };
-            let found = match module {
-                ModuleInstance::Defined(defined) => {
-                    let addr = defined
-                        .exported_table(name.clone())
-                        .map_err(Error::InvalidImport)?
-                        .ok_or(err())?
-                        .clone();
-                    resolve_table_instance(addr, self)
-                }
-                ModuleInstance::Host(host) => host
-                    .table_by_name(name.clone())
-                    .map_err(Error::InvalidHostImport)?
-                    .ok_or(err())?
-                    .clone(),
-            };
             if found.borrow().initial < table_ty.limits().initial() as usize {
                 return Err(Error::IncompatibleImportTableType);
             }
@@ -520,10 +516,8 @@ impl Store {
                 _ => (),
             }
         }
-        let map = self.tables.entry(module_index).or_insert(Vec::new());
-        let table_index = map.len();
-        map.push(Rc::new(RefCell::new(TableInstance::External(instance))));
-        return Ok(TableAddr(module_index, table_index));
+
+        Ok(self.tables.link(resolved_addr, module_index))
     }
 
     fn load_import_global(
@@ -658,23 +652,14 @@ impl Store {
                         entry.limits().initial() as usize,
                         entry.limits().maximum().map(|mx| mx as usize),
                     );
-                    let map = self.tables.entry(module_index).or_insert(Vec::new());
-                    let table_index = map.len();
-                    map.push(Rc::new(RefCell::new(TableInstance::Defined(Rc::new(
-                        RefCell::new(instance),
-                    )))));
-                    table_addrs.push(TableAddr(module_index, table_index));
+                    let addr = self
+                        .tables
+                        .push(module_index, Rc::new(RefCell::new(instance)));
+                    table_addrs.push(addr);
                 }
             }
         }
-
-        let tables = self
-            .tables
-            .entry(module_index)
-            .or_insert(Vec::new())
-            .clone();
-
-        for (index, table) in tables.iter().enumerate() {
+        for (index, table_addr) in self.tables.items(module_index).unwrap().iter().enumerate() {
             if let Some(segs) = element_segments.get(&index) {
                 for seg in segs {
                     let offset = match seg
@@ -691,9 +676,10 @@ impl Store {
                         .iter()
                         .map(|func_index| FuncAddr::new_unsafe(module_index, *func_index as usize))
                         .collect();
+                    let table = self.tables.get_global(*table_addr);
                     table
                         .borrow_mut()
-                        .initialize(offset as usize, data, self)
+                        .initialize(offset as usize, data)
                         .map_err(Error::InvalidElementSegments)?;
                 }
             }

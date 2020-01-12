@@ -5,8 +5,6 @@ use super::module::ModuleIndex;
 #[derive(Clone, Copy, Debug)]
 pub struct GlobalAddr(pub ModuleIndex, pub usize);
 #[derive(Clone, Copy, Debug)]
-pub struct TableAddr(pub ModuleIndex, pub usize);
-#[derive(Clone, Copy, Debug)]
 pub struct MemoryAddr(pub ModuleIndex, pub usize);
 
 // Internal representation of global function address to reference same function instances
@@ -14,3 +12,9 @@ pub struct MemoryAddr(pub ModuleIndex, pub usize);
 use super::func::FunctionInstance;
 pub type FuncAddr = LinkableAddress<FunctionInstance>;
 pub type ExecutableFuncAddr = GlobalAddress<FunctionInstance>;
+
+use super::table::TableInstance;
+use std::rc::Rc;
+use std::cell::RefCell;
+pub type TableAddr = LinkableAddress<Rc<RefCell<TableInstance>>>;
+pub type ResolvedTableAddr = GlobalAddress<Rc<RefCell<TableInstance>>>;

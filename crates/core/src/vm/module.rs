@@ -166,7 +166,7 @@ pub enum HostExport {
     Func(ExecutableFuncAddr),
     Global(Rc<RefCell<DefinedGlobalInstance>>),
     Mem(Rc<RefCell<DefinedMemoryInstance>>),
-    Table(Rc<RefCell<DefinedTableInstance>>),
+    Table(ResolvedTableAddr),
 }
 
 impl HostExport {
@@ -209,7 +209,7 @@ impl HostModuleInstance {
     pub fn table_by_name(
         &self,
         name: String,
-    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedTableInstance>>>> {
+    ) -> HostModuleResult<Option<&ResolvedTableAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Table(table)) => Ok(Some(table)),
             Some(v) => Err(HostModuleError::TypeMismatch("table", v.ty().to_string())),

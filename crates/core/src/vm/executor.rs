@@ -236,7 +236,7 @@ impl Executor {
             Instruction::CallIndirect(type_index, _) => {
                 let (ty, addr) = {
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                    let addr = TableAddr(frame.module_index(), 0);
+                    let addr = TableAddr::new_unsafe(frame.module_index(), 0);
                     let module = store.module(frame.module_index()).defined().unwrap();
                     let ty = match module.get_type(*type_index as usize) {
                         parity_wasm::elements::Type::Function(ty) => ty,
@@ -246,10 +246,7 @@ impl Executor {
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
-                let func_addr = table
-                    .borrow()
-                    .get_at(buf_index, store)
-                    .map_err(Trap::Table)?;
+                let func_addr = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
                 let (func, _) = store
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr))?;
