@@ -165,7 +165,7 @@ type HostModuleResult<T> = std::result::Result<T, HostModuleError>;
 pub enum HostExport {
     Func(ExecutableFuncAddr),
     Global(Rc<RefCell<DefinedGlobalInstance>>),
-    Mem(Rc<RefCell<DefinedMemoryInstance>>),
+    Mem(ResolvedMemoryAddr),
     Table(ResolvedTableAddr),
 }
 
@@ -217,7 +217,7 @@ impl HostModuleInstance {
     pub fn memory_by_name(
         &self,
         name: String,
-    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedMemoryInstance>>>> {
+    ) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Mem(mem)) => Ok(Some(mem)),
             Some(v) => Err(HostModuleError::TypeMismatch("memory", v.ty().to_string())),

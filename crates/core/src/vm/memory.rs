@@ -3,83 +3,7 @@ use super::store::Store;
 use super::value::FromLittleEndian;
 use parity_wasm::elements::ResizableLimits;
 
-pub enum MemoryInstance {
-    Defined(std::rc::Rc<std::cell::RefCell<DefinedMemoryInstance>>),
-    External(ExternalMemoryInstance),
-}
-
-impl MemoryInstance {
-    pub fn resolve_memory_instance(
-        &self,
-        store: &Store,
-    ) -> std::rc::Rc<std::cell::RefCell<DefinedMemoryInstance>> {
-        match self {
-            Self::Defined(defined) => defined.clone(),
-            Self::External(external) => {
-                let module = store.module_by_name(external.module_name.clone());
-                match module {
-                    ModuleInstance::Defined(defined_module) => {
-                        let addr = defined_module
-                            .exported_memory(external.name.clone())
-                            .ok()
-                            .unwrap()
-                            .unwrap();
-                        let memory = store.memory(addr);
-                        return memory.borrow_mut().resolve_memory_instance(store);
-                    }
-                    ModuleInstance::Host(host_module) => host_module
-                        .memory_by_name(external.name.clone())
-                        .ok()
-                        .unwrap()
-                        .unwrap()
-                        .clone(),
-                }
-            }
-        }
-    }
-
-    pub fn validate_region(&self, offset: usize, size: usize, store: &Store) -> Result<()> {
-        self.resolve_memory_instance(store)
-            .borrow_mut()
-            .validate_region(offset, size)
-    }
-
-    pub fn grow(&mut self, n: usize, store: &Store) -> Result<()> {
-        self.resolve_memory_instance(store).borrow_mut().grow(n)
-    }
-
-    pub fn store(&mut self, offset: usize, data: &[u8], store: &Store) -> Result<()> {
-        self.resolve_memory_instance(store)
-            .borrow_mut()
-            .store(offset, data)
-    }
-
-    pub fn data_len(&self, store: &Store) -> usize {
-        self.resolve_memory_instance(store).borrow().data_len()
-    }
-
-    pub fn page_count(&self, store: &Store) -> usize {
-        self.data_len(store) / PAGE_SIZE
-    }
-
-    pub fn load_as<T: FromLittleEndian>(&self, offset: usize, store: &Store) -> Result<T> {
-        self.resolve_memory_instance(store).borrow().load_as(offset)
-    }
-
-    pub fn max(&self) -> Option<usize> {
-        match self {
-            MemoryInstance::Defined(d) => d.borrow().max,
-            MemoryInstance::External(e) => e.limit.maximum().map(|s| s as usize),
-        }
-    }
-
-    pub fn initial(&self) -> usize {
-        match self {
-            MemoryInstance::Defined(d) => d.borrow().initial,
-            MemoryInstance::External(e) => e.limit.initial() as usize,
-        }
-    }
-}
+pub type MemoryInstance = DefinedMemoryInstance;
 
 pub struct DefinedMemoryInstance {
     data: Vec<u8>,
@@ -171,7 +95,7 @@ impl DefinedMemoryInstance {
         Ok(T::from_le(buf))
     }
 
-    fn page_count(&self) -> usize {
+    pub fn page_count(&self) -> usize {
         self.data_len() / PAGE_SIZE
     }
 

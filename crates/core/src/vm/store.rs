@@ -21,7 +21,7 @@ use std::rc::Rc;
 pub struct Store {
     funcs: LinkableCollection<FunctionInstance>,
     tables: LinkableCollection<Rc<RefCell<TableInstance>>>,
-    mems: HashMap<ModuleIndex, Vec<Rc<RefCell<MemoryInstance>>>>,
+    mems: LinkableCollection<Rc<RefCell<MemoryInstance>>>,
     globals: HashMap<ModuleIndex, Vec<Rc<RefCell<GlobalInstance>>>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -34,7 +34,7 @@ impl Store {
         Self {
             funcs: LinkableCollection::new(),
             tables: LinkableCollection::new(),
-            mems: HashMap::new(),
+            mems: LinkableCollection::new(),
             globals: HashMap::new(),
             modules: Vec::new(),
             module_index_by_name: HashMap::new(),
@@ -69,11 +69,11 @@ impl Store {
     }
 
     pub fn memory(&self, addr: MemoryAddr) -> Rc<RefCell<MemoryInstance>> {
-        self.mems[&addr.0][addr.1].clone()
+        self.mems.get(addr).unwrap().0.clone()
     }
 
     pub fn memory_count(&self, addr: ModuleIndex) -> usize {
-        self.mems.get(&addr).map(|c| c.len()).unwrap_or_default()
+        self.mems.items(addr).map(|c| c.len()).unwrap_or(0)
     }
 
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
@@ -113,7 +113,8 @@ impl Store {
                     values.insert(field, HostExport::Table(addr));
                 }
                 HostValue::Mem(m) => {
-                    values.insert(field, HostExport::Mem(m));
+                    let addr = self.mems.push_global(m);
+                    values.insert(field, HostExport::Mem(addr));
                 }
             }
         }
@@ -254,7 +255,7 @@ impl Store {
                 // If fail, cleanup states
                 self.funcs.remove_module(&module_index);
                 self.tables.remove_module(&module_index);
-                self.mems.remove(&module_index);
+                self.mems.remove_module(&module_index);
                 self.globals.remove(&module_index);
                 let module_index = module_index.0 as usize;
                 if module_index < self.modules.len() {
@@ -394,7 +395,6 @@ impl Store {
                 .map_err(Error::InvalidHostImport)?
                 .ok_or_else(err)?,
         };
-        let func_index = self.funcs.link(exec_addr, module_index);
         let actual_func_ty = self.funcs.get_global(exec_addr).ty();
         // Validation
         if *actual_func_ty != func_ty {
@@ -404,6 +404,7 @@ impl Store {
                 actual_func_ty.clone(),
             ));
         }
+        let func_index = self.funcs.link(exec_addr, module_index);
         return Ok(func_index);
     }
 
@@ -413,48 +414,36 @@ impl Store {
         import: &parity_wasm::elements::ImportEntry,
         memory_ty: parity_wasm::elements::MemoryType,
     ) -> Result<MemoryAddr> {
-        let instance = ExternalMemoryInstance::new(
-            import.module().to_string(),
-            import.field().to_string(),
-            memory_ty.limits().clone(),
-        );
+        let err = || {
+            Error::UndefinedMemory(
+                import.module().clone().to_string(),
+                import.field().clone().to_string(),
+            )
+        };
+        let name = import.field().to_string();
+        let module = self.module_by_name(import.module().to_string());
+        let resolved_addr = match module {
+            ModuleInstance::Defined(defined) => {
+                let addr = defined
+                    .exported_memory(name.clone())
+                    .map_err(Error::InvalidImport)?
+                    .ok_or(err())?
+                    .clone();
+                self.mems.resolve(addr).ok_or_else(err)?.clone()
+            }
+            ModuleInstance::Host(host) => *host
+                .memory_by_name(name.clone())
+                .map_err(Error::InvalidHostImport)?
+                .ok_or(err())?,
+        };
+
         // Validation
         {
-            let err = || {
-                Error::UndefinedMemory(
-                    import.module().clone().to_string(),
-                    import.field().clone().to_string(),
-                )
-            };
-            let name = import.field().to_string();
-            let module = self.module_by_name(import.module().to_string());
-            let (initial, max) = match module {
-                ModuleInstance::Defined(defined) => {
-                    let addr = defined
-                        .exported_memory(name.clone())
-                        .map_err(Error::InvalidImport)?
-                        .ok_or(err())?
-                        .clone();
-                    let mem = self.memory(addr).clone();
-                    let initial = mem.borrow().initial();
-                    let max = mem.borrow().max();
-                    (initial, max)
-                }
-                ModuleInstance::Host(host) => {
-                    let mem = host
-                        .memory_by_name(name.clone())
-                        .map_err(Error::InvalidHostImport)?
-                        .ok_or(err())?
-                        .clone();
-                    let initial = mem.borrow().initial;
-                    let max = mem.borrow().max;
-                    (initial, max)
-                }
-            };
-            if initial < memory_ty.limits().initial() as usize {
+            let memory = self.mems.get_global(resolved_addr);
+            if memory.borrow().initial < memory_ty.limits().initial() as usize {
                 return Err(Error::IncompatibleImportMemoryType);
             }
-            match (max, memory_ty.limits().maximum()) {
+            match (memory.borrow().max, memory_ty.limits().maximum()) {
                 (Some(found), Some(expected)) => {
                     if found > expected as usize {
                         return Err(Error::IncompatibleImportMemoryType);
@@ -464,10 +453,7 @@ impl Store {
                 _ => (),
             }
         }
-        let map = self.mems.entry(module_index).or_insert(Vec::new());
-        let mem_index = map.len();
-        map.push(Rc::new(RefCell::new(MemoryInstance::External(instance))));
-        return Ok(MemoryAddr(module_index, mem_index));
+        Ok(self.mems.link(resolved_addr, module_index))
     }
 
     fn load_import_table(
@@ -663,7 +649,9 @@ impl Store {
                 None => continue,
             };
             for seg in segs {
-                let offset = match seg.offset().as_ref()
+                let offset = match seg
+                    .offset()
+                    .as_ref()
                     .map(|e| eval_const_expr(&e, self, module_index))
                     .unwrap()
                 {
@@ -696,7 +684,7 @@ impl Store {
             .map(|sec| sec.entries())
             .unwrap_or_default();
         let mut mem_addrs = Vec::new();
-        if mem_sec.is_empty() && self.mems.is_empty() {
+        if mem_sec.is_empty() && self.mems.is_empty(module_index) {
             return Ok(mem_addrs);
         }
         for entry in mem_sec.iter() {
@@ -704,18 +692,14 @@ impl Store {
                 entry.limits().initial() as usize,
                 entry.limits().maximum().map(|mx| mx as usize),
             );
-            let map = self.mems.entry(module_index).or_insert(Vec::new());
-            let mem_index = map.len();
-            map.push(Rc::new(RefCell::new(MemoryInstance::Defined(Rc::new(
-                RefCell::new(instance),
-            )))));
-            mem_addrs.push(MemoryAddr(module_index, mem_index));
+            let addr = self
+                .mems
+                .push(module_index, Rc::new(RefCell::new(instance)));
+            mem_addrs.push(addr);
         }
 
-        let mems = self.mems.entry(module_index).or_insert(Vec::new()).clone();
-
         let mut offsets_and_value = Vec::new();
-        for (index, mem) in mems.iter().enumerate() {
+        for (index, mem_addr) in self.mems.items(module_index).unwrap().iter().enumerate() {
             if let Some(segs) = data_segments.get(&index) {
                 for seg in segs {
                     let offset = match seg
@@ -727,8 +711,9 @@ impl Store {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
+                    let mem = self.mems.get_global(*mem_addr);
                     mem.borrow()
-                        .validate_region(offset as usize, seg.value().len(), self)
+                        .validate_region(offset as usize, seg.value().len())
                         .map_err(Error::InvalidDataSegments)?;
                     offsets_and_value.push((mem, offset, seg.value()));
                 }
@@ -737,7 +722,7 @@ impl Store {
 
         for (mem, offset, value) in offsets_and_value {
             mem.borrow_mut()
-                .store(offset as usize, value, self)
+                .store(offset as usize, value)
                 .map_err(Error::InvalidDataSegments)?;
         }
         Ok(mem_addrs)

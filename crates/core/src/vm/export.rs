@@ -32,7 +32,7 @@ impl ExportInstance {
                     ExternalValue::Global(addr)
                 }
                 Internal::Memory(memory_index) => {
-                    let addr = MemoryAddr(module_index, *memory_index as usize);
+                    let addr = MemoryAddr::new_unsafe(module_index, *memory_index as usize);
                     ExternalValue::Memory(addr)
                 }
                 Internal::Table(table_index) => {

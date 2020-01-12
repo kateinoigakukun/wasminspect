@@ -360,16 +360,15 @@ impl Executor {
             }
 
             Instruction::CurrentMemory(_) => {
-                self.stack.push_value(Value::I32(
-                    self.memory(store)?.borrow().page_count(store) as i32
-                ));
+                self.stack
+                    .push_value(Value::I32(self.memory(store)?.borrow().page_count() as i32));
                 Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as()?;
                 let mem = self.memory(store)?;
-                let size = mem.borrow().page_count(store);
-                match mem.borrow_mut().grow(grow_page as usize, store) {
+                let size = mem.borrow().page_count();
+                match mem.borrow_mut().grow(grow_page as usize) {
                     Ok(_) => {
                         self.stack.push_value(Value::I32(size as i32));
                     }
@@ -716,7 +715,7 @@ impl Executor {
 
     fn memory(&self, store: &Store) -> ExecResult<std::rc::Rc<std::cell::RefCell<MemoryInstance>>> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-        let mem_addr = MemoryAddr(frame.module_index(), 0);
+        let mem_addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
         Ok(store.memory(mem_addr))
     }
 
@@ -735,7 +734,7 @@ impl Executor {
         val.into_le(&mut buf);
         self.memory(store)?
             .borrow_mut()
-            .store(addr, &buf, store)
+            .store(addr, &buf)
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
@@ -757,7 +756,7 @@ impl Executor {
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
         self.memory(store)?
             .borrow_mut()
-            .store(addr, &buf, store)
+            .store(addr, &buf)
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
@@ -774,7 +773,7 @@ impl Executor {
         let result: T = self
             .memory(store)?
             .borrow_mut()
-            .load_as(addr, store)
+            .load_as(addr)
             .map_err(Trap::Memory)?;
         self.stack.push_value(result.into());
         Ok(Signal::Next)
@@ -792,7 +791,7 @@ impl Executor {
         let result: T = self
             .memory(store)?
             .borrow_mut()
-            .load_as(addr, store)
+            .load_as(addr)
             .map_err(Trap::Memory)?;
         let result = result.extend_into();
         self.stack.push_value(result.into());
