@@ -3,8 +3,8 @@ use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasminspect_core::vm::{
-    resolve_func_addr, CallFrame, Either, Executor, FunctionInstance, InstIndex, ModuleIndex,
-    ProgramCounter, Signal, Store, WasmError, WasmInstance, WasmValue,
+    CallFrame, Either, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal,
+    Store, WasmError, WasmInstance, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
@@ -38,7 +38,6 @@ impl MainDebugger {
             module_index,
         })
     }
-
 }
 
 impl debugger::Debugger for MainDebugger {
@@ -59,7 +58,7 @@ impl debugger::Debugger for MainDebugger {
             let frames = executor.stack.peek_frames();
             frames
                 .iter()
-                .map(|frame| self.store.func(frame.func_addr).unwrap().name())
+                .map(|frame| self.store.func(frame.func_addr).unwrap().name().clone())
                 .collect()
         } else {
             Vec::new()
@@ -83,17 +82,24 @@ impl debugger::Debugger for MainDebugger {
                     return Err(format!("Entry function _start not found"));
                 }
             };
-            let resolved_addr = resolve_func_addr(func_addr, &self.store)
-                .map_err(|e| format!("Failed to execute {}", e))?;
-            match resolved_addr {
-                Either::Right(host_func_body) => {
+            let func = self
+                .store
+                .func(func_addr)
+                .ok_or(format!("Function not found"))?;
+            match func {
+                FunctionInstance::Host(host) => {
                     let mut results = Vec::new();
-                    match host_func_body.call(&vec![], &mut results, &self.store, func_addr.0) {
+                    match host.code().call(
+                        &vec![],
+                        &mut results,
+                        &self.store,
+                        func_addr.module_index(),
+                    ) {
                         Ok(_) => return Ok(results),
                         Err(_) => return Err(format!("Failed to execute host func")),
                     }
                 }
-                Either::Left((func_addr, func)) => {
+                FunctionInstance::Defined(func) => {
                     let (frame, ret_types) = {
                         let ret_types =
                             func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);

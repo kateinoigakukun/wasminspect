@@ -32,6 +32,13 @@ impl FunctionInstance {
             _ => None,
         }
     }
+
+    pub fn name(&self) -> &String {
+        match self {
+            Self::Defined(defined) => &defined.name,
+            Self::Host(host) => host.field_name(),
+        }
+    }
 }
 
 pub struct DefinedFunctionInstance {
