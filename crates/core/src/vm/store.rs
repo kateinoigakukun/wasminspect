@@ -18,8 +18,8 @@ use std::rc::Rc;
 
 /// Store
 pub struct Store {
-    funcs_by_addr: Vec<FunctionInstance>,
-    funcs: HashMap<ModuleIndex, Vec<ExecutableFuncAddr>>,
+    funcs: Vec<FunctionInstance>,
+    funcs_by_module: HashMap<ModuleIndex, Vec<ExecutableFuncAddr>>,
     tables: HashMap<ModuleIndex, Vec<Rc<RefCell<TableInstance>>>>,
     mems: HashMap<ModuleIndex, Vec<Rc<RefCell<MemoryInstance>>>>,
     globals: HashMap<ModuleIndex, Vec<Rc<RefCell<GlobalInstance>>>>,
@@ -30,20 +30,22 @@ pub struct Store {
 }
 
 impl Store {
-    fn convert_func_addr(&self, addr: FuncAddr) -> Option<&ExecutableFuncAddr> {
-        self.funcs.get(&addr.0).and_then(|m| m.get(addr.1))
+    fn resolve_func_addr(&self, addr: FuncAddr) -> Option<&ExecutableFuncAddr> {
+        self.funcs_by_module
+            .get(&addr.0)
+            .and_then(|m| m.get(addr.1))
     }
 
     pub fn func_by_exec_addr(&self, addr: ExecutableFuncAddr) -> Option<&FunctionInstance> {
-        self.funcs_by_addr.get(addr.0)
+        self.funcs.get(addr.0)
     }
 }
 
 impl Store {
     pub fn new() -> Self {
         Self {
-            funcs_by_addr: Vec::new(),
-            funcs: HashMap::new(),
+            funcs: Vec::new(),
+            funcs_by_module: HashMap::new(),
             tables: HashMap::new(),
             mems: HashMap::new(),
             globals: HashMap::new(),
@@ -54,13 +56,8 @@ impl Store {
     }
 
     pub fn func(&self, addr: FuncAddr) -> Option<&FunctionInstance> {
-        let exec_addr = *self.convert_func_addr(addr)?;
+        let exec_addr = *self.resolve_func_addr(addr)?;
         self.func_by_exec_addr(exec_addr)
-    }
-
-    pub fn func_ty(&self, addr: FuncAddr) -> &FunctionType {
-        let exec_addr = &self.funcs[&addr.0][addr.1];
-        self.funcs_by_addr[exec_addr.0].ty()
     }
 
     pub fn global(&self, addr: GlobalAddr) -> Rc<RefCell<GlobalInstance>> {
@@ -118,8 +115,8 @@ impl Store {
                 HostValue::Func(f) => {
                     let instance =
                         HostFunctionInstance::new(f.ty().clone(), name.clone(), field.clone(), f);
-                    let addr = ExecutableFuncAddr(self.funcs_by_addr.len());
-                    self.funcs_by_addr.push(FunctionInstance::Host(instance));
+                    let addr = ExecutableFuncAddr(self.funcs.len());
+                    self.funcs.push(FunctionInstance::Host(instance));
                     func_addrs.insert(field, addr);
                 }
                 HostValue::Global(g) => {
@@ -268,7 +265,7 @@ impl Store {
             Ok(ok) => Ok(ok),
             Err(err) => {
                 // If fail, cleanup states
-                self.funcs.remove(&module_index);
+                self.funcs_by_module.remove(&module_index);
                 self.tables.remove(&module_index);
                 self.mems.remove(&module_index);
                 self.globals.remove(&module_index);
@@ -389,7 +386,11 @@ impl Store {
                 parity_wasm::elements::Type::Function(ty) => ty,
             }
         };
-        let func_index = self.funcs.get(&module_index).unwrap_or(&vec![]).len();
+        let func_index = self
+            .funcs_by_module
+            .get(&module_index)
+            .unwrap_or(&vec![])
+            .len();
 
         let name = import.field().to_string();
         let module = self.module_by_name(import.module().to_string());
@@ -405,20 +406,17 @@ impl Store {
                     .exported_func(name)
                     .map_err(Error::InvalidImport)?
                     .ok_or_else(err)?;
-                self.convert_func_addr(func_addr).ok_or_else(err)?.clone()
+                self.resolve_func_addr(func_addr).ok_or_else(err)?.clone()
             }
             ModuleInstance::Host(host) => *host
                 .func_by_name(import.field().to_string())
                 .ok_or_else(err)?,
         };
-        self.funcs
+        self.funcs_by_module
             .entry(module_index)
             .or_insert(Vec::new())
             .push(exec_addr);
-        let actual_func_ty = self
-            .func_by_exec_addr(exec_addr)
-            .ok_or_else(err)?
-            .ty();
+        let actual_func_ty = self.func_by_exec_addr(exec_addr).ok_or_else(err)?.ty();
         // Validation
         if *actual_func_ty != func_ty {
             return Err(Error::IncompatibleImportFuncType(
@@ -623,8 +621,11 @@ impl Store {
                 .get(func.type_ref() as usize)
                 .ok_or(Error::UnknownType(func.type_ref()))?
                 .clone();
-            let addrs = self.funcs.entry(module_index).or_insert(Vec::new());
-            let exec_addr = self.funcs_by_addr.len();
+            let addrs = self
+                .funcs_by_module
+                .entry(module_index)
+                .or_insert(Vec::new());
+            let exec_addr = self.funcs.len();
             let func_index = addrs.len();
             let defined = DefinedFunctionInstance::new(
                 format!("<module defined func #{}>", exec_addr),
@@ -633,7 +634,7 @@ impl Store {
                 body.clone(),
             );
             let instance = FunctionInstance::Defined(defined);
-            self.funcs_by_addr.push(instance);
+            self.funcs.push(instance);
             func_addrs.push(FuncAddr(module_index, func_index));
         }
         Ok(func_addrs)

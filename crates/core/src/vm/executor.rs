@@ -677,15 +677,14 @@ impl Executor {
     }
 
     fn invoke(&mut self, addr: FuncAddr, store: &Store) -> ExecResult<Signal> {
-        let func_ty = store.func_ty(addr);
+        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
 
         let mut args = Vec::new();
-        for _ in func_ty.params() {
+        for _ in func.ty().params() {
             args.push(self.stack.pop_value().map_err(Trap::Stack)?);
         }
         args.reverse();
 
-        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         match store.func(addr).ok_or(Trap::UndefinedFunc(addr))? {
             FunctionInstance::Defined(func) => {
