@@ -1,7 +1,7 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
 use super::global::DefinedGlobalInstance;
-use super::memory::DefinedMemoryInstance;
+
 
 use std::cell::RefCell;
 use std::collections::HashMap;

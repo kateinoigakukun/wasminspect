@@ -1,5 +1,5 @@
-use super::module::ModuleInstance;
-use super::store::Store;
+
+
 use super::value::FromLittleEndian;
 use parity_wasm::elements::ResizableLimits;
 

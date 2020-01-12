@@ -6,7 +6,7 @@ use super::global::{
 };
 use super::host::HostValue;
 use super::linker::LinkableCollection;
-use super::memory::{self, DefinedMemoryInstance, ExternalMemoryInstance, MemoryInstance};
+use super::memory::{self, DefinedMemoryInstance, MemoryInstance};
 use super::module::{
     self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
 };
