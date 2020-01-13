@@ -14,7 +14,7 @@ mod table;
 mod value;
 
 pub use self::address::*;
-pub use self::executor::{Executor, Signal};
+pub use self::executor::{Executor, Signal, invoke_func};
 pub use self::executor::{Trap, WasmError};
 pub use self::func::{FunctionInstance, InstIndex};
 pub use self::global::GlobalInstance as HostGlobal;

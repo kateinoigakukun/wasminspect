@@ -52,6 +52,7 @@ impl std::fmt::Display for Trap {
 
 pub enum Signal {
     Next,
+    Breakpoint,
     End,
 }
 
@@ -866,6 +867,7 @@ pub fn invoke_func(
                 let result = executor.execute_step(store);
                 match result {
                     Ok(Signal::Next) => continue,
+                    Ok(Signal::Breakpoint) => continue,
                     Ok(Signal::End) => match executor.pop_result(ret_types) {
                         Ok(values) => return Ok(values),
                         Err(err) => return Err(WasmError::ReturnValueError(err)),

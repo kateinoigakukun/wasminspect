@@ -129,6 +129,7 @@ impl debugger::Debugger for MainDebugger {
                         let result = executor.borrow_mut().execute_step(&self.store);
                         match result {
                             Ok(Signal::Next) => continue,
+                            Ok(Signal::Breakpoint) => continue,
                             Ok(Signal::End) => match executor.borrow_mut().pop_result(ret_types) {
                                 Ok(values) => return Ok(values),
                                 Err(err) => return Err(format!("Return value failure {:?}", err)),

@@ -7,7 +7,7 @@ use super::value::Value;
 use std::collections::HashMap;
 
 pub struct WasmInstance {
-    store: Store,
+    pub store: Store,
 }
 
 impl WasmInstance {
