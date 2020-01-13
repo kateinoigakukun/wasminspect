@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::*;
-use wasminspect_api::value::Value as WasmValue;
 
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();

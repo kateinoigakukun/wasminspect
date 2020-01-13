@@ -7,12 +7,12 @@ use super::stack;
 use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
 use super::store::*;
 use super::table;
-use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
-use wasminspect_api::value;
-use wasminspect_api::value::{
+use super::value;
+use super::value::{
     ExtendInto, FromLittleEndian, IntoLittleEndian, NativeValue, Value, F32, F64, I32, I64, U32,
     U64,
 };
+use parity_wasm::elements::{BlockType, FunctionType, InitExpr, Instruction, ValueType};
 
 use std::ops::*;
 

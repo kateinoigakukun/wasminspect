@@ -1,7 +1,7 @@
 use super::address::*;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
-use wasminspect_api::value::Value;
+use super::value::Value;
 use parity_wasm::elements::ValueType;
 
 #[derive(Debug)]

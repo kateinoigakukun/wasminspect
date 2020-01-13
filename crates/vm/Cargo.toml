@@ -5,7 +5,6 @@ authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-wasminspect-api = { path = "../api" }
 parity-wasm = "0.41"
 thiserror = "1.0.9"
 anyhow = "1.0.26"

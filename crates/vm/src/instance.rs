@@ -3,7 +3,7 @@ use super::host::HostValue;
 use super::module::ModuleIndex;
 use super::store;
 use super::store::Store;
-use wasminspect_api::value::Value;
+use super::value::Value;
 use std::collections::HashMap;
 
 pub struct WasmInstance {

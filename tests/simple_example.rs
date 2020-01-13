@@ -1,8 +1,6 @@
 extern crate wasminspect_vm;
-extern crate wasminspect_api;
 use wasminspect_vm::*;
 use wast_spec::instantiate_spectest;
-use wasminspect_api::value::Value as WasmValue;
 
 use std::path::Path;
 

@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use wasi_common::hostcalls::*;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
 use wasminspect_vm::*;
-use wasminspect_api::value::Value as WasmValue;
 
 pub struct WasiContext {
     ctx: RefCell<WasiCtx>,

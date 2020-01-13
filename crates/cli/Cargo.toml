@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 wasminspect-vm = { path = "../vm" }
 wasminspect-wasi = { path = "../wasi" }
-wasminspect-api = { path = "../api" }
 wasmi-validation = "0.3.0"
 linefeed = "0.6.0"
 clap = "2.33.0"

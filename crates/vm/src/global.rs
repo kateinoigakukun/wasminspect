@@ -1,4 +1,4 @@
-use wasminspect_api::value::Value;
+use super::value::Value;
 use parity_wasm::elements::GlobalType;
 
 pub struct GlobalInstance {
