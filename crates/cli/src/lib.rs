@@ -17,7 +17,7 @@ pub fn run_loop(file: Option<String>) -> Result<(), String> {
         debugger,
         vec![
             Box::new(commands::run::RunCommand::new()),
-            Box::new(commands::frame::FrameCommand::new()),
+            Box::new(commands::backtrace::BacktraceCommand::new()),
             Box::new(commands::list::ListCommand::new()),
         ],
         &history_file_path(),
