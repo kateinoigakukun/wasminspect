@@ -1,5 +1,5 @@
-extern crate wasminspect_core;
-use wasminspect_core::vm::*;
+extern crate wasminspect_vm;
+use wasminspect_vm::*;
 use wast_spec::instantiate_spectest;
 
 use std::path::Path;

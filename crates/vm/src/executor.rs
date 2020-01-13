@@ -1,7 +1,5 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
-use super::global::*;
-use super::host::*;
 use super::memory;
 use super::memory::MemoryInstance;
 use super::module::*;
@@ -9,7 +7,6 @@ use super::stack;
 use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
 use super::store::*;
 use super::table;
-use super::utils::*;
 use super::value;
 use super::value::{
     ExtendInto, FromLittleEndian, IntoLittleEndian, NativeValue, Value, F32, F64, I32, I64, U32,
@@ -75,20 +72,6 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new_from_func(
-        func_addr: FuncAddr,
-        func: &DefinedFunctionInstance,
-        arguments: Vec<Value>,
-    ) -> Self {
-        let (frame, ret_types) = {
-            let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-            let frame = CallFrame::new_from_func(func_addr, func, arguments, None);
-            (frame, ret_types)
-        };
-        let pc = ProgramCounter::new(func_addr, InstIndex::zero());
-        return Self::new(frame, ret_types.len(), pc);
-    }
-
     pub fn new(initial_frame: CallFrame, initial_arity: usize, pc: ProgramCounter) -> Self {
         let mut stack = Stack::default();
         let _ = stack.set_frame(initial_frame);
@@ -110,18 +93,14 @@ impl Executor {
 
     pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
         let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
-        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
-        Ok(&func.defined().unwrap().code().instructions())
+        let func = store.func_global(addr);
+        Ok(&func.defined().unwrap().instructions())
     }
 
     pub fn execute_step<'a>(&mut self, store: &'a Store) -> ExecResult<Signal> {
-        let func = store
-            .func(self.pc.func_addr())
-            .ok_or(Trap::UndefinedFunc(self.pc.func_addr()))?
-            .defined()
-            .unwrap();
+        let func = store.func_global(self.pc.exec_addr()).defined().unwrap();
         let module_index = func.module_index().clone();
-        let inst = func.code().inst(self.pc.inst_index()).clone();
+        let inst = func.inst(self.pc.inst_index()).clone();
         return self.execute_inst(&inst, module_index, store);
     }
 
@@ -198,9 +177,7 @@ impl Executor {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-                    let func = store
-                        .func(frame.func_addr)
-                        .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
+                    let func = store.func_global(frame.exec_addr);
                     let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
                     let mut result = vec![];
                     for _ in 0..arity {
@@ -252,13 +229,13 @@ impl Executor {
             Instruction::Return => self.do_return(store),
             Instruction::Call(func_index) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                let addr = FuncAddr(frame.module_index(), *func_index as usize);
+                let addr = FuncAddr::new_unsafe(frame.module_index(), *func_index as usize);
                 self.invoke(addr, store)
             }
             Instruction::CallIndirect(type_index, _) => {
                 let (ty, addr) = {
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                    let addr = TableAddr(frame.module_index(), 0);
+                    let addr = TableAddr::new_unsafe(frame.module_index(), 0);
                     let module = store.module(frame.module_index()).defined().unwrap();
                     let ty = match module.get_type(*type_index as usize) {
                         parity_wasm::elements::Type::Function(ty) => ty,
@@ -268,11 +245,8 @@ impl Executor {
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
-                let func_addr = table
-                    .borrow()
-                    .get_at(buf_index, store)
-                    .map_err(Trap::Table)?;
-                let func = store
+                let func_addr = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
+                let (func, _) = store
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr))?;
                 if *func.ty() == ty {
@@ -313,15 +287,15 @@ impl Executor {
                 self.set_local(*index as usize)
             }
             Instruction::GetGlobal(index) => {
-                let addr = GlobalAddr(module_index, *index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *index as usize);
                 let global = store.global(addr);
-                self.stack.push_value(global.borrow().value(store));
+                self.stack.push_value(global.borrow().value());
                 Ok(Signal::Next)
             }
             Instruction::SetGlobal(index) => {
-                let addr = GlobalAddr(module_index, *index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
-                let global = resolve_global_instance(addr, store);
+                let global = store.global(addr);
                 global.borrow_mut().set_value(value);
                 Ok(Signal::Next)
             }
@@ -331,17 +305,37 @@ impl Executor {
             Instruction::F32Load(_, offset) => self.load::<f32>(*offset as usize, store),
             Instruction::F64Load(_, offset) => self.load::<f64>(*offset as usize, store),
 
-            Instruction::I32Load8S(_, offset) => self.load_extend::<i8, i32>(*offset as usize, store),
-            Instruction::I32Load8U(_, offset) => self.load_extend::<u8, i32>(*offset as usize, store),
-            Instruction::I32Load16S(_, offset) => self.load_extend::<i16, i32>(*offset as usize, store),
-            Instruction::I32Load16U(_, offset) => self.load_extend::<u16, i32>(*offset as usize, store),
+            Instruction::I32Load8S(_, offset) => {
+                self.load_extend::<i8, i32>(*offset as usize, store)
+            }
+            Instruction::I32Load8U(_, offset) => {
+                self.load_extend::<u8, i32>(*offset as usize, store)
+            }
+            Instruction::I32Load16S(_, offset) => {
+                self.load_extend::<i16, i32>(*offset as usize, store)
+            }
+            Instruction::I32Load16U(_, offset) => {
+                self.load_extend::<u16, i32>(*offset as usize, store)
+            }
 
-            Instruction::I64Load8S(_, offset) => self.load_extend::<i8, i64>(*offset as usize, store),
-            Instruction::I64Load8U(_, offset) => self.load_extend::<u8, i64>(*offset as usize, store),
-            Instruction::I64Load16S(_, offset) => self.load_extend::<i16, i64>(*offset as usize, store),
-            Instruction::I64Load16U(_, offset) => self.load_extend::<u16, i64>(*offset as usize, store),
-            Instruction::I64Load32S(_, offset) => self.load_extend::<i32, i64>(*offset as usize, store),
-            Instruction::I64Load32U(_, offset) => self.load_extend::<u32, i64>(*offset as usize, store),
+            Instruction::I64Load8S(_, offset) => {
+                self.load_extend::<i8, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load8U(_, offset) => {
+                self.load_extend::<u8, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load16S(_, offset) => {
+                self.load_extend::<i16, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load16U(_, offset) => {
+                self.load_extend::<u16, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load32S(_, offset) => {
+                self.load_extend::<i32, i64>(*offset as usize, store)
+            }
+            Instruction::I64Load32U(_, offset) => {
+                self.load_extend::<u32, i64>(*offset as usize, store)
+            }
 
             Instruction::I32Store(_, offset) => self.store::<i32>(*offset as usize, store),
             Instruction::I64Store(_, offset) => self.store::<i64>(*offset as usize, store),
@@ -365,16 +359,15 @@ impl Executor {
             }
 
             Instruction::CurrentMemory(_) => {
-                self.stack.push_value(Value::I32(
-                    self.memory(store)?.borrow().page_count(store) as i32
-                ));
+                self.stack
+                    .push_value(Value::I32(self.memory(store)?.borrow().page_count() as i32));
                 Ok(Signal::Next)
             }
             Instruction::GrowMemory(_) => {
                 let grow_page: i32 = self.pop_as()?;
                 let mem = self.memory(store)?;
-                let size = mem.borrow().page_count(store);
-                match mem.borrow_mut().grow(grow_page as usize, store) {
+                let size = mem.borrow().page_count();
+                match mem.borrow_mut().grow(grow_page as usize) {
                     Ok(_) => {
                         self.stack.push_value(Value::I32(size as i32));
                     }
@@ -659,29 +652,28 @@ impl Executor {
     }
 
     fn invoke(&mut self, addr: FuncAddr, store: &Store) -> ExecResult<Signal> {
-        let func_ty = store.func_ty(addr);
+        let (func, exec_addr) = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
 
         let mut args = Vec::new();
-        for _ in func_ty.params() {
+        for _ in func.ty().params() {
             args.push(self.stack.pop_value().map_err(Trap::Stack)?);
         }
         args.reverse();
 
-        let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
-        let result = { resolve_func_addr(addr, store)?.clone() };
-        match result {
-            Either::Left((addr, func)) => {
-                let pc = ProgramCounter::new(addr, InstIndex::zero());
-                let frame = CallFrame::new_from_func(addr, &func, args, Some(self.pc));
+        match func {
+            FunctionInstance::Defined(func) => {
+                let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
+                let frame = CallFrame::new_from_func(exec_addr, &func, args, Some(self.pc));
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Return(arity));
                 self.pc = pc;
                 Ok(Signal::Next)
             }
-            Either::Right(host_func_body) => {
+            FunctionInstance::Host(func) => {
                 let mut result = Vec::new();
-                host_func_body.call(&args, &mut result, store, addr.0)?;
+                func.code()
+                    .call(&args, &mut result, store, addr.module_index())?;
                 assert_eq!(result.len(), arity);
                 for v in result {
                     self.stack.push_value(v);
@@ -692,9 +684,7 @@ impl Executor {
     }
     fn do_return(&mut self, store: &Store) -> ExecResult<Signal> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-        let func = store
-            .func(frame.func_addr)
-            .ok_or(Trap::UndefinedFunc(frame.func_addr))?;
+        let func = store.func_global(frame.exec_addr);
         let arity = func.ty().return_type().map(|_| 1).unwrap_or(0);
         let mut result = vec![];
         for _ in 0..arity {
@@ -724,7 +714,7 @@ impl Executor {
 
     fn memory(&self, store: &Store) -> ExecResult<std::rc::Rc<std::cell::RefCell<MemoryInstance>>> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-        let mem_addr = MemoryAddr(frame.module_index(), 0);
+        let mem_addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
         Ok(store.memory(mem_addr))
     }
 
@@ -743,7 +733,7 @@ impl Executor {
         val.into_le(&mut buf);
         self.memory(store)?
             .borrow_mut()
-            .store(addr, &buf, store)
+            .store(addr, &buf)
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
@@ -765,7 +755,7 @@ impl Executor {
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
         self.memory(store)?
             .borrow_mut()
-            .store(addr, &buf, store)
+            .store(addr, &buf)
             .map_err(Trap::Memory)?;
         Ok(Signal::Next)
     }
@@ -782,7 +772,7 @@ impl Executor {
         let result: T = self
             .memory(store)?
             .borrow_mut()
-            .load_as(addr, store)
+            .load_as(addr)
             .map_err(Trap::Memory)?;
         self.stack.push_value(result.into());
         Ok(Signal::Next)
@@ -800,7 +790,7 @@ impl Executor {
         let result: T = self
             .memory(store)?
             .borrow_mut()
-            .load_as(addr, store)
+            .load_as(addr)
             .map_err(Trap::Memory)?;
         let result = result.extend_into();
         self.stack.push_value(result.into());
@@ -816,8 +806,8 @@ pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: Module
         Instruction::F32Const(val) => Value::F32(f32::from_bits(val)),
         Instruction::F64Const(val) => Value::F64(f64::from_bits(val)),
         Instruction::GetGlobal(index) => {
-            let addr = GlobalAddr(module_index, index as usize);
-            store.global(addr).borrow().value(store)
+            let addr = GlobalAddr::new_unsafe(module_index, index as usize);
+            store.global(addr).borrow().value()
         }
         _ => panic!("Unsupported init_expr {}", inst),
     }
@@ -845,57 +835,32 @@ impl std::fmt::Display for WasmError {
     }
 }
 
-pub fn resolve_func_addr(
-    addr: FuncAddr,
-    store: &Store,
-) -> ExecResult<Either<(FuncAddr, &DefinedFunctionInstance), &HostFuncBody>> {
-    let func = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
-    match func {
-        FunctionInstance::Defined(defined) => Ok(Either::Left((addr, defined))),
-        FunctionInstance::External(func) => {
-            let module = store.module_by_name(func.module_name().clone());
-            match module {
-                ModuleInstance::Host(host_module) => {
-                    let func = host_module
-                        .func_by_name(func.field_name().clone())
-                        .ok()
-                        .unwrap()
-                        .unwrap();
-                    return Ok(Either::Right(func));
-                }
-                ModuleInstance::Defined(defined_module) => {
-                    let addr = defined_module
-                        .exported_func(func.field_name().clone())
-                        .ok()
-                        .unwrap()
-                        .unwrap();
-                    return resolve_func_addr(addr, store);
-                }
-            }
-        }
-    }
-}
-
 pub fn invoke_func(
     func_addr: FuncAddr,
     arguments: Vec<Value>,
     store: &mut Store,
 ) -> Result<Vec<Value>, WasmError> {
-    match resolve_func_addr(func_addr, &store).map_err(WasmError::ExecutionError)? {
-        Either::Right(host_func_body) => {
+    match store
+        .func(func_addr)
+        .ok_or(WasmError::ExecutionError(Trap::UndefinedFunc(func_addr)))?
+    {
+        (FunctionInstance::Host(host), _) => {
             let mut results = Vec::new();
-            match host_func_body.call(&arguments, &mut results, store, func_addr.0) {
+            match host
+                .code()
+                .call(&arguments, &mut results, store, func_addr.module_index())
+            {
                 Ok(_) => Ok(results),
                 Err(_) => Err(WasmError::HostExecutionError),
             }
         }
-        Either::Left((func_addr, func)) => {
+        (FunctionInstance::Defined(func), exec_addr) => {
             let (frame, ret_types) = {
                 let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-                let frame = CallFrame::new_from_func(func_addr, func, arguments, None);
+                let frame = CallFrame::new_from_func(exec_addr, func, arguments, None);
                 (frame, ret_types)
             };
-            let pc = ProgramCounter::new(func_addr, InstIndex::zero());
+            let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
             let mut executor = Executor::new(frame, ret_types.len(), pc);
             loop {
                 let result = executor.execute_step(store);

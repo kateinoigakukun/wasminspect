@@ -5,11 +5,11 @@ use std::rc::Rc;
 
 use super::address::MemoryAddr;
 use super::executor::Trap;
-use super::global::DefinedGlobalInstance;
-use super::memory::DefinedMemoryInstance;
+use super::global::GlobalInstance;
+use super::memory::MemoryInstance;
 use super::module::ModuleIndex;
 use super::store::Store;
-use super::table::DefinedTableInstance;
+use super::table::TableInstance;
 use parity_wasm::elements::FunctionType;
 
 type Ref<T> = Rc<RefCell<T>>;
@@ -20,9 +20,9 @@ pub struct HostContext<'a> {
 
 pub enum HostValue {
     Func(HostFuncBody),
-    Global(Rc<RefCell<DefinedGlobalInstance>>),
-    Mem(Ref<DefinedMemoryInstance>),
-    Table(Ref<DefinedTableInstance>),
+    Global(Rc<RefCell<GlobalInstance>>),
+    Mem(Ref<MemoryInstance>),
+    Table(Ref<TableInstance>),
 }
 
 impl HostValue {
@@ -61,9 +61,8 @@ impl HostFuncBody {
         module_index: ModuleIndex,
     ) -> Result<(), Trap> {
         if store.memory_count(module_index) > 0 {
-            let mem_addr = MemoryAddr(module_index, 0);
+            let mem_addr = MemoryAddr::new_unsafe(module_index, 0);
             let mem = store.memory(mem_addr);
-            let mem = mem.borrow().resolve_memory_instance(store).clone();
             let mem = &mut mem.borrow_mut();
             let raw_mem = mem.raw_data_mut();
             let mut ctx = HostContext { mem: raw_mem };

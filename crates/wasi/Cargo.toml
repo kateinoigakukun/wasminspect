@@ -6,5 +6,5 @@ edition = "2018"
 
 [dependencies]
 wasi-common = "0.8.0"
-wasminspect-core = { path = "../core" }
+wasminspect-vm = { path = "../vm" }
 parity-wasm = "0.41"
