@@ -11,11 +11,14 @@ impl MemoryCommand {
 }
 
 #[derive(StructOpt)]
-struct Opts {
-    #[structopt(name = "ADDRESS")]
-    address: String,
-    #[structopt(short, long, default_value = "32")]
-    count: u32,
+enum Opts {
+    #[structopt(name = "read")]
+    Read {
+        #[structopt(name = "ADDRESS")]
+        address: String,
+        #[structopt(short, long, default_value = "32")]
+        count: u32,
+    },
 }
 
 impl<D: Debugger> Command<D> for MemoryCommand {
@@ -27,27 +30,32 @@ impl<D: Debugger> Command<D> for MemoryCommand {
             Ok(opts) => opts,
             Err(e) => return Err(command::Error::Command(format!("{}", e))),
         };
-        let address = if opts.address.starts_with("0x") {
-            let raw = opts.address.trim_start_matches("0x");
-            i64::from_str_radix(raw, 16).map_err(|e| (command::Error::Command(format!("{}", e))))?
-        } else {
-            i64::from_str_radix(&opts.address, 10)
-                .map_err(|e| (command::Error::Command(format!("{}", e))))?
-        };
-        let memory = debugger.memory().map_err(command::Error::Command)?;
+        match opts {
+            Opts::Read { address, count } => {
+                let address = if address.starts_with("0x") {
+                    let raw = address.trim_start_matches("0x");
+                    i64::from_str_radix(raw, 16)
+                        .map_err(|e| (command::Error::Command(format!("{}", e))))?
+                } else {
+                    i64::from_str_radix(&address, 10)
+                        .map_err(|e| (command::Error::Command(format!("{}", e))))?
+                };
+                let memory = debugger.memory().map_err(command::Error::Command)?;
 
-        let begin = address as usize;
-        let end = begin + (opts.count as usize);
-        for (offset, bytes) in memory[begin..end].chunks(16).enumerate() {
-            print!("0x{:>04x}: ", begin + offset);
-            let bytes_str = bytes
-                .iter()
-                .map(|b| format!("{:>02x}", b))
-                .collect::<Vec<String>>();
-            print!("{}", bytes_str.join(" "));
-            println!(" {}", dump_memory_as_str(bytes));
+                let begin = address as usize;
+                let end = begin + (count as usize);
+                for (offset, bytes) in memory[begin..end].chunks(16).enumerate() {
+                    print!("0x{:>04x}: ", begin + offset);
+                    let bytes_str = bytes
+                        .iter()
+                        .map(|b| format!("{:>02x}", b))
+                        .collect::<Vec<String>>();
+                    print!("{}", bytes_str.join(" "));
+                    println!(" {}", dump_memory_as_str(bytes));
+                }
+                Ok(())
+            }
         }
-        Ok(())
     }
 }
 
