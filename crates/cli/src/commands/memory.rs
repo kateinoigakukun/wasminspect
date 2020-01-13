@@ -44,8 +44,9 @@ impl<D: Debugger> Command<D> for MemoryCommand {
 
                 let begin = address as usize;
                 let end = begin + (count as usize);
-                for (offset, bytes) in memory[begin..end].chunks(16).enumerate() {
-                    print!("0x{:>08x}: ", begin + offset);
+                let chunk_size = 16;
+                for (offset, bytes) in memory[begin..end].chunks(chunk_size).enumerate() {
+                    print!("0x{:>08x}: ", begin + offset * chunk_size);
                     let bytes_str = bytes
                         .iter()
                         .map(|b| format!("{:>02x}", b))
