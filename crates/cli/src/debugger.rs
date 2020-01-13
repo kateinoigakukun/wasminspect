@@ -3,14 +3,13 @@ use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasminspect_vm::{
-    CallFrame, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal, Store,
-    WasmValue, MemoryAddr, Interceptor, NopInterceptor,
+    CallFrame, Executor, FunctionInstance, InstIndex, Interceptor, MemoryAddr, ModuleIndex,
+    ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
 pub struct MainDebugger {
     store: Store,
-    interceptor: NopInterceptor,
     executor: Option<Rc<RefCell<Executor>>>,
     module_index: Option<ModuleIndex>,
 }
@@ -38,7 +37,6 @@ impl MainDebugger {
         };
         Ok(Self {
             store,
-            interceptor: NopInterceptor::new(),
             executor: None,
             module_index,
         })
@@ -118,17 +116,13 @@ impl debugger::Debugger for MainDebugger {
                     }
                 }
                 (FunctionInstance::Defined(func), exec_addr) => {
-                    let (frame, ret_types) = {
-                        let ret_types =
-                            func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
-                        let frame = CallFrame::new_from_func(exec_addr, func, vec![], None);
-                        (frame, ret_types)
-                    };
+                    let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
+                    let frame = CallFrame::new_from_func(exec_addr, func, vec![], None);
                     let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                     let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
                     self.executor = Some(executor.clone());
                     loop {
-                        let result = executor.borrow_mut().execute_step(&self.store, &self.interceptor);
+                        let result = executor.borrow_mut().execute_step(&self.store, self);
                         match result {
                             Ok(Signal::Next) => continue,
                             Ok(Signal::Breakpoint) => continue,
@@ -144,5 +138,11 @@ impl debugger::Debugger for MainDebugger {
         } else {
             Err("No module loaded".to_string())
         }
+    }
+}
+
+impl Interceptor for MainDebugger {
+    fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
+        Ok(Signal::Next)
     }
 }
