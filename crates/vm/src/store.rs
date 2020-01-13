@@ -547,18 +547,24 @@ impl Store {
             .code_section()
             .map(|sec| sec.bodies())
             .unwrap_or_default();
+        let names = parity_module
+            .names_section()
+            .and_then(|sec| sec.functions())
+            .map(|sec| sec.names());
+
         let mut func_addrs = Vec::new();
-        for (func, body) in functions.into_iter().zip(bodies) {
+        for (index, (func, body)) in functions.into_iter().zip(bodies).enumerate() {
             let parity_wasm::elements::Type::Function(func_type) = types
                 .get(func.type_ref() as usize)
                 .ok_or(Error::UnknownType(func.type_ref()))?
                 .clone();
-            let defined = DefinedFunctionInstance::new(
-                format!("<module defined func #{}>", self.funcs.len()),
-                func_type,
-                module_index,
-                body.clone(),
-            );
+            let name = names
+                .and_then(|names| names.get(index as u32).map(|n| n.clone()))
+                .unwrap_or(format!(
+                    "<module #{} defined func #{}>",
+                    module_index.0, index
+                ));
+            let defined = DefinedFunctionInstance::new(name, func_type, module_index, body.clone());
             let instance = FunctionInstance::Defined(defined);
             let func_addr = self.funcs.push(module_index, instance);
             func_addrs.push(func_addr);
