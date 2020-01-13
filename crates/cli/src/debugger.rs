@@ -23,7 +23,10 @@ impl MainDebugger {
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
 
         let module_index = if let Some(file) = file {
-            let parity_module = parity_wasm::deserialize_file(file).unwrap();
+            let parity_module = parity_wasm::deserialize_file(file)
+                .unwrap()
+                .parse_names()
+                .map_err(|_| format!("Failed to parse name section"))?;
             Some(
                 store
                     .load_parity_module(None, parity_module)

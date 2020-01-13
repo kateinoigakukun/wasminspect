@@ -120,10 +120,6 @@ impl<T> LinkableCollection<T> {
         )
     }
 
-    pub fn len(&self) -> usize {
-        self.items.len()
-    }
-
     pub fn is_empty(&self, module_index: ModuleIndex) -> bool {
         self.item_addrs_by_module
             .get(&module_index)
