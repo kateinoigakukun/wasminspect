@@ -10,6 +10,7 @@ wasminspect-wasi = { path = "../wasi" }
 wasmi-validation = "0.3.0"
 linefeed = "0.6.0"
 clap = "2.33.0"
+structopt = "0.3"
 thiserror = "1.0.9"
 anyhow = "1.0.26"
 parity-wasm = "0.41"

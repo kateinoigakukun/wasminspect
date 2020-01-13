@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal, Store,
-    WasmValue,
+    WasmValue, MemoryAddr,
 };
 use wasminspect_wasi::instantiate_wasi;
 
@@ -65,6 +65,19 @@ impl debugger::Debugger for MainDebugger {
                 .collect()
         } else {
             Vec::new()
+        }
+    }
+    fn memory(&self) -> Result<Vec<u8>, String> {
+        if let Some(ref executor) = self.executor {
+            let executor = executor.borrow();
+            let frame = executor
+                .stack
+                .current_frame()
+                .map_err(|e| format!("Failed to get current frame: {}", e))?;
+            let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
+            Ok(self.store.memory(addr).borrow().raw_data().to_vec())
+        } else {
+            Ok(vec![])
         }
     }
     fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String> {

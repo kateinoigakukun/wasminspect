@@ -96,4 +96,8 @@ impl MemoryInstance {
     pub fn raw_data_mut(&mut self) -> &mut [u8] {
         &mut self.data
     }
+
+    pub fn raw_data(&self) -> &[u8] {
+        &self.data
+    }
 }
