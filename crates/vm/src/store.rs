@@ -1,5 +1,5 @@
 use super::address::*;
-use super::executor::{eval_const_expr, invoke_func, WasmError};
+use super::executor::{eval_const_expr, WasmError};
 use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
 use super::host::HostValue;

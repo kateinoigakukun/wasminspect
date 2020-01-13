@@ -4,12 +4,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, ModuleIndex, ProgramCounter, Signal, Store,
-    WasmValue, MemoryAddr,
+    WasmValue, MemoryAddr, Interceptor, NopInterceptor,
 };
 use wasminspect_wasi::instantiate_wasi;
 
 pub struct MainDebugger {
     store: Store,
+    interceptor: NopInterceptor,
     executor: Option<Rc<RefCell<Executor>>>,
     module_index: Option<ModuleIndex>,
 }
@@ -37,6 +38,7 @@ impl MainDebugger {
         };
         Ok(Self {
             store,
+            interceptor: NopInterceptor::new(),
             executor: None,
             module_index,
         })
@@ -126,7 +128,7 @@ impl debugger::Debugger for MainDebugger {
                     let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
                     self.executor = Some(executor.clone());
                     loop {
-                        let result = executor.borrow_mut().execute_step(&self.store);
+                        let result = executor.borrow_mut().execute_step(&self.store, &self.interceptor);
                         match result {
                             Ok(Signal::Next) => continue,
                             Ok(Signal::Breakpoint) => continue,

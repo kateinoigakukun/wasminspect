@@ -1,5 +1,6 @@
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
+use super::interceptor::{Interceptor, NopInterceptor};
 use super::memory;
 use super::memory::MemoryInstance;
 use super::module::*;
@@ -98,18 +99,23 @@ impl Executor {
         Ok(&func.defined().unwrap().instructions())
     }
 
-    pub fn execute_step<'a>(&mut self, store: &'a Store) -> ExecResult<Signal> {
+    pub fn execute_step<I: Interceptor>(
+        &mut self,
+        store: &Store,
+        interceptor: &I,
+    ) -> ExecResult<Signal> {
         let func = store.func_global(self.pc.exec_addr()).defined().unwrap();
         let module_index = func.module_index().clone();
         let inst = func.inst(self.pc.inst_index()).clone();
-        return self.execute_inst(&inst, module_index, store);
+        return self.execute_inst(&inst, module_index, store, interceptor);
     }
 
-    fn execute_inst(
+    fn execute_inst<I: Interceptor>(
         &mut self,
         inst: &Instruction,
         module_index: ModuleIndex,
         store: &Store,
+        interceptor: &I,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
         // println!("{:?}", self.stack);
@@ -231,7 +237,7 @@ impl Executor {
             Instruction::Call(func_index) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = FuncAddr::new_unsafe(frame.module_index(), *func_index as usize);
-                self.invoke(addr, store)
+                self.invoke(addr, store, interceptor)
             }
             Instruction::CallIndirect(type_index, _) => {
                 let (ty, addr) = {
@@ -251,7 +257,7 @@ impl Executor {
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr))?;
                 if *func.ty() == ty {
-                    self.invoke(func_addr, store)
+                    self.invoke(func_addr, store, interceptor)
                 } else {
                     Err(Trap::IndirectCallTypeMismatch(ty, func.ty().clone()))
                 }
@@ -652,7 +658,12 @@ impl Executor {
         Ok(Signal::Next)
     }
 
-    fn invoke(&mut self, addr: FuncAddr, store: &Store) -> ExecResult<Signal> {
+    fn invoke<I: Interceptor>(
+        &mut self,
+        addr: FuncAddr,
+        store: &Store,
+        interceptor: &I,
+    ) -> ExecResult<Signal> {
         let (func, exec_addr) = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
 
         let mut args = Vec::new();
@@ -669,7 +680,7 @@ impl Executor {
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Return(arity));
                 self.pc = pc;
-                Ok(Signal::Next)
+                interceptor.invoke_func(func.name())
             }
             FunctionInstance::Host(func) => {
                 let mut result = Vec::new();
@@ -836,7 +847,7 @@ impl std::fmt::Display for WasmError {
     }
 }
 
-pub fn invoke_func(
+pub fn simple_invoke_func(
     func_addr: FuncAddr,
     arguments: Vec<Value>,
     store: &mut Store,
@@ -862,9 +873,10 @@ pub fn invoke_func(
                 (frame, ret_types)
             };
             let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
+            let interceptor = NopInterceptor::new();
             let mut executor = Executor::new(frame, ret_types.len(), pc);
             loop {
-                let result = executor.execute_step(store);
+                let result = executor.execute_step(store, &interceptor);
                 match result {
                     Ok(Signal::Next) => continue,
                     Ok(Signal::Breakpoint) => continue,

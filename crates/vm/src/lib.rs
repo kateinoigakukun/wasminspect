@@ -12,9 +12,10 @@ mod stack;
 mod store;
 mod table;
 mod value;
+mod interceptor;
 
 pub use self::address::*;
-pub use self::executor::{Executor, Signal, invoke_func};
+pub use self::executor::{Executor, Signal, simple_invoke_func};
 pub use self::executor::{Trap, WasmError};
 pub use self::func::{FunctionInstance, InstIndex};
 pub use self::global::GlobalInstance as HostGlobal;
@@ -26,5 +27,6 @@ pub use self::stack::{CallFrame, ProgramCounter};
 pub use self::store::Store;
 pub use self::table::TableInstance as HostTable;
 pub use self::value::Value as WasmValue;
+pub use self::interceptor::{Interceptor, NopInterceptor};
 
 pub const WASM_PAGE_SIZE: usize = 0x10000;

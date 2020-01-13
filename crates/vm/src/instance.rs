@@ -1,4 +1,4 @@
-use super::executor::{invoke_func, WasmError};
+use super::executor::{simple_invoke_func, WasmError};
 use super::host::HostValue;
 use super::module::ModuleIndex;
 use super::store;
@@ -76,6 +76,6 @@ impl WasmInstance {
                 return Err(WasmError::EntryFunctionNotFound("_start".to_string()));
             }
         };
-        invoke_func(func_addr, arguments, &mut self.store)
+        simple_invoke_func(func_addr, arguments, &mut self.store)
     }
 }

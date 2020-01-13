@@ -6,7 +6,7 @@ use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasmi_validation::{validate_module, PlainValidator};
-use wasminspect_vm::{invoke_func, FuncAddr, ModuleIndex, WasmError, WasmInstance, WasmValue};
+use wasminspect_vm::{simple_invoke_func, FuncAddr, ModuleIndex, WasmError, WasmInstance, WasmValue};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -67,7 +67,7 @@ impl WastContext {
             .map_err(|e| anyhow!("Failed to instantiate: {}", e))?;
         if let Some(start_section) = start_section {
             let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
-            invoke_func(func_addr, vec![], &mut self.instance.store)
+            simple_invoke_func(func_addr, vec![], &mut self.instance.store)
                 .map_err(|e| anyhow!("Failed to exec start func: {}", e))?;
         }
         self.current = Some(module_index);
@@ -333,7 +333,7 @@ impl WastContext {
                     .map_err(|e| anyhow!("{}", e))?;
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
-                    return Ok(invoke_func(func_addr, vec![], &mut self.instance.store)
+                    return Ok(simple_invoke_func(func_addr, vec![], &mut self.instance.store)
                         .map_err(|e| anyhow!("Failed to exec start func: {}", e)));
                 }
                 Ok(Ok(vec![]))

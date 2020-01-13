@@ -70,6 +70,10 @@ impl DefinedFunctionInstance {
         }
     }
 
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
     pub fn ty(&self) -> &FunctionType {
         &self.ty
     }
