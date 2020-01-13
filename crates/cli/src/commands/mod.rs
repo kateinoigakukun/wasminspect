@@ -4,3 +4,4 @@ pub mod backtrace;
 pub mod list;
 pub mod run;
 pub mod memory;
+pub mod breakpoint;
