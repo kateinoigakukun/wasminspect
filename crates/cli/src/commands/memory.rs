@@ -1,4 +1,4 @@
-use super::command::{self, Command};
+use super::command::{self, Command, Interface};
 use super::debugger::Debugger;
 use clap::{App, Arg};
 use structopt::StructOpt;
@@ -26,7 +26,7 @@ impl<D: Debugger> Command<D> for MemoryCommand {
     fn name(&self) -> &'static str {
         "memory"
     }
-    fn run(&self, debugger: &mut D, args: Vec<&str>) -> Result<(), command::Error> {
+    fn run(&self, debugger: &mut D, interface: &Interface, args: Vec<&str>) -> Result<(), command::Error> {
         let opts = match Opts::from_iter_safe(args) {
             Ok(opts) => opts,
             Err(e) => return Err(command::Error::Command(format!("{}", e))),

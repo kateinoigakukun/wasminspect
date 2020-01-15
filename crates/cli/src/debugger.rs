@@ -1,6 +1,7 @@
 use super::commands::debugger;
 use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, Interceptor, MemoryAddr, ModuleIndex,
@@ -12,6 +13,8 @@ pub struct MainDebugger {
     store: Store,
     executor: Option<Rc<RefCell<Executor>>>,
     module_index: Option<ModuleIndex>,
+
+    function_breakpoints: HashMap<String, debugger::Breakpoint>,
 }
 
 impl MainDebugger {
@@ -39,6 +42,8 @@ impl MainDebugger {
             store,
             executor: None,
             module_index,
+
+            function_breakpoints: HashMap::new(),
         })
     }
 }
@@ -53,6 +58,14 @@ impl debugger::Debugger for MainDebugger {
             Ok((insts, executor.pc.inst_index().0 as usize))
         } else {
             Err(format!("No execution context"))
+        }
+    }
+
+    fn set_breakpoint(&mut self, breakpoint: debugger::Breakpoint) {
+        match &breakpoint {
+            debugger::Breakpoint::Function { name } => {
+                self.function_breakpoints.insert(name.clone(), breakpoint);
+            }
         }
     }
 
@@ -91,6 +104,11 @@ impl debugger::Debugger for MainDebugger {
             Ok(vec![])
         }
     }
+
+    fn is_running(&self) -> bool {
+        self.executor.is_some()
+    }
+
     fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String> {
         if let Some(module_index) = self.module_index {
             let module = self.store.module(module_index).defined().unwrap();
@@ -138,10 +156,19 @@ impl debugger::Debugger for MainDebugger {
                             Ok(Signal::Next) => continue,
                             Ok(Signal::Breakpoint) => continue,
                             Ok(Signal::End) => match executor.borrow_mut().pop_result(ret_types) {
-                                Ok(values) => return Ok(values),
-                                Err(err) => return Err(format!("Return value failure {:?}", err)),
+                                Ok(values) => {
+                                    self.executor = None;
+                                    return Ok(values);
+                                }
+                                Err(err) => {
+                                    self.executor = None;
+                                    return Err(format!("Return value failure {:?}", err));
+                                }
                             },
-                            Err(err) => return Err(format!("Function exec failure {:?}", err)),
+                            Err(err) => {
+                                let err = Err(format!("Function exec failure {:?}", err));
+                                return err;
+                            }
                         }
                     }
                 }
@@ -154,6 +181,10 @@ impl debugger::Debugger for MainDebugger {
 
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
-        Ok(Signal::Next)
+        if self.function_breakpoints.contains_key(name) {
+            Ok(Signal::Breakpoint)
+        } else {
+            Ok(Signal::Next)
+        }
     }
 }

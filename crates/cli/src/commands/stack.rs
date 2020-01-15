@@ -1,4 +1,4 @@
-use super::command::{self, Command};
+use super::command::{self, Command, Interface};
 use super::debugger::Debugger;
 
 use clap::{App, Arg};
@@ -15,7 +15,7 @@ impl<D: Debugger> Command<D> for StackCommand {
     fn name(&self) -> &'static str {
         "stack"
     }
-    fn run(&self, debugger: &mut D, args: Vec<&str>) -> Result<(), command::Error> {
+    fn run(&self, debugger: &mut D, interface: &Interface, args: Vec<&str>) -> Result<(), command::Error> {
         for (index, value) in debugger.stack_values().iter().enumerate() {
             println!("{}: {}", index, value)
         }

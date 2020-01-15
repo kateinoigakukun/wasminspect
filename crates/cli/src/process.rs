@@ -48,7 +48,7 @@ impl<D: Debugger> Process<D> {
             let cmd_name = extract_command_name(&line);
             if let Some(cmd) = self.commands.get(cmd_name) {
                 let args = line.split_whitespace();
-                match cmd.run(&mut self.debugger, args.collect()) {
+                match cmd.run(&mut self.debugger, &self.interface, args.collect()) {
                     Ok(()) => (),
                     Err(command::Error::Command(message)) => {
                         eprintln!("{}", message);

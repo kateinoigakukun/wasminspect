@@ -1,5 +1,6 @@
-use super::command::{self, Command};
+use super::command::{self, Command, Interface};
 use super::debugger::Debugger;
+use linefeed::ReadResult;
 
 use clap::{App, Arg};
 
@@ -16,7 +17,12 @@ impl<D: Debugger> Command<D> for RunCommand {
     fn name(&self) -> &'static str {
         "run"
     }
-    fn run(&self, debugger: &mut D, args: Vec<&str>) -> Result<(), command::Error> {
+    fn run(
+        &self,
+        debugger: &mut D,
+        interface: &Interface,
+        args: Vec<&str>,
+    ) -> Result<(), command::Error> {
         let mut app = App::new("run").arg(Arg::with_name(ARG_FUNCTION_NAME_KEY).takes_value(true));
         let matches = match app.get_matches_from_safe_borrow(args) {
             Ok(m) => m,
