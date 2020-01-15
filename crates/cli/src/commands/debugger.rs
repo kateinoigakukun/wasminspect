@@ -6,5 +6,6 @@ pub trait Debugger {
     fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String>;
     fn frame(&self) -> Vec<String>;
     fn memory(&self) -> Result<Vec<u8>, String>;
+    fn stack_values(&self) -> Vec<String>;
     fn instructions(&self) -> Result<(&[Instruction], usize), String>;
 }

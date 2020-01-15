@@ -20,6 +20,7 @@ pub fn run_loop(file: Option<String>) -> Result<(), String> {
             Box::new(commands::backtrace::BacktraceCommand::new()),
             Box::new(commands::list::ListCommand::new()),
             Box::new(commands::memory::MemoryCommand::new()),
+            Box::new(commands::stack::StackCommand::new()),
         ],
         &history_file_path(),
     )

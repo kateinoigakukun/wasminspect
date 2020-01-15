@@ -1,5 +1,6 @@
 use super::command::{self, Command};
 use super::debugger::Debugger;
+use clap::{App, Arg};
 use structopt::StructOpt;
 
 pub struct MemoryCommand {}
