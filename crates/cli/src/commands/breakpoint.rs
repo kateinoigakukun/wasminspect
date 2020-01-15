@@ -23,7 +23,7 @@ impl<D: Debugger> Command<D> for BreakpointCommand {
     fn name(&self) -> &'static str {
         "breakpoint"
     }
-    fn run(&self, debugger: &mut D, interface: &Interface, args: Vec<&str>) -> Result<(), command::Error> {
+    fn run(&self, debugger: &mut D, _interface: &Interface, args: Vec<&str>) -> Result<(), command::Error> {
         let opts = match Opts::from_iter_safe(args) {
             Ok(opts) => opts,
             Err(e) => return Err(command::Error::Command(format!("{}", e))),
