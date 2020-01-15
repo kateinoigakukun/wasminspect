@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, Interceptor, MemoryAddr, ModuleIndex,
-    ProgramCounter, Signal, Store, Trap, WasmValue,
+    ProgramCounter, Signal, Store, Trap,
 };
 use wasminspect_wasi::instantiate_wasi;
 
@@ -109,7 +109,7 @@ impl debugger::Debugger for MainDebugger {
         self.executor.is_some()
     }
 
-    fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String> {
+    fn run(&mut self, name: Option<String>) -> Result<debugger::RunResult, String> {
         if let Some(module_index) = self.module_index {
             let module = self.store.module(module_index).defined().unwrap();
             let func_addr = if let Some(func_name) = name {
@@ -140,7 +140,7 @@ impl debugger::Debugger for MainDebugger {
                         &self.store,
                         func_addr.module_index(),
                     ) {
-                        Ok(_) => return Ok(results),
+                        Ok(_) => return Ok(debugger::RunResult::Finish(results)),
                         Err(_) => return Err(format!("Failed to execute host func")),
                     }
                 }
@@ -154,11 +154,11 @@ impl debugger::Debugger for MainDebugger {
                         let result = executor.borrow_mut().execute_step(&self.store, self);
                         match result {
                             Ok(Signal::Next) => continue,
-                            Ok(Signal::Breakpoint) => continue,
+                            Ok(Signal::Breakpoint) => return Ok(debugger::RunResult::Breakpoint),
                             Ok(Signal::End) => match executor.borrow_mut().pop_result(ret_types) {
                                 Ok(values) => {
                                     self.executor = None;
-                                    return Ok(values);
+                                    return Ok(debugger::RunResult::Finish(values));
                                 }
                                 Err(err) => {
                                     self.executor = None;

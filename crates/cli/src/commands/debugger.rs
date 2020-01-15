@@ -5,8 +5,13 @@ pub enum Breakpoint {
     Function { name: String },
 }
 
+pub enum RunResult {
+    Finish(Vec<WasmValue>),
+    Breakpoint,
+}
+
 pub trait Debugger {
-    fn run(&mut self, name: Option<String>) -> Result<Vec<WasmValue>, String>;
+    fn run(&mut self, name: Option<String>) -> Result<RunResult, String>;
     fn is_running(&self) -> bool;
     fn frame(&self) -> Vec<String>;
     fn memory(&self) -> Result<Vec<u8>, String>;

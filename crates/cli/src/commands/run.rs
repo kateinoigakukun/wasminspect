@@ -1,6 +1,6 @@
 use super::command::{self, Command, Interface};
-use super::debugger::Debugger;
-
+use super::debugger::{Debugger, RunResult};
+use std::io::Write;
 
 use clap::{App, Arg};
 
@@ -31,13 +31,26 @@ impl<D: Debugger> Command<D> for RunCommand {
                 return Ok(());
             }
         };
+        if debugger.is_running() {
+            print!("There is a running process, kill it and restart?: [Y/n] ");
+            std::io::stdout().flush().unwrap();
+            let stdin = std::io::stdin();
+            let mut input = String::new();
+            stdin.read_line(&mut input).unwrap();
+            if input != "Y\n" {
+                return Ok(());
+            }
+        }
         match debugger.run(
             matches
                 .value_of(ARG_FUNCTION_NAME_KEY)
                 .map(|name| name.to_string()),
         ) {
-            Ok(values) => {
+            Ok(RunResult::Finish(values)) => {
                 println!("{:?}", values);
+            }
+            Ok(RunResult::Breakpoint) => {
+                println!("Hit breakpoit");
             }
             Err(msg) => {
                 eprintln!("{}", msg);
