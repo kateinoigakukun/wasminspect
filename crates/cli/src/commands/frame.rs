@@ -1,8 +1,6 @@
 use super::command::{self, Command};
 use super::debugger::Debugger;
 
-use clap::{App, Arg};
-
 pub struct FrameCommand {}
 
 impl FrameCommand {
@@ -15,7 +13,7 @@ impl<D: Debugger> Command<D> for FrameCommand {
     fn name(&self) -> &'static str {
         "frame"
     }
-    fn run(&self, debugger: &mut D, args: Vec<&str>) -> Result<(), command::Error> {
+    fn run(&self, debugger: &mut D, _args: Vec<&str>) -> Result<(), command::Error> {
         for (index, frame) in debugger.frame().iter().rev().enumerate() {
             println!("{}: {}", index, frame);
         }

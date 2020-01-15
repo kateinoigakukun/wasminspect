@@ -359,7 +359,6 @@ macro_rules! impl_try_wrapping {
                     Ok(this.wrapping_rem(another))
                 }
             }
-
         }
     };
 }

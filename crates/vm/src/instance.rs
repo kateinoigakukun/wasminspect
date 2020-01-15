@@ -51,7 +51,7 @@ impl WasmInstance {
     pub fn get_global(&self, module_index: ModuleIndex, field: &str) -> Option<Value> {
         self.store
             .scan_global_by_name(module_index, field)
-            .map(|g| g.borrow().value(&self.store))
+            .map(|g| g.borrow().value())
     }
 
     pub fn run(

@@ -1,13 +1,8 @@
 use super::address::*;
 use super::export::{ExportInstance, ExternalValue};
-use super::global::DefinedGlobalInstance;
-use super::host::*;
-use super::memory::DefinedMemoryInstance;
-use super::table::DefinedTableInstance;
-use std::cell::RefCell;
+
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::rc::Rc;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ModuleIndex(pub u32);
@@ -28,7 +23,6 @@ impl ModuleInstance {
 
 pub struct DefinedModuleInstance {
     types: Vec<parity_wasm::elements::Type>,
-    func_addrs: Vec<FuncAddr>,
     pub exports: Vec<ExportInstance>,
     start_func: Option<FuncAddr>,
 }
@@ -56,11 +50,9 @@ impl DefinedModuleInstance {
         module: parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: Vec<parity_wasm::elements::Type>,
-        func_addrs: Vec<FuncAddr>,
     ) -> Self {
         Self {
             types,
-            func_addrs,
             exports: module
                 .export_section()
                 .map(|sec| sec.entries().iter())
@@ -71,7 +63,7 @@ impl DefinedModuleInstance {
                 .unwrap_or_default(),
             start_func: module
                 .start_section()
-                .map(|func_index| FuncAddr(module_index, func_index as usize)),
+                .map(|func_index| FuncAddr::new_unsafe(module_index, func_index as usize)),
         }
     }
 
@@ -145,7 +137,7 @@ impl DefinedModuleInstance {
 }
 
 pub struct HostModuleInstance {
-    values: HashMap<String, HostValue>,
+    values: HashMap<String, HostExport>,
 }
 
 pub enum HostModuleError {
@@ -166,25 +158,39 @@ impl std::fmt::Display for HostModuleError {
 
 type HostModuleResult<T> = std::result::Result<T, HostModuleError>;
 
+pub enum HostExport {
+    Func(ExecutableFuncAddr),
+    Global(ResolvedGlobalAddr),
+    Mem(ResolvedMemoryAddr),
+    Table(ResolvedTableAddr),
+}
+
+impl HostExport {
+    pub fn ty(&self) -> &str {
+        match self {
+            Self::Func(_) => "function",
+            Self::Global(_) => "global",
+            Self::Mem(_) => "memory",
+            Self::Table(_) => "table",
+        }
+    }
+}
+
 impl HostModuleInstance {
-    pub fn new(values: HashMap<String, HostValue>) -> Self {
+    pub fn new(values: HashMap<String, HostExport>) -> Self {
         Self { values }
     }
 
-    pub fn global_by_name(
-        &self,
-        name: String,
-    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedGlobalInstance>>>> {
+    pub fn global_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
         match &self.values.get(&name) {
-            Some(HostValue::Global(global)) => Ok(Some(global)),
+            Some(HostExport::Global(global)) => Ok(Some(global)),
             Some(v) => Err(HostModuleError::TypeMismatch("global", v.ty().to_string())),
             _ => Ok(None),
         }
     }
-
-    pub fn func_by_name(&self, name: String) -> HostModuleResult<Option<&HostFuncBody>> {
+    pub fn func_by_name(&self, name: String) -> HostModuleResult<Option<&ExecutableFuncAddr>> {
         match self.values.get(&name) {
-            Some(HostValue::Func(ref func)) => Ok(Some(func)),
+            Some(HostExport::Func(ref func)) => Ok(Some(func)),
             Some(v) => Err(HostModuleError::TypeMismatch(
                 "function",
                 v.ty().to_string(),
@@ -193,23 +199,17 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn table_by_name(
-        &self,
-        name: String,
-    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedTableInstance>>>> {
+    pub fn table_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedTableAddr>> {
         match &self.values.get(&name) {
-            Some(HostValue::Table(table)) => Ok(Some(table)),
+            Some(HostExport::Table(table)) => Ok(Some(table)),
             Some(v) => Err(HostModuleError::TypeMismatch("table", v.ty().to_string())),
             _ => Ok(None),
         }
     }
 
-    pub fn memory_by_name(
-        &self,
-        name: String,
-    ) -> HostModuleResult<Option<&Rc<RefCell<DefinedMemoryInstance>>>> {
+    pub fn memory_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
         match &self.values.get(&name) {
-            Some(HostValue::Mem(mem)) => Ok(Some(mem)),
+            Some(HostExport::Mem(mem)) => Ok(Some(mem)),
             Some(v) => Err(HostModuleError::TypeMismatch("memory", v.ty().to_string())),
             _ => Ok(None),
         }
