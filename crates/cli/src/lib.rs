@@ -1,6 +1,7 @@
 mod commands;
 mod debugger;
 mod process;
+mod dwarf;
 
 use std::env;
 
