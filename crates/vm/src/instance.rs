@@ -25,7 +25,7 @@ impl WasmInstance {
         name: Option<String>,
         parity_module: parity_wasm::elements::Module,
     ) -> Result<ModuleIndex, store::Error> {
-        self.store.load_parity_module(name, parity_module)
+        self.store.load_parity_module(name, &parity_module)
     }
 
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {

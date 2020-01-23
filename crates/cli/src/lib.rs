@@ -1,7 +1,7 @@
 mod commands;
 mod debugger;
-mod process;
 mod dwarf;
+mod process;
 
 use std::env;
 
@@ -13,7 +13,16 @@ fn history_file_path() -> String {
 }
 
 pub fn run_loop(file: Option<String>) -> Result<(), String> {
-    let debugger = debugger::MainDebugger::new(file)?;
+    let mut debugger = debugger::MainDebugger::new()?;
+    if let Some(file) = file {
+        let parity_module = parity_wasm::deserialize_file(file)
+            .unwrap()
+            .parse_names()
+            .map_err(|_| format!("Failed to parse name section"))?;
+        debugger.load_module(&parity_module)?;
+        use dwarf::parse_dwarf;
+        let dwarf = parse_dwarf(&parity_module);
+    }
     let mut process = process::Process::new(
         debugger,
         vec![

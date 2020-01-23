@@ -47,7 +47,7 @@ type DefinedModuleResult<T> = std::result::Result<T, DefinedModuleError>;
 
 impl DefinedModuleInstance {
     pub fn new_from_parity_module(
-        module: parity_wasm::elements::Module,
+        module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
         types: Vec<parity_wasm::elements::Type>,
     ) -> Self {

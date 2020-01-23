@@ -1,4 +1,5 @@
 use super::commands::debugger;
+use super::dwarf::{parse_dwarf, Dwarf};
 use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -18,31 +19,25 @@ pub struct MainDebugger {
 }
 
 impl MainDebugger {
-    pub fn new(file: Option<String>) -> Result<Self, String> {
+    pub fn load_module(&mut self, parity_module: &parity_wasm::elements::Module) -> Result<(), String> {
+        self.module_index = Some(
+            self.store
+                .load_parity_module(None, parity_module)
+                .map_err(|err| format!("{}", err))?,
+        );
+        Ok(())
+    }
+    pub fn new() -> Result<Self, String> {
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
 
         let mut store = Store::new();
         store.add_embed_context(Box::new(ctx));
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
 
-        let module_index = if let Some(file) = file {
-            let parity_module = parity_wasm::deserialize_file(file)
-                .unwrap()
-                .parse_names()
-                .map_err(|_| format!("Failed to parse name section"))?;
-            Some(
-                store
-                    .load_parity_module(None, parity_module)
-                    .map_err(|err| format!("{}", err))?,
-            )
-        } else {
-            None
-        };
         Ok(Self {
             store,
             executor: None,
-            module_index,
-
+            module_index: None,
             function_breakpoints: HashMap::new(),
         })
     }

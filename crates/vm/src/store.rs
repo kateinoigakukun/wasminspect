@@ -207,7 +207,7 @@ impl Store {
     fn load_parity_module_internal(
         &mut self,
         name: Option<String>,
-        parity_module: parity_wasm::elements::Module,
+        parity_module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
     ) -> Result<ModuleIndex> {
         let types = Self::get_types(&parity_module);
@@ -224,7 +224,7 @@ impl Store {
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
-            DefinedModuleInstance::new_from_parity_module(parity_module, module_index, types);
+            DefinedModuleInstance::new_from_parity_module(&parity_module, module_index, types);
         self.modules.push(ModuleInstance::Defined(instance));
         if let Some(name) = name {
             self.module_index_by_name.insert(name, module_index);
@@ -235,7 +235,7 @@ impl Store {
     pub fn load_parity_module(
         &mut self,
         name: Option<String>,
-        parity_module: parity_wasm::elements::Module,
+        parity_module: &parity_wasm::elements::Module,
     ) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
