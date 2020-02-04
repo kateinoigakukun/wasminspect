@@ -286,6 +286,16 @@ impl Store {
                         mems.push(entry?);
                     }
                 }
+                SectionCode::Global => {
+                    let section = section.get_global_section_reader()?;
+                    for entry in section {
+                        let entry = entry?;
+                        let value = eval_const_expr(entry.init_expr, &self, module_index);
+                        let instance = GlobalInstance::new(value, entry.ty.clone());
+                        self.globals
+                            .push(module_index, Rc::new(RefCell::new(instance)));
+                    }
+                }
                 SectionCode::Custom { name, kind } => {
                     use wasmparser::CustomSectionKind;
                     match kind {
@@ -301,11 +311,10 @@ impl Store {
             }
         }
 
+        self.load_imports(imports, module_index, &types);
         self.load_functions(module_index, func_sigs, bodies, names, &types);
-        // self.load_imports(section.get_import_section_reader()?, module_index, &types)?;
-        self.load_globals(&parity_module, module_index);
-        self.load_tables(&parity_module, module_index, elem_segs)?;
-        self.load_mems(&parity_module, module_index, data_segs)?;
+        self.load_tables(tables, module_index, elem_segs)?;
+        self.load_mems(mems, module_index, data_segs)?;
 
         let types = types.iter().map(|ty| ty.clone()).collect();
 
@@ -349,13 +358,12 @@ impl Store {
 
     fn load_imports(
         &mut self,
-        section: ImportSectionReader,
+        imports: Vec<Import>,
         module_index: ModuleIndex,
         types: &[FuncType],
     ) -> Result<()> {
-        for import in section {
+        for import in imports {
             use wasmparser::ImportSectionEntryType::*;
-            let import = import?;
             match import.ty {
                 Function(type_index) => {
                     self.load_import_function(module_index, import, type_index as usize, &types)?;
@@ -619,9 +627,9 @@ impl Store {
 
     fn load_tables(
         &mut self,
-        tables: &Vec<TableType>,
+        tables: Vec<TableType>,
         module_index: ModuleIndex,
-        element_segments: HashMap<usize, Vec<&Element>>,
+        element_segments: Vec<Element>,
     ) -> Result<Vec<TableAddr>> {
         let mut table_addrs = Vec::new();
         if tables.is_empty() && self.tables.is_empty(module_index) {
@@ -642,40 +650,39 @@ impl Store {
                 _ => (),
             }
         }
-        for (index, table_addr) in self.tables.items(module_index).unwrap().iter().enumerate() {
-            let segs = match element_segments.get(&index) {
-                Some(segs) => segs,
-                None => continue,
-            };
-            for seg in segs {
-                match seg.kind {
-                    ElementKind::Active {
-                        table_index,
-                        init_expr,
-                    } => {
-                        let offset = match eval_const_expr(init_expr, self, module_index) {
-                            Value::I32(v) => v,
-                            _ => panic!(),
-                        };
-                        let data = seg
-                            .items
-                            .get_items_reader()?
-                            .into_iter()
-                            .map(|item| match item? {
-                                ElementItem::Func(index) => {
-                                    Ok(Some(FuncAddr::new_unsafe(module_index, index as usize)))
-                                }
-                                ElementItem::Null => Ok(None),
-                            })
-                            .collect::<Result<Vec<Option<FuncAddr>>>>()?;
-                        let table = self.tables.get_global(*table_addr);
-                        table
-                            .borrow_mut()
-                            .initialize(offset as usize, data)
-                            .map_err(Error::InvalidElementSegments)?;
-                    }
-                    _ => unimplemented!(),
+        let tables = self.tables.items(module_index).unwrap();
+        for seg in element_segments {
+            match seg.kind {
+                ElementKind::Active {
+                    table_index,
+                    init_expr,
+                } => {
+                    let table_addr = match tables.get(table_index as usize) {
+                        Some(addr) => addr,
+                        None => continue,
+                    };
+                    let offset = match eval_const_expr(init_expr, self, module_index) {
+                        Value::I32(v) => v,
+                        _ => panic!(),
+                    };
+                    let data = seg
+                        .items
+                        .get_items_reader()?
+                        .into_iter()
+                        .map(|item| match item? {
+                            ElementItem::Func(index) => {
+                                Ok(Some(FuncAddr::new_unsafe(module_index, index as usize)))
+                            }
+                            ElementItem::Null => Ok(None),
+                        })
+                        .collect::<Result<Vec<Option<FuncAddr>>>>()?;
+                    let table = self.tables.get_global(*table_addr);
+                    table
+                        .borrow_mut()
+                        .initialize(offset as usize, data)
+                        .map_err(Error::InvalidElementSegments)?;
                 }
+                _ => unimplemented!(),
             }
         }
         Ok(table_addrs)
@@ -685,7 +692,7 @@ impl Store {
         &mut self,
         mems: Vec<MemoryType>,
         module_index: ModuleIndex,
-        data_segments: HashMap<usize, Vec<&Data>>,
+        data_segments: Vec<Data>,
     ) -> Result<Vec<MemoryAddr>> {
         let mut mem_addrs = Vec::new();
         if mems.is_empty() && self.mems.is_empty(module_index) {
@@ -703,28 +710,28 @@ impl Store {
         }
 
         let mut offsets_and_value = Vec::new();
-        for (index, mem_addr) in self.mems.items(module_index).unwrap().iter().enumerate() {
-            if let Some(segs) = data_segments.get(&index) {
-                for seg in segs {
-                    match seg.kind {
-                        DataKind::Active {
-                            memory_index,
-                            init_expr,
-                        } => {
-                            let offset = match eval_const_expr(init_expr, self, module_index)
-                            {
-                                Value::I32(v) => v,
-                                _ => panic!(),
-                            };
-                            let mem = self.mems.get_global(*mem_addr);
-                            mem.borrow()
-                                .validate_region(offset as usize, seg.data.len())
-                                .map_err(Error::InvalidDataSegments)?;
-                            offsets_and_value.push((mem, offset, seg.data));
-                        }
-                        _ => (),
-                    }
+        let mems = self.mems.items(module_index).unwrap();
+        for seg in data_segments {
+            match seg.kind {
+                DataKind::Active {
+                    memory_index,
+                    init_expr,
+                } => {
+                    let mem_addr = match mems.get(memory_index as usize) {
+                        Some(addr) => addr,
+                        None => continue,
+                    };
+                    let offset = match eval_const_expr(init_expr, self, module_index) {
+                        Value::I32(v) => v,
+                        _ => panic!(),
+                    };
+                    let mem = self.mems.get_global(*mem_addr);
+                    mem.borrow()
+                        .validate_region(offset as usize, seg.data.len())
+                        .map_err(Error::InvalidDataSegments)?;
+                    offsets_and_value.push((mem, offset, seg.data));
                 }
+                _ => (),
             }
         }
 
