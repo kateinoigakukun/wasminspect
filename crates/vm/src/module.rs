@@ -27,6 +27,7 @@ pub struct DefinedModuleInstance {
     start_func: Option<FuncAddr>,
 }
 
+#[derive(Debug)]
 pub enum DefinedModuleError {
     TypeMismatch(&'static str, String),
 }
@@ -140,6 +141,7 @@ pub struct HostModuleInstance {
     values: HashMap<String, HostExport>,
 }
 
+#[derive(Debug)]
 pub enum HostModuleError {
     TypeMismatch(&'static str, String),
 }

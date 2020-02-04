@@ -825,6 +825,7 @@ pub fn eval_const_expr(init_expr: &InitExpr, store: &Store, module_index: Module
     }
 }
 
+#[derive(Debug)]
 pub enum WasmError {
     ExecutionError(Trap),
     EntryFunctionNotFound(String),
