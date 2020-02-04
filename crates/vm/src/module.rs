@@ -22,7 +22,7 @@ impl ModuleInstance {
 }
 
 pub struct DefinedModuleInstance {
-    types: Vec<parity_wasm::elements::Type>,
+    types: Vec<wasmparser::FuncType>,
     pub exports: Vec<ExportInstance>,
     start_func: Option<FuncAddr>,
 }
@@ -48,23 +48,18 @@ type DefinedModuleResult<T> = std::result::Result<T, DefinedModuleError>;
 
 impl DefinedModuleInstance {
     pub fn new_from_parity_module(
-        module: &parity_wasm::elements::Module,
         module_index: ModuleIndex,
-        types: Vec<parity_wasm::elements::Type>,
+        types: Vec<wasmparser::FuncType>,
+        exports: Vec<wasmparser::Export>,
+        start_func: Option<FuncAddr>,
     ) -> Self {
         Self {
             types,
-            exports: module
-                .export_section()
-                .map(|sec| sec.entries().iter())
-                .map(|entries| {
-                    entries.map(|e| ExportInstance::new_from_parity_entry(e.clone(), module_index))
-                })
-                .map(|s| s.collect())
-                .unwrap_or_default(),
-            start_func: module
-                .start_section()
-                .map(|func_index| FuncAddr::new_unsafe(module_index, func_index as usize)),
+            exports: exports
+                .iter()
+                .map(|e| ExportInstance::new_from_parity_entry(e.clone(), module_index))
+                .collect(),
+            start_func: start_func,
         }
     }
 
@@ -132,7 +127,7 @@ impl DefinedModuleInstance {
         &self.start_func
     }
 
-    pub fn get_type(&self, index: usize) -> &parity_wasm::elements::Type {
+    pub fn get_type(&self, index: usize) -> &wasmparser::FuncType {
         &self.types[index]
     }
 }

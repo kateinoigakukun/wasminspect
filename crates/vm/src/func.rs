@@ -1,6 +1,6 @@
 use super::host::HostFuncBody;
 use super::module::*;
-use parity_wasm::elements::*;
+use wasmparser::{FuncType, Type, Operator, FunctionBody};
 use std::iter;
 
 #[derive(Clone, Copy, Debug)]
@@ -18,7 +18,7 @@ pub enum FunctionInstance {
 }
 
 impl FunctionInstance {
-    pub fn ty(&self) -> &FunctionType {
+    pub fn ty(&self) -> &FuncType {
         match self {
             Self::Defined(defined) => defined.ty(),
             Self::Host(host) => host.ty(),
@@ -42,18 +42,18 @@ impl FunctionInstance {
 
 pub struct DefinedFunctionInstance {
     name: String,
-    ty: FunctionType,
+    ty: FuncType,
     module_index: ModuleIndex,
-    locals: Vec<ValueType>,
-    instructions: Vec<Instruction>,
+    locals: Vec<Type>,
+    instructions: Vec<Operator>,
 }
 
 impl DefinedFunctionInstance {
     pub fn new(
         name: String,
-        ty: FunctionType,
+        ty: FuncType,
         module_index: ModuleIndex,
-        body: parity_wasm::elements::FuncBody,
+        body: FunctionBody,
     ) -> Self {
         let locals = body
             .locals()
@@ -74,7 +74,7 @@ impl DefinedFunctionInstance {
         &self.name
     }
 
-    pub fn ty(&self) -> &FunctionType {
+    pub fn ty(&self) -> &FuncType {
         &self.ty
     }
 
@@ -86,7 +86,7 @@ impl DefinedFunctionInstance {
         &self.instructions
     }
 
-    pub fn locals(&self) -> &[ValueType] {
+    pub fn locals(&self) -> &[Type] {
         &self.locals
     }
 
@@ -96,14 +96,14 @@ impl DefinedFunctionInstance {
 }
 
 pub struct HostFunctionInstance {
-    ty: FunctionType,
+    ty: FuncType,
     module_name: String,
     field_name: String,
     code: HostFuncBody,
 }
 
 impl HostFunctionInstance {
-    pub fn ty(&self) -> &FunctionType {
+    pub fn ty(&self) -> &FuncType {
         &self.ty
     }
 
@@ -120,7 +120,7 @@ impl HostFunctionInstance {
     }
 
     pub fn new(
-        ty: FunctionType,
+        ty: FuncType,
         module_name: String,
         field_name: String,
         code: HostFuncBody,

@@ -221,10 +221,12 @@ impl Store {
         let data_segs = Vec::new();
         let func_sigs = Vec::new();
         let imports = Vec::new();
+        let exports = Vec::new();
         let bodies = Vec::new();
         let tables = Vec::new();
         let mems = Vec::new();
 
+        let start_func = None;
         let names = Vec::new();
 
         while !reader.eof() {
@@ -256,6 +258,13 @@ impl Store {
                     imports.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         imports.push(entry?);
+                    }
+                }
+                SectionCode::Export => {
+                    let section = section.get_export_section_reader()?;
+                    exports.reserve_exact(section.get_count() as usize);
+                    for entry in section {
+                        exports.push(entry?);
                     }
                 }
                 SectionCode::Function => {
@@ -296,6 +305,12 @@ impl Store {
                             .push(module_index, Rc::new(RefCell::new(instance)));
                     }
                 }
+                SectionCode::Start => {
+                    start_func = Some(FuncAddr::new_unsafe(
+                        module_index,
+                        section.get_start_section_content()? as usize,
+                    ));
+                }
                 SectionCode::Custom { name, kind } => {
                     use wasmparser::CustomSectionKind;
                     match kind {
@@ -318,8 +333,12 @@ impl Store {
 
         let types = types.iter().map(|ty| ty.clone()).collect();
 
-        let instance =
-            DefinedModuleInstance::new_from_parity_module(&parity_module, module_index, types);
+        let instance = DefinedModuleInstance::new_from_parity_module(
+            module_index,
+            types.to_vec(),
+            exports,
+            start_func,
+        );
         self.modules.push(ModuleInstance::Defined(instance));
         if let Some(name) = name {
             self.module_index_by_name.insert(name, module_index);

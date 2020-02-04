@@ -1,4 +1,4 @@
-use parity_wasm::elements::ValueType;
+use wasmparser::Type;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Value {
@@ -9,12 +9,12 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn value_type(&self) -> ValueType {
+    pub fn value_type(&self) -> Type {
         match self {
-            Value::I32(_) => ValueType::I32,
-            Value::I64(_) => ValueType::I64,
-            Value::F32(_) => ValueType::F32,
-            Value::F64(_) => ValueType::F64,
+            Value::I32(_) => Type::I32,
+            Value::I64(_) => Type::I64,
+            Value::F32(_) => Type::F32,
+            Value::F64(_) => Type::F64,
         }
     }
 
@@ -85,7 +85,7 @@ impl From<f64> for Value {
 
 pub trait NativeValue: Sized {
     fn from_value(val: Value) -> Option<Self>;
-    fn value_type() -> ValueType;
+    fn value_type() -> Type;
 }
 
 macro_rules! impl_native_value {
@@ -98,8 +98,8 @@ macro_rules! impl_native_value {
                 }
             }
 
-            fn value_type() -> ValueType {
-                ValueType::$case
+            fn value_type() -> Type {
+                Type::$case
             }
         }
     };

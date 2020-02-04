@@ -2,7 +2,7 @@ use super::address::*;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
 use super::value::Value;
-use parity_wasm::elements::ValueType;
+use wasmparser::Type;
 
 #[derive(Debug)]
 pub enum StackValueType {
@@ -116,17 +116,17 @@ impl CallFrame {
     fn new(
         module_index: ModuleIndex,
         exec_addr: ExecutableFuncAddr,
-        local_tys: &[ValueType],
+        local_tys: &[Type],
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
         let mut locals = Vec::new();
         for ty in local_tys {
             let v = match ty {
-                ValueType::I32 => Value::I32(0),
-                ValueType::I64 => Value::I64(0),
-                ValueType::F32 => Value::F32(0.0),
-                ValueType::F64 => Value::F64(0.0),
+                Type::I32 => Value::I32(0),
+                Type::I64 => Value::I64(0),
+                Type::F32 => Value::F32(0.0),
+                Type::F64 => Value::F64(0.0),
             };
             locals.push(v);
         }
@@ -383,7 +383,7 @@ impl std::fmt::Debug for Stack {
         for v in &self.stack {
             match v {
                 StackValue::Value(value) => {
-                    writeln!(f, "| Value({})|{:?}|", value.value_type(), value)?;
+                    writeln!(f, "| Value({:?})|{:?}|", value.value_type(), value)?;
                 }
                 StackValue::Label(label) => {
                     writeln!(f, "| Label |{:?}|", label)?;
