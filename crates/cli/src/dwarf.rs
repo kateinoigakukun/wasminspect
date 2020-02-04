@@ -5,8 +5,11 @@ use gimli::{
 };
 use parity_wasm::elements::{Module};
 use std::collections::HashMap;
+use anyhow::Error;
 
-pub type Dwarf<'input> = gimli::Dwarf<gimli::EndianSlice<'input, LittleEndian>>;
+type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
+pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
+pub type Unit<'input> = gimli::Unit<Reader<'input>>;
 
 pub fn parse_dwarf(module: &Module) -> Dwarf {
     const EMPTY_SECTION: &[u8] = &[];
@@ -50,4 +53,24 @@ pub fn parse_dwarf(module: &Module) -> Dwarf {
         locations,
         ranges,
     }
+}
+
+pub fn transform_dwarf(dwarf: Dwarf) -> Result<(), Error> {
+    let mut headers = dwarf.units();
+    while let Some(header) = headers.next()? {
+        let unit = dwarf.unit(header)?;
+        transform_unit(unit)?
+    }
+    Ok(())
+}
+
+pub fn transform_unit<'input>(unit: Unit<'input>) -> Result<(), Error> {
+    let mut entries = unit.entries();
+    if let Some((depth, cu_die)) = entries.next_dfs()? {
+
+    }
+    Ok(())
+}
+
+pub fn find_debug_line<'input>(unit: Unit<'input>) {
 }

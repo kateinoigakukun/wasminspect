@@ -1,5 +1,4 @@
 use super::commands::debugger;
-use super::dwarf::{parse_dwarf, Dwarf};
 use parity_wasm::elements::Instruction;
 use std::cell::RefCell;
 use std::collections::HashMap;
