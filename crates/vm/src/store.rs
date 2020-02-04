@@ -15,8 +15,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
-    FuncType, FunctionBody, GlobalSectionReader, GlobalType, Import, ImportSectionReader, MemoryType, ModuleReader,
-    Name, SectionCode, TableType, Type,
+    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, GlobalSectionReader,
+    GlobalType, Import, ImportSectionReader, MemoryType, ModuleReader, Name, SectionCode,
+    TableType, Type,
 };
 
 /// Store
@@ -221,6 +222,8 @@ impl Store {
         let func_sigs = Vec::new();
         let imports = Vec::new();
         let bodies = Vec::new();
+        let tables = Vec::new();
+        let mems = Vec::new();
 
         let names = Vec::new();
 
@@ -267,6 +270,20 @@ impl Store {
                     bodies.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         bodies.push(entry?);
+                    }
+                }
+                SectionCode::Table => {
+                    let section = section.get_table_section_reader()?;
+                    tables.reserve_exact(section.get_count() as usize);
+                    for entry in section {
+                        tables.push(entry?);
+                    }
+                }
+                SectionCode::Memory => {
+                    let section = section.get_memory_section_reader()?;
+                    mems.reserve_exact(section.get_count() as usize);
+                    for entry in section {
+                        mems.push(entry?);
                     }
                 }
                 SectionCode::Custom { name, kind } => {
@@ -602,30 +619,27 @@ impl Store {
 
     fn load_tables(
         &mut self,
-        parity_module: &parity_wasm::elements::Module,
+        tables: &Vec<TableType>,
         module_index: ModuleIndex,
-        element_segments: HashMap<usize, Vec<&parity_wasm::elements::ElementSegment>>,
+        element_segments: HashMap<usize, Vec<&Element>>,
     ) -> Result<Vec<TableAddr>> {
-        let tables = parity_module
-            .table_section()
-            .map(|sec| sec.entries())
-            .unwrap_or_default();
         let mut table_addrs = Vec::new();
         if tables.is_empty() && self.tables.is_empty(module_index) {
             return Ok(table_addrs);
         }
         for entry in tables.iter() {
-            match entry.elem_type() {
-                parity_wasm::elements::TableElementType::AnyFunc => {
+            match entry.element_type {
+                Type::AnyFunc => {
                     let instance = TableInstance::new(
-                        entry.limits().initial() as usize,
-                        entry.limits().maximum().map(|mx| mx as usize),
+                        entry.limits.initial as usize,
+                        entry.limits.maximum.map(|mx| mx as usize),
                     );
                     let addr = self
                         .tables
                         .push(module_index, Rc::new(RefCell::new(instance)));
                     table_addrs.push(addr);
                 }
+                _ => (),
             }
         }
         for (index, table_addr) in self.tables.items(module_index).unwrap().iter().enumerate() {
@@ -634,25 +648,34 @@ impl Store {
                 None => continue,
             };
             for seg in segs {
-                let offset = match seg
-                    .offset()
-                    .as_ref()
-                    .map(|e| eval_const_expr(&e, self, module_index))
-                    .unwrap()
-                {
-                    Value::I32(v) => v,
-                    _ => panic!(),
-                };
-                let data = seg
-                    .members()
-                    .iter()
-                    .map(|func_index| FuncAddr::new_unsafe(module_index, *func_index as usize))
-                    .collect();
-                let table = self.tables.get_global(*table_addr);
-                table
-                    .borrow_mut()
-                    .initialize(offset as usize, data)
-                    .map_err(Error::InvalidElementSegments)?;
+                match seg.kind {
+                    ElementKind::Active {
+                        table_index,
+                        init_expr,
+                    } => {
+                        let offset = match eval_const_expr(init_expr, self, module_index) {
+                            Value::I32(v) => v,
+                            _ => panic!(),
+                        };
+                        let data = seg
+                            .items
+                            .get_items_reader()?
+                            .into_iter()
+                            .map(|item| match item? {
+                                ElementItem::Func(index) => {
+                                    Ok(Some(FuncAddr::new_unsafe(module_index, index as usize)))
+                                }
+                                ElementItem::Null => Ok(None),
+                            })
+                            .collect::<Result<Vec<Option<FuncAddr>>>>()?;
+                        let table = self.tables.get_global(*table_addr);
+                        table
+                            .borrow_mut()
+                            .initialize(offset as usize, data)
+                            .map_err(Error::InvalidElementSegments)?;
+                    }
+                    _ => unimplemented!(),
+                }
             }
         }
         Ok(table_addrs)
@@ -660,22 +683,18 @@ impl Store {
 
     fn load_mems(
         &mut self,
-        parity_module: &parity_wasm::elements::Module,
+        mems: Vec<MemoryType>,
         module_index: ModuleIndex,
-        data_segments: HashMap<usize, Vec<&parity_wasm::elements::DataSegment>>,
+        data_segments: HashMap<usize, Vec<&Data>>,
     ) -> Result<Vec<MemoryAddr>> {
-        let mem_sec = parity_module
-            .memory_section()
-            .map(|sec| sec.entries())
-            .unwrap_or_default();
         let mut mem_addrs = Vec::new();
-        if mem_sec.is_empty() && self.mems.is_empty(module_index) {
+        if mems.is_empty() && self.mems.is_empty(module_index) {
             return Ok(mem_addrs);
         }
-        for entry in mem_sec.iter() {
+        for entry in mems.iter() {
             let instance = MemoryInstance::new(
-                entry.limits().initial() as usize,
-                entry.limits().maximum().map(|mx| mx as usize),
+                entry.limits.initial as usize,
+                entry.limits.maximum.map(|mx| mx as usize),
             );
             let addr = self
                 .mems
@@ -687,20 +706,24 @@ impl Store {
         for (index, mem_addr) in self.mems.items(module_index).unwrap().iter().enumerate() {
             if let Some(segs) = data_segments.get(&index) {
                 for seg in segs {
-                    let offset = match seg
-                        .offset()
-                        .as_ref()
-                        .map(|e| eval_const_expr(&e, self, module_index))
-                        .unwrap()
-                    {
-                        Value::I32(v) => v,
-                        _ => panic!(),
-                    };
-                    let mem = self.mems.get_global(*mem_addr);
-                    mem.borrow()
-                        .validate_region(offset as usize, seg.value().len())
-                        .map_err(Error::InvalidDataSegments)?;
-                    offsets_and_value.push((mem, offset, seg.value()));
+                    match seg.kind {
+                        DataKind::Active {
+                            memory_index,
+                            init_expr,
+                        } => {
+                            let offset = match eval_const_expr(init_expr, self, module_index)
+                            {
+                                Value::I32(v) => v,
+                                _ => panic!(),
+                            };
+                            let mem = self.mems.get_global(*mem_addr);
+                            mem.borrow()
+                                .validate_region(offset as usize, seg.data.len())
+                                .map_err(Error::InvalidDataSegments)?;
+                            offsets_and_value.push((mem, offset, seg.data));
+                        }
+                        _ => (),
+                    }
                 }
             }
         }
