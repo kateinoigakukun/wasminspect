@@ -1,5 +1,5 @@
 use super::address::*;
-use super::executor::{eval_const_expr};
+use super::executor::eval_const_expr;
 use super::func::{eq_func_type, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
 use super::host::HostValue;
@@ -10,14 +10,13 @@ use super::module::{
 };
 use super::table::{self, TableInstance};
 use super::value::Value;
-use anyhow::{Result};
+use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
-    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody,
-    Global, GlobalType, Import, MemoryType, ModuleReader, Name, SectionCode,
-    TableType, Type,
+    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
+    Import, MemoryType, ModuleReader, Name, SectionCode, TableType, Type,
 };
 
 /// Store
@@ -206,6 +205,42 @@ impl std::fmt::Display for StoreError {
     }
 }
 
+fn read_name_section(reader: wasmparser::NameSectionReader) -> Result<HashMap<u32, String>> {
+    // let mut module_name = None;
+    let mut func_names = HashMap::new();
+    // let mut locals_names = HashMap::new();
+    for i in reader.into_iter() {
+        match i? {
+            wasmparser::Name::Module(m) => {
+                // module_name = Some(String::from(m.get_name()?));
+            }
+            wasmparser::Name::Function(f) => {
+                let mut reader = f.get_map()?;
+                while let Ok(naming) = reader.read() {
+                    func_names.insert(naming.index, String::from(naming.name));
+                }
+            }
+            wasmparser::Name::Local(l) => {
+                // let mut reader = l.get_function_local_reader()?;
+                // while let Ok(f) = reader.read() {
+                //     let mut names = HashMap::new();
+                //     let mut reader = f.get_map()?;
+                //     while let Ok(naming) = reader.read() {
+                //         names.insert(naming.index, String::from(naming.name));
+                //     }
+                //     locals_names.insert(f.func_index, names);
+                // }
+            }
+        }
+    }
+    // let result = NameSection {
+    //     module_name,
+    //     func_names,
+    //     locals_names,
+    // };
+    Ok(func_names)
+}
+
 impl Store {
     fn load_parity_module_internal(
         &mut self,
@@ -223,7 +258,7 @@ impl Store {
         let mut tables = Vec::new();
         let mut globals = Vec::new();
         let mut mems = Vec::new();
-        let mut names = Vec::new();
+        let mut func_names = HashMap::new();
 
         let mut start_func = None;
 
@@ -311,9 +346,7 @@ impl Store {
                     match kind {
                         CustomSectionKind::Name => {
                             let section = section.get_name_section_reader()?;
-                            for entry in section {
-                                names.push(entry?);
-                            }
+                            func_names = read_name_section(section)?;
                         }
                         _ => (),
                     }
@@ -324,7 +357,7 @@ impl Store {
 
         self.load_imports(imports, module_index, &types)?;
         self.load_globals(globals, module_index)?;
-        self.load_functions(module_index, func_sigs, bodies, names, &types)?;
+        self.load_functions(module_index, func_sigs, bodies, func_names, &types)?;
         self.load_tables(tables, module_index, elem_segs)?;
         self.load_mems(mems, module_index, data_segs)?;
 
@@ -589,24 +622,23 @@ impl Store {
         module_index: ModuleIndex,
         func_sigs: Vec<u32>,
         bodies: Vec<FunctionBody>,
-        names: Vec<Name>,
+        names: HashMap<u32, String>,
         types: &[FuncType],
     ) -> Result<Vec<FuncAddr>> {
         let mut func_addrs = Vec::new();
-        for (index, (func_sig, body)) in func_sigs.into_iter().zip(bodies).enumerate() {
+        for (func_sig, body) in func_sigs.into_iter().zip(bodies) {
+            let index = self
+                .funcs
+                .items(module_index)
+                .map(|items| items.len() as u32)
+                .unwrap_or(0);
             let func_type = types
                 .get(func_sig as usize)
                 .ok_or(StoreError::UnknownType(func_sig))?
                 .clone();
             let name = names
-                .get(index as usize)
+                .get(&index)
                 .map(|n| n.clone())
-                .and_then(|name| match name {
-                    Name::Function(func) => {
-                        Some(func.get_map().ok()?.read().ok()?.name.to_string())
-                    }
-                    _ => None,
-                })
                 .unwrap_or(format!(
                     "<module #{} defined func #{}>",
                     module_index.0, index
