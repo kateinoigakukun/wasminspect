@@ -211,7 +211,7 @@ fn read_name_section(reader: wasmparser::NameSectionReader) -> Result<HashMap<u3
     // let mut locals_names = HashMap::new();
     for i in reader.into_iter() {
         match i? {
-            wasmparser::Name::Module(m) => {
+            wasmparser::Name::Module(_) => {
                 // module_name = Some(String::from(m.get_name()?));
             }
             wasmparser::Name::Function(f) => {
@@ -220,7 +220,7 @@ fn read_name_section(reader: wasmparser::NameSectionReader) -> Result<HashMap<u3
                     func_names.insert(naming.index, String::from(naming.name));
                 }
             }
-            wasmparser::Name::Local(l) => {
+            wasmparser::Name::Local(_) => {
                 // let mut reader = l.get_function_local_reader()?;
                 // while let Ok(f) = reader.read() {
                 //     let mut names = HashMap::new();
