@@ -1,5 +1,5 @@
 use super::address::*;
-use super::executor::{eval_const_expr, WasmError};
+use super::executor::{eval_const_expr};
 use super::func::{eq_func_type, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
 use super::host::HostValue;
@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
-    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, GlobalSectionReader,
+    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody,
     GlobalType, Import, MemoryType, ModuleReader, Name, SectionCode,
     TableType, Type,
 };
@@ -151,7 +151,6 @@ pub enum StoreError {
     UndefinedMemory(String, String),
     UndefinedTable(String, String),
     UndefinedGlobal(String, String),
-    FailedEntryFunction(WasmError),
     IncompatibleImportFuncType(String, FuncType, FuncType),
     IncompatibleImportGlobalType(Type, Type),
     IncompatibleImportGlobalMutability,
@@ -190,7 +189,6 @@ impl std::fmt::Display for StoreError {
                 "unknown import: Undefined global \"{}\" in \"{}\"",
                 name, module
             ),
-            Self::FailedEntryFunction(e) => write!(f, "{}", e),
             Self::IncompatibleImportFuncType(name, expected, actual) => write!(
                 f,
                 "incompatible import type, \"{}\" expected {:?} but got {:?}",
@@ -620,24 +618,6 @@ impl Store {
             func_addrs.push(func_addr);
         }
         Ok(func_addrs)
-    }
-
-    fn load_globals(
-        &mut self,
-        section: GlobalSectionReader,
-        module_index: ModuleIndex,
-    ) -> Result<Vec<GlobalAddr>> {
-        let mut global_addrs = Vec::new();
-        for entry in section {
-            let entry = entry?;
-            let value = eval_const_expr(&entry.init_expr, &self, module_index)?;
-            let instance = GlobalInstance::new(value, entry.ty.clone());
-            let addr = self
-                .globals
-                .push(module_index, Rc::new(RefCell::new(instance)));
-            global_addrs.push(addr);
-        }
-        Ok(global_addrs)
     }
 
     fn load_tables(
