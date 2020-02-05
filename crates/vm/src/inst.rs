@@ -6,13 +6,13 @@ pub struct Instruction {
     pub offset: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BrTableData {
     pub table: Box<[u32]>,
     pub default: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum InstructionKind {
     Unreachable,
     Nop,
@@ -476,7 +476,7 @@ pub enum InstructionKind {
 }
 
 use anyhow::Result;
-pub fn transform_inst(reader: &OperatorsReader) -> Result<Instruction> {
+pub fn transform_inst(reader: &mut OperatorsReader) -> Result<Instruction> {
     use wasmparser::Operator::*;
     let (op, offset) = reader.read_with_offset()?;
     let kind = match op {

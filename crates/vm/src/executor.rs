@@ -30,8 +30,10 @@ pub enum Trap {
         /* actual: */ FuncType,
     ),
     UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
-    UndefinedFunc(FuncAddr),
+    UndefinedFunc(usize),
 }
+
+impl std::error::Error for Trap {}
 
 impl std::fmt::Display for Trap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -132,7 +134,7 @@ impl Executor {
         //     }
         //     println!("{}{}", indent, inst.clone());
         // }
-        let result = match inst.kind {
+        let result = match inst.kind.clone() {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),
             InstructionKind::Block { ty } => {
@@ -259,7 +261,7 @@ impl Executor {
                 let func_addr = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
                 let (func, _) = store
                     .func(func_addr)
-                    .ok_or(Trap::UndefinedFunc(func_addr))?;
+                    .ok_or(Trap::UndefinedFunc(func_addr.1))?;
                 if eq_func_type(func.ty(), &ty) {
                     self.invoke(func_addr, store, interceptor)
                 } else {
@@ -569,6 +571,7 @@ impl Executor {
             InstructionKind::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
+            _ => unimplemented!(),
         };
         if self.stack.is_over_top_level() {
             return Ok(Signal::End);
@@ -694,7 +697,7 @@ impl Executor {
         store: &Store,
         interceptor: &I,
     ) -> ExecResult<Signal> {
-        let (func, exec_addr) = store.func(addr).ok_or(Trap::UndefinedFunc(addr))?;
+        let (func, exec_addr) = store.func(addr).ok_or(Trap::UndefinedFunc(addr.1))?;
 
         let mut args = Vec::new();
         for _ in func.ty().params.iter() {
@@ -848,7 +851,7 @@ pub fn eval_const_expr(
     module_index: ModuleIndex,
 ) -> anyhow::Result<Value> {
     use super::inst::transform_inst;
-    let inst = transform_inst(&init_expr.get_operators_reader())?;
+    let inst = transform_inst(&mut init_expr.get_operators_reader())?;
     let val = match inst.kind {
         InstructionKind::I32Const { value } => Value::I32(value),
         InstructionKind::I64Const { value } => Value::I64(value),
@@ -893,7 +896,7 @@ pub fn simple_invoke_func(
 ) -> Result<Vec<Value>, WasmError> {
     match store
         .func(func_addr)
-        .ok_or(WasmError::ExecutionError(Trap::UndefinedFunc(func_addr)))?
+        .ok_or(WasmError::ExecutionError(Trap::UndefinedFunc(func_addr.1)))?
     {
         (FunctionInstance::Host(host), _) => {
             let mut results = Vec::new();
@@ -907,7 +910,7 @@ pub fn simple_invoke_func(
         }
         (FunctionInstance::Defined(func), exec_addr) => {
             let (frame, ret_types) = {
-                let ret_types = func.ty().returns;
+                let ret_types = &func.ty().returns;
                 let frame = CallFrame::new_from_func(exec_addr, func, arguments, None);
                 (frame, ret_types)
             };

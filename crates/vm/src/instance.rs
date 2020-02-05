@@ -31,7 +31,8 @@ impl WasmInstance {
         name: Option<String>,
         reader: wasmparser::ModuleReader,
     ) -> Result<ModuleIndex> {
-        self.store.load_parity_module(name, &reader)
+        let mut reader = reader;
+        self.store.load_parity_module(name, &mut reader)
     }
 
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {

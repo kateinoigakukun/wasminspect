@@ -57,17 +57,17 @@ impl DefinedFunctionInstance {
         module_index: ModuleIndex,
         body: FunctionBody,
     ) -> Result<Self> {
-        let locals = Vec::new();
+        let mut locals = Vec::new();
         let reader = body.get_locals_reader()?;
         for local in reader {
             let (count, value_type) = local?;
             let elements = iter::repeat(value_type).take(count as usize);
             locals.append(&mut elements.collect());
         }
-        let reader = body.get_operators_reader()?;
-        let instructions = Vec::new();
+        let mut reader = body.get_operators_reader()?;
+        let mut instructions = Vec::new();
         while !reader.eof() {
-            let inst = transform_inst(&reader)?;
+            let inst = transform_inst(&mut reader)?;
             instructions.push(inst);
         }
         Ok(Self {

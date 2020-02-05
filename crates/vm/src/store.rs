@@ -1,6 +1,6 @@
 use super::address::*;
 use super::executor::{eval_const_expr, WasmError};
-use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
+use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance, eq_func_type};
 use super::global::GlobalInstance;
 use super::host::HostValue;
 use super::linker::LinkableCollection;
@@ -141,7 +141,7 @@ impl Store {
 }
 
 #[derive(Debug)]
-pub enum Error {
+pub enum StoreError {
     InvalidElementSegments(table::Error),
     InvalidDataSegments(memory::Error),
     InvalidHostImport(module::HostModuleError),
@@ -158,10 +158,9 @@ pub enum Error {
     IncompatibleImportTableType,
     IncompatibleImportMemoryType,
 }
+impl std::error::Error for StoreError {}
 
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
+impl std::fmt::Display for StoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidElementSegments(err) => {
@@ -213,21 +212,21 @@ impl Store {
     fn load_parity_module_internal(
         &mut self,
         name: Option<String>,
-        reader: &ModuleReader,
+        reader: &mut ModuleReader,
         module_index: ModuleIndex,
     ) -> Result<ModuleIndex> {
-        let types = Vec::new();
-        let elem_segs = Vec::new();
-        let data_segs = Vec::new();
-        let func_sigs = Vec::new();
-        let imports = Vec::new();
-        let exports = Vec::new();
-        let bodies = Vec::new();
-        let tables = Vec::new();
-        let mems = Vec::new();
+        let mut types = Vec::new();
+        let mut elem_segs = Vec::new();
+        let mut data_segs = Vec::new();
+        let mut func_sigs = Vec::new();
+        let mut imports = Vec::new();
+        let mut exports = Vec::new();
+        let mut bodies = Vec::new();
+        let mut tables = Vec::new();
+        let mut mems = Vec::new();
+        let mut names = Vec::new();
 
-        let start_func = None;
-        let names = Vec::new();
+        let mut start_func = None;
 
         while !reader.eof() {
             let section = reader.read()?;
@@ -311,7 +310,7 @@ impl Store {
                         section.get_start_section_content()? as usize,
                     ));
                 }
-                SectionCode::Custom { name, kind } => {
+                SectionCode::Custom { name: _, kind } => {
                     use wasmparser::CustomSectionKind;
                     match kind {
                         CustomSectionKind::Name => {
@@ -320,6 +319,7 @@ impl Store {
                                 names.push(entry?);
                             }
                         }
+                        _ => (),
                     }
                 }
                 _ => (),
@@ -349,7 +349,7 @@ impl Store {
     pub fn load_parity_module(
         &mut self,
         name: Option<String>,
-        reader: &ModuleReader,
+        reader: &mut ModuleReader,
     ) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
@@ -410,12 +410,12 @@ impl Store {
     ) -> Result<()> {
         let func_ty = types
             .get(type_index)
-            .ok_or(Error::UnknownType(type_index as u32))?
+            .ok_or(StoreError::UnknownType(type_index as u32))?
             .clone();
         let name = import.field.to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || {
-            Error::UndefinedFunction(
+            StoreError::UndefinedFunction(
                 import.module.clone().to_string(),
                 import.field.clone().to_string(),
             )
@@ -424,19 +424,19 @@ impl Store {
             ModuleInstance::Defined(defined) => {
                 let func_addr = defined
                     .exported_func(name)
-                    .map_err(Error::InvalidImport)?
+                    .map_err(StoreError::InvalidImport)?
                     .ok_or_else(err)?;
                 self.funcs.resolve(func_addr).ok_or_else(err)?.clone()
             }
             ModuleInstance::Host(host) => *host
                 .func_by_name(import.field.to_string())
-                .map_err(Error::InvalidHostImport)?
+                .map_err(StoreError::InvalidHostImport)?
                 .ok_or_else(err)?,
         };
         let actual_func_ty = self.funcs.get_global(exec_addr).ty();
         // Validation
-        if *actual_func_ty != func_ty {
-            Err(Error::IncompatibleImportFuncType(
+        if !eq_func_type(actual_func_ty, &func_ty) {
+            Err(StoreError::IncompatibleImportFuncType(
                 import.field.to_string(),
                 func_ty,
                 actual_func_ty.clone(),
@@ -453,7 +453,7 @@ impl Store {
         memory_ty: MemoryType,
     ) -> Result<()> {
         let err = || {
-            Error::UndefinedMemory(
+            StoreError::UndefinedMemory(
                 import.module.clone().to_string(),
                 import.field.clone().to_string(),
             )
@@ -464,14 +464,14 @@ impl Store {
             ModuleInstance::Defined(defined) => {
                 let addr = defined
                     .exported_memory(name.clone())
-                    .map_err(Error::InvalidImport)?
+                    .map_err(StoreError::InvalidImport)?
                     .ok_or(err())?
                     .clone();
                 self.mems.resolve(addr).ok_or_else(err)?.clone()
             }
             ModuleInstance::Host(host) => *host
                 .memory_by_name(name.clone())
-                .map_err(Error::InvalidHostImport)?
+                .map_err(StoreError::InvalidHostImport)?
                 .ok_or(err())?,
         };
 
@@ -479,15 +479,15 @@ impl Store {
         {
             let memory = self.mems.get_global(resolved_addr);
             if memory.borrow().initial < memory_ty.limits.initial as usize {
-                Err(Error::IncompatibleImportMemoryType)?;
+                Err(StoreError::IncompatibleImportMemoryType)?;
             }
             match (memory.borrow().max, memory_ty.limits.maximum) {
                 (Some(found), Some(expected)) => {
                     if found > expected as usize {
-                        Err(Error::IncompatibleImportMemoryType)?;
+                        Err(StoreError::IncompatibleImportMemoryType)?;
                     }
                 }
-                (None, Some(_)) => Err(Error::IncompatibleImportMemoryType)?,
+                (None, Some(_)) => Err(StoreError::IncompatibleImportMemoryType)?,
                 _ => (),
             }
         }
@@ -504,7 +504,7 @@ impl Store {
         let name = import.field.to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || {
-            Error::UndefinedTable(
+            StoreError::UndefinedTable(
                 import.module.clone().to_string(),
                 import.field.clone().to_string(),
             )
@@ -513,13 +513,13 @@ impl Store {
             ModuleInstance::Defined(defined) => {
                 let addr = defined
                     .exported_table(name.clone())
-                    .map_err(Error::InvalidImport)?
+                    .map_err(StoreError::InvalidImport)?
                     .ok_or_else(err)?;
                 self.tables.resolve(addr).ok_or_else(err)?.clone()
             }
             ModuleInstance::Host(host) => host
                 .table_by_name(name.clone())
-                .map_err(Error::InvalidHostImport)?
+                .map_err(StoreError::InvalidHostImport)?
                 .ok_or_else(err)?
                 .clone(),
         };
@@ -527,15 +527,15 @@ impl Store {
         // Validation
         {
             if found.borrow().initial < table_ty.limits.initial as usize {
-                Err(Error::IncompatibleImportTableType)?;
+                Err(StoreError::IncompatibleImportTableType)?;
             }
             match (found.clone().borrow().max, table_ty.limits.maximum) {
                 (Some(found), Some(expected)) => {
                     if found > expected as usize {
-                        Err(Error::IncompatibleImportTableType)?;
+                        Err(StoreError::IncompatibleImportTableType)?;
                     }
                 }
-                (None, Some(_)) => Err(Error::IncompatibleImportTableType)?,
+                (None, Some(_)) => Err(StoreError::IncompatibleImportTableType)?,
                 _ => (),
             }
         }
@@ -553,7 +553,7 @@ impl Store {
         let name = import.field.to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || {
-            Error::UndefinedGlobal(
+            StoreError::UndefinedGlobal(
                 import.module.clone().to_string(),
                 import.field.clone().to_string(),
             )
@@ -562,26 +562,26 @@ impl Store {
             ModuleInstance::Defined(defined) => {
                 let addr = defined
                     .exported_global(name)
-                    .map_err(Error::InvalidImport)?
+                    .map_err(StoreError::InvalidImport)?
                     .ok_or(err())?;
                 self.globals.resolve(addr).ok_or_else(err)?.clone()
             }
             ModuleInstance::Host(host) => host
                 .global_by_name(name)
-                .map_err(Error::InvalidHostImport)
+                .map_err(StoreError::InvalidHostImport)
                 .and_then(|f| f.ok_or(err()))?
                 .clone(),
         };
         // Validation
         {
             let actual_global = self.globals.get_global(resolved_addr);
-            let actual_global_ty = actual_global.borrow().ty().content_type().clone();
+            let actual_global_ty = actual_global.borrow().ty().content_type.clone();
             let expected_global_ty = global_ty.content_type.clone();
             if actual_global.borrow().is_mutable() != global_ty.mutable {
-                Err(Error::IncompatibleImportGlobalMutability)?;
+                Err(StoreError::IncompatibleImportGlobalMutability)?;
             }
             if actual_global_ty != expected_global_ty {
-                Err(Error::IncompatibleImportGlobalType(
+                Err(StoreError::IncompatibleImportGlobalType(
                     actual_global_ty,
                     expected_global_ty,
                 ))?;
@@ -603,7 +603,7 @@ impl Store {
         for (index, (func_sig, body)) in func_sigs.into_iter().zip(bodies).enumerate() {
             let func_type = types
                 .get(func_sig as usize)
-                .ok_or(Error::UnknownType(func_sig))?
+                .ok_or(StoreError::UnknownType(func_sig))?
                 .clone();
             let name = names
                 .get(index as usize)
@@ -618,7 +618,7 @@ impl Store {
                     "<module #{} defined func #{}>",
                     module_index.0, index
                 ));
-            let defined = DefinedFunctionInstance::new(name, func_type, module_index, body);
+            let defined = DefinedFunctionInstance::new(name, func_type, module_index, body)?;
             let instance = FunctionInstance::Defined(defined);
             let func_addr = self.funcs.push(module_index, instance);
             func_addrs.push(func_addr);
@@ -680,7 +680,7 @@ impl Store {
                         Some(addr) => addr,
                         None => continue,
                     };
-                    let offset = match eval_const_expr(init_expr, self, module_index) {
+                    let offset = match eval_const_expr(&init_expr, self, module_index)? {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
@@ -699,7 +699,7 @@ impl Store {
                     table
                         .borrow_mut()
                         .initialize(offset as usize, data)
-                        .map_err(Error::InvalidElementSegments)?;
+                        .map_err(StoreError::InvalidElementSegments)?;
                 }
                 _ => unimplemented!(),
             }
@@ -740,14 +740,14 @@ impl Store {
                         Some(addr) => addr,
                         None => continue,
                     };
-                    let offset = match eval_const_expr(init_expr, self, module_index) {
+                    let offset = match eval_const_expr(&init_expr, self, module_index)? {
                         Value::I32(v) => v,
                         _ => panic!(),
                     };
                     let mem = self.mems.get_global(*mem_addr);
                     mem.borrow()
                         .validate_region(offset as usize, seg.data.len())
-                        .map_err(Error::InvalidDataSegments)?;
+                        .map_err(StoreError::InvalidDataSegments)?;
                     offsets_and_value.push((mem, offset, seg.data));
                 }
                 _ => (),
@@ -757,7 +757,7 @@ impl Store {
         for (mem, offset, value) in offsets_and_value {
             mem.borrow_mut()
                 .store(offset as usize, value)
-                .map_err(Error::InvalidDataSegments)?;
+                .map_err(StoreError::InvalidDataSegments)?;
         }
         Ok(mem_addrs)
     }

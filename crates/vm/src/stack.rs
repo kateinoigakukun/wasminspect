@@ -127,6 +127,7 @@ impl CallFrame {
                 Type::I64 => Value::I64(0),
                 Type::F32 => Value::F32(0.0),
                 Type::F64 => Value::F64(0.0),
+                _ => unimplemented!(),
             };
             locals.push(v);
         }
