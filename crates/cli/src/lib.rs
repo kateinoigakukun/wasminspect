@@ -19,7 +19,7 @@ pub fn run_loop(file: Option<String>) -> Result<()> {
     if let Some(file) = file {
         let mut f = ::std::fs::File::open(file)?;
         let mut buffer = Vec::new();
-        f.read_to_end(&mut buffer);
+        f.read_to_end(&mut buffer)?;
         debugger.load_module(&buffer)?;
         use dwarf::parse_dwarf;
         let _dwarf = parse_dwarf(&buffer);

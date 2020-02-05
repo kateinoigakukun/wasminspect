@@ -323,7 +323,7 @@ impl Store {
         }
 
         self.load_imports(imports, module_index, &types)?;
-        self.load_globals(globals, module_index);
+        self.load_globals(globals, module_index)?;
         self.load_functions(module_index, func_sigs, bodies, names, &types)?;
         self.load_tables(tables, module_index, elem_segs)?;
         self.load_mems(mems, module_index, data_segs)?;
