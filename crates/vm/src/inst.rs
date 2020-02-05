@@ -1,6 +1,7 @@
 use wasmparser::*;
 pub type SIMDLaneIndex = u8;
 
+#[derive(Debug, Clone)]
 pub struct Instruction {
     pub kind: InstructionKind,
     pub offset: usize,
