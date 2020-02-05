@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody,
-    GlobalType, Import, MemoryType, ModuleReader, Name, SectionCode,
+    Global, GlobalType, Import, MemoryType, ModuleReader, Name, SectionCode,
     TableType, Type,
 };
 
@@ -221,6 +221,7 @@ impl Store {
         let mut exports = Vec::new();
         let mut bodies = Vec::new();
         let mut tables = Vec::new();
+        let mut globals = Vec::new();
         let mut mems = Vec::new();
         let mut names = Vec::new();
 
@@ -294,12 +295,9 @@ impl Store {
                 }
                 SectionCode::Global => {
                     let section = section.get_global_section_reader()?;
+                    globals.reserve_exact(section.get_count() as usize);
                     for entry in section {
-                        let entry = entry?;
-                        let value = eval_const_expr(&entry.init_expr, &self, module_index)?;
-                        let instance = GlobalInstance::new(value, entry.ty.clone());
-                        self.globals
-                            .push(module_index, Rc::new(RefCell::new(instance)));
+                        globals.push(entry?);
                     }
                 }
                 SectionCode::Start => {
@@ -325,6 +323,7 @@ impl Store {
         }
 
         self.load_imports(imports, module_index, &types)?;
+        self.load_globals(globals, module_index);
         self.load_functions(module_index, func_sigs, bodies, names, &types)?;
         self.load_tables(tables, module_index, elem_segs)?;
         self.load_mems(mems, module_index, data_segs)?;
@@ -618,6 +617,16 @@ impl Store {
             func_addrs.push(func_addr);
         }
         Ok(func_addrs)
+    }
+
+    fn load_globals(&mut self, globals: Vec<Global>, module_index: ModuleIndex) -> Result<()> {
+        for entry in globals {
+            let value = eval_const_expr(&entry.init_expr, &self, module_index)?;
+            let instance = GlobalInstance::new(value, entry.ty.clone());
+            self.globals
+                .push(module_index, Rc::new(RefCell::new(instance)));
+        }
+        Ok(())
     }
 
     fn load_tables(
