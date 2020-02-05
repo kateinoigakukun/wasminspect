@@ -26,10 +26,12 @@ impl MainDebugger {
     }
     pub fn new() -> Result<Self> {
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
+        let (_, wasi_unstable) = instantiate_wasi();
 
         let mut store = Store::new();
         store.add_embed_context(Box::new(ctx));
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
 
         Ok(Self {
             store,

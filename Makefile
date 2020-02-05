@@ -12,7 +12,8 @@ endif
 
 .PHONY: fixtures
 fixtures: .wabt .wasi-sdk
-	cd tests/simple-example; make all
+	cd tests/simple-example; make all;
+	cd tests/simple-example/c-dwarf; make all;
 
 .wabt:
 	mkdir -p $(WABT_DIR) && cd $(WABT_DIR) && \

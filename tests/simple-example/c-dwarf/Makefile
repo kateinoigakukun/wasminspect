@@ -2,6 +2,7 @@ MAKEFILE_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 WASI_SDK_DIR ?= $(MAKEFILE_DIR)/../../../.wasi-sdk
 CLANG := $(WASI_SDK_DIR)/bin/clang
 
+all: main.wasm
 main.wasm: dummy.o main.o
 	$(CLANG) $^ --sysroot=$(WASI_SDK_DIR)/share/wasi-sysroot -o $@
 main.o: main.c
