@@ -2,15 +2,17 @@ use wasmparser::*;
 pub type SIMDLaneIndex = u8;
 
 pub struct Instruction {
-    kind: InstructionKind,
-    offset: usize,
+    pub kind: InstructionKind,
+    pub offset: usize,
 }
 
+#[derive(Debug)]
 pub struct BrTableData {
     pub table: Box<[u32]>,
     pub default: u32,
 }
 
+#[derive(Debug)]
 pub enum InstructionKind {
     Unreachable,
     Nop,

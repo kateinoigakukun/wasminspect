@@ -137,3 +137,8 @@ impl HostFunctionInstance {
         }
     }
 }
+
+// Helper
+pub fn eq_func_type(this: &FuncType, other: &FuncType) -> bool {
+    this.form == other.form && this.params == other.params && this.returns == other.returns
+}
