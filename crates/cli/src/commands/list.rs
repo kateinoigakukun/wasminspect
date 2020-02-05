@@ -1,5 +1,6 @@
-use super::command::{self, Command, Interface};
+use super::command::{Command, CommandContext};
 use super::debugger::Debugger;
+use anyhow::Result;
 
 pub struct ListCommand {}
 
@@ -13,15 +14,16 @@ impl<D: Debugger> Command<D> for ListCommand {
     fn name(&self) -> &'static str {
         "list"
     }
+
     fn run(
         &self,
         debugger: &mut D,
-        _interface: &Interface,
-        _args: Vec<&str>,
-    ) -> Result<(), command::Error> {
-        let (insts, next_index) = debugger.instructions().map_err(command::Error::Command)?;
+        context: &CommandContext,
+        args: Vec<&str>,
+    ) -> Result<()> {
+        let (insts, next_index) = debugger.instructions()?;
         for (index, inst) in insts.iter().enumerate() {
-            if index == next_index - 1 {
+            if index + 1 == next_index {
                 print!("> ")
             } else {
                 print!("  ")

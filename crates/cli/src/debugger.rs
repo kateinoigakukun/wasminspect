@@ -1,5 +1,5 @@
 use super::commands::debugger;
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -43,15 +43,13 @@ impl MainDebugger {
 }
 
 impl debugger::Debugger for MainDebugger {
-    fn instructions(&self) -> Result<(&[Instruction], usize), String> {
+    fn instructions(&self) -> Result<(&[Instruction], usize)> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
-            let insts = executor
-                .current_func_insts(&self.store)
-                .map_err(|e| format!("Failed to get instructions: {}", e))?;
+            let insts = executor.current_func_insts(&self.store)?;
             Ok((insts, executor.pc.inst_index().0 as usize))
         } else {
-            Err(format!("No execution context"))
+            Err(anyhow!("No execution context"))
         }
     }
 
@@ -85,13 +83,13 @@ impl debugger::Debugger for MainDebugger {
             Vec::new()
         }
     }
-    fn memory(&self) -> Result<Vec<u8>, String> {
+    fn memory(&self) -> Result<Vec<u8>> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
             let frame = executor
                 .stack
                 .current_frame()
-                .map_err(|e| format!("Failed to get current frame: {}", e))?;
+                .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
             let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
             Ok(self.store.memory(addr).borrow().raw_data().to_vec())
         } else {
@@ -103,14 +101,14 @@ impl debugger::Debugger for MainDebugger {
         self.executor.is_some()
     }
 
-    fn run(&mut self, name: Option<String>) -> Result<debugger::RunResult, String> {
+    fn run(&mut self, name: Option<String>) -> Result<debugger::RunResult> {
         if let Some(module_index) = self.module_index {
             let module = self.store.module(module_index).defined().unwrap();
             let func_addr = if let Some(func_name) = name {
                 if let Some(Some(func_addr)) = module.exported_func(func_name.clone()).ok() {
                     func_addr
                 } else {
-                    return Err(format!("Entry function {} not found", func_name));
+                    return Err(anyhow!("Entry function {} not found", func_name));
                 }
             } else if let Some(start_func_addr) = module.start_func_addr() {
                 *start_func_addr
@@ -118,13 +116,13 @@ impl debugger::Debugger for MainDebugger {
                 if let Some(Some(func_addr)) = module.exported_func("_start".to_string()).ok() {
                     func_addr
                 } else {
-                    return Err(format!("Entry function _start not found"));
+                    return Err(anyhow!("Entry function _start not found"));
                 }
             };
             let func = self
                 .store
                 .func(func_addr)
-                .ok_or(format!("Function not found"))?;
+                .ok_or(anyhow!("Function not found"))?;
             match func {
                 (FunctionInstance::Host(host), _) => {
                     let mut results = Vec::new();
@@ -135,7 +133,7 @@ impl debugger::Debugger for MainDebugger {
                         func_addr.module_index(),
                     ) {
                         Ok(_) => return Ok(debugger::RunResult::Finish(results)),
-                        Err(_) => return Err(format!("Failed to execute host func")),
+                        Err(_) => return Err(anyhow!("Failed to execute host func")),
                     }
                 }
                 (FunctionInstance::Defined(func), exec_addr) => {
@@ -157,12 +155,12 @@ impl debugger::Debugger for MainDebugger {
                                     }
                                     Err(err) => {
                                         self.executor = None;
-                                        return Err(format!("Return value failure {:?}", err));
+                                        return Err(anyhow!("Return value failure {:?}", err));
                                     }
                                 }
                             }
                             Err(err) => {
-                                let err = Err(format!("Function exec failure {:?}", err));
+                                let err = Err(anyhow!("Function exec failure {:?}", err));
                                 return err;
                             }
                         }
@@ -170,7 +168,7 @@ impl debugger::Debugger for MainDebugger {
                 }
             }
         } else {
-            Err("No module loaded".to_string())
+            Err(anyhow!("No module loaded"))
         }
     }
 }

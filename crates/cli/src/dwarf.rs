@@ -80,3 +80,9 @@ pub fn transform_unit<'input>(unit: Unit<'input>) -> Result<()> {
 }
 
 pub fn find_debug_line<'input>(_unit: Unit<'input>) {}
+
+
+pub struct DwarfSourceMap {}
+
+use super::commands::sourcemap;
+impl sourcemap::SourceMap for DwarfSourceMap {}

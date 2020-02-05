@@ -1,8 +1,9 @@
-use super::command::{self, Command, Interface};
+use super::command::{Command, CommandContext};
 use super::debugger::{Debugger, RunResult};
 use std::io::Write;
 
 use clap::{App, Arg};
+use anyhow::Result;
 
 pub struct RunCommand {}
 
@@ -20,9 +21,9 @@ impl<D: Debugger> Command<D> for RunCommand {
     fn run(
         &self,
         debugger: &mut D,
-        _interface: &Interface,
+        context: &CommandContext,
         args: Vec<&str>,
-    ) -> Result<(), command::Error> {
+    ) -> Result<()> {
         let mut app = App::new("run").arg(Arg::with_name(ARG_FUNCTION_NAME_KEY).takes_value(true));
         let matches = match app.get_matches_from_safe_borrow(args) {
             Ok(m) => m,

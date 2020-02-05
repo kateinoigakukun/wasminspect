@@ -1,4 +1,5 @@
 use wasminspect_vm::{Instruction, WasmValue};
+use anyhow::Result;
 
 pub enum Breakpoint {
     Function { name: String },
@@ -10,11 +11,11 @@ pub enum RunResult {
 }
 
 pub trait Debugger {
-    fn run(&mut self, name: Option<String>) -> Result<RunResult, String>;
+    fn run(&mut self, name: Option<String>) -> Result<RunResult>;
     fn is_running(&self) -> bool;
     fn frame(&self) -> Vec<String>;
-    fn memory(&self) -> Result<Vec<u8>, String>;
+    fn memory(&self) -> Result<Vec<u8>>;
     fn set_breakpoint(&mut self, breakpoint: Breakpoint);
     fn stack_values(&self) -> Vec<String>;
-    fn instructions(&self) -> Result<(&[Instruction], usize), String>;
+    fn instructions(&self) -> Result<(&[Instruction], usize)>;
 }

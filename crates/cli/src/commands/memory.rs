@@ -1,5 +1,6 @@
-use super::command::{self, Command, Interface};
+use super::command::{Command, CommandContext};
 use super::debugger::Debugger;
+use anyhow::Result;
 
 use structopt::StructOpt;
 
@@ -29,24 +30,19 @@ impl<D: Debugger> Command<D> for MemoryCommand {
     fn run(
         &self,
         debugger: &mut D,
-        _interface: &Interface,
+        context: &CommandContext,
         args: Vec<&str>,
-    ) -> Result<(), command::Error> {
-        let opts = match Opts::from_iter_safe(args) {
-            Ok(opts) => opts,
-            Err(e) => return Err(command::Error::Command(format!("{}", e))),
-        };
+    ) -> Result<()> {
+        let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Read { address, count } => {
                 let address = if address.starts_with("0x") {
                     let raw = address.trim_start_matches("0x");
-                    i64::from_str_radix(raw, 16)
-                        .map_err(|e| (command::Error::Command(format!("{}", e))))?
+                    i64::from_str_radix(raw, 16)?
                 } else {
-                    i64::from_str_radix(&address, 10)
-                        .map_err(|e| (command::Error::Command(format!("{}", e))))?
+                    i64::from_str_radix(&address, 10)?
                 };
-                let memory = debugger.memory().map_err(command::Error::Command)?;
+                let memory = debugger.memory()?;
 
                 let begin = address as usize;
                 let end = begin + (count as usize);

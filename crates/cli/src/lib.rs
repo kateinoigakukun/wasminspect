@@ -16,6 +16,9 @@ fn history_file_path() -> String {
 
 pub fn run_loop(file: Option<String>) -> Result<()> {
     let mut debugger = debugger::MainDebugger::new()?;
+    let context = commands::command::CommandContext {
+        sourcemap: Box::new(dwarf::DwarfSourceMap {})
+    };
     if let Some(file) = file {
         let mut f = ::std::fs::File::open(file)?;
         let mut buffer = Vec::new();
@@ -36,6 +39,6 @@ pub fn run_loop(file: Option<String>) -> Result<()> {
         ],
         &history_file_path(),
     )?;
-    process.run_loop()?;
+    process.run_loop(context)?;
     Ok(())
 }

@@ -1,5 +1,6 @@
-use super::command::{self, Command, Interface};
+use super::command::{Command, CommandContext};
 use super::debugger::Debugger;
+use anyhow::Result;
 
 pub struct BacktraceCommand {}
 
@@ -16,9 +17,9 @@ impl<D: Debugger> Command<D> for BacktraceCommand {
     fn run(
         &self,
         debugger: &mut D,
-        _interface: &Interface,
-        _args: Vec<&str>,
-    ) -> Result<(), command::Error> {
+        context: &CommandContext,
+        args: Vec<&str>,
+    ) -> Result<()> {
         for (index, frame) in debugger.frame().iter().rev().enumerate() {
             println!("{}: {}", index, frame);
         }
