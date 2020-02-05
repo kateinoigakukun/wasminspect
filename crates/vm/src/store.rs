@@ -299,7 +299,7 @@ impl Store {
                     let section = section.get_global_section_reader()?;
                     for entry in section {
                         let entry = entry?;
-                        let value = eval_const_expr(entry.init_expr, &self, module_index);
+                        let value = eval_const_expr(&entry.init_expr, &self, module_index)?;
                         let instance = GlobalInstance::new(value, entry.ty.clone());
                         self.globals
                             .push(module_index, Rc::new(RefCell::new(instance)));
@@ -335,7 +335,7 @@ impl Store {
 
         let instance = DefinedModuleInstance::new_from_parity_module(
             module_index,
-            types.to_vec(),
+            types,
             exports,
             start_func,
         );
@@ -349,12 +349,12 @@ impl Store {
     pub fn load_parity_module(
         &mut self,
         name: Option<String>,
-        parity_module: &parity_wasm::elements::Module,
+        reader: &ModuleReader,
     ) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
         let result: Result<ModuleIndex> =
-            self.load_parity_module_internal(name.clone(), parity_module, module_index);
+            self.load_parity_module_internal(name.clone(), reader, module_index);
         match result {
             Ok(ok) => Ok(ok),
             Err(err) => {
@@ -634,7 +634,7 @@ impl Store {
         let mut global_addrs = Vec::new();
         for entry in section {
             let entry = entry?;
-            let value = eval_const_expr(entry.init_expr, &self, module_index);
+            let value = eval_const_expr(&entry.init_expr, &self, module_index)?;
             let instance = GlobalInstance::new(value, entry.ty.clone());
             let addr = self
                 .globals

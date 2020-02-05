@@ -6,6 +6,9 @@ use super::store::Store;
 use super::value::Value;
 use std::collections::HashMap;
 
+use anyhow::Result;
+use std::io::Read;
+
 pub struct WasmInstance {
     pub store: Store,
 }
@@ -15,17 +18,20 @@ impl WasmInstance {
         &mut self,
         name: Option<String>,
         module_filename: String,
-    ) -> Result<ModuleIndex, store::Error> {
-        let parity_module = parity_wasm::deserialize_file(module_filename).unwrap();
-        self.load_module_from_parity_module(name, parity_module)
+    ) -> Result<ModuleIndex> {
+        let mut f = ::std::fs::File::open(module_filename)?;
+        let mut buffer = Vec::new();
+        f.read_to_end(&mut buffer);
+        let reader = wasmparser::ModuleReader::new(&buffer)?;
+        self.load_module_from_parity_module(name, reader)
     }
 
     pub fn load_module_from_parity_module(
         &mut self,
         name: Option<String>,
-        parity_module: parity_wasm::elements::Module,
-    ) -> Result<ModuleIndex, store::Error> {
-        self.store.load_parity_module(name, &parity_module)
+        reader: wasmparser::ModuleReader,
+    ) -> Result<ModuleIndex> {
+        self.store.load_parity_module(name, &reader)
     }
 
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
