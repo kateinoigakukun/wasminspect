@@ -1,7 +1,9 @@
 use super::host::HostFuncBody;
+use super::inst::*;
 use super::module::*;
-use wasmparser::{FuncType, Type, Operator, FunctionBody};
+use anyhow::Result;
 use std::iter;
+use wasmparser::{FuncType, FunctionBody, Type};
 
 #[derive(Clone, Copy, Debug)]
 pub struct InstIndex(pub u32);
@@ -45,7 +47,7 @@ pub struct DefinedFunctionInstance {
     ty: FuncType,
     module_index: ModuleIndex,
     locals: Vec<Type>,
-    instructions: Vec<Operator>,
+    instructions: Vec<Instruction>,
 }
 
 impl DefinedFunctionInstance {
@@ -54,20 +56,27 @@ impl DefinedFunctionInstance {
         ty: FuncType,
         module_index: ModuleIndex,
         body: FunctionBody,
-    ) -> Self {
-        let locals = body
-            .locals()
-            .iter()
-            .flat_map(|locals| iter::repeat(locals.value_type()).take(locals.count() as usize))
-            .collect();
-        let instructions = body.code().elements().to_vec();
-        Self {
+    ) -> Result<Self> {
+        let locals = Vec::new();
+        let reader = body.get_locals_reader()?;
+        for local in reader {
+            let (count, value_type) = local?;
+            let elements = iter::repeat(value_type).take(count as usize);
+            locals.append(&mut elements.collect());
+        }
+        let reader = body.get_operators_reader()?;
+        let instructions = Vec::new();
+        while !reader.eof() {
+            let inst = transform_inst(&reader)?;
+            instructions.push(inst);
+        }
+        Ok(Self {
             name,
             ty,
             module_index,
             locals,
             instructions,
-        }
+        })
     }
 
     pub fn name(&self) -> &String {
@@ -119,12 +128,7 @@ impl HostFunctionInstance {
         &self.code
     }
 
-    pub fn new(
-        ty: FuncType,
-        module_name: String,
-        field_name: String,
-        code: HostFuncBody,
-    ) -> Self {
+    pub fn new(ty: FuncType, module_name: String, field_name: String, code: HostFuncBody) -> Self {
         Self {
             ty,
             module_name,
