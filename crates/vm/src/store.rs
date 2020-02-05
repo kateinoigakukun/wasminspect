@@ -626,27 +626,22 @@ impl Store {
         types: &[FuncType],
     ) -> Result<Vec<FuncAddr>> {
         let mut func_addrs = Vec::new();
+        let imported_funcs = self.funcs.items(module_index);
+        let mut index = imported_funcs.map(|items| items.len() as u32).unwrap_or(0);
         for (func_sig, body) in func_sigs.into_iter().zip(bodies) {
-            let index = self
-                .funcs
-                .items(module_index)
-                .map(|items| items.len() as u32)
-                .unwrap_or(0);
             let func_type = types
                 .get(func_sig as usize)
                 .ok_or(StoreError::UnknownType(func_sig))?
                 .clone();
-            let name = names
-                .get(&index)
-                .map(|n| n.clone())
-                .unwrap_or(format!(
-                    "<module #{} defined func #{}>",
-                    module_index.0, index
-                ));
+            let name = names.get(&index).map(|n| n.clone()).unwrap_or(format!(
+                "<module #{} defined func #{}>",
+                module_index.0, index
+            ));
             let defined = DefinedFunctionInstance::new(name, func_type, module_index, body)?;
             let instance = FunctionInstance::Defined(defined);
             let func_addr = self.funcs.push(module_index, instance);
             func_addrs.push(func_addr);
+            index += 1;
         }
         Ok(func_addrs)
     }
