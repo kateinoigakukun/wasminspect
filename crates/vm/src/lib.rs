@@ -13,6 +13,7 @@ mod store;
 mod table;
 mod value;
 mod interceptor;
+mod inst;
 
 pub use self::address::*;
 pub use self::executor::{Executor, Signal, simple_invoke_func};
