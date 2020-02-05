@@ -18,7 +18,7 @@ pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
     while !reader.eof() {
         let section = reader.read().expect("section");
         match section.code {
-            SectionCode::Custom { name, kind } => {
+            SectionCode::Custom { name, kind: _ } => {
                 let mut reader = section.get_binary_reader();
                 let len = reader.bytes_remaining();
                 sections.insert(name, reader.read_bytes(len).expect("bytes"));
@@ -75,8 +75,8 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<()> {
 
 pub fn transform_unit<'input>(unit: Unit<'input>) -> Result<()> {
     let mut entries = unit.entries();
-    if let Some((depth, cu_die)) = entries.next_dfs()? {}
+    if let Some((_depth, _cu_die)) = entries.next_dfs()? {}
     Ok(())
 }
 
-pub fn find_debug_line<'input>(unit: Unit<'input>) {}
+pub fn find_debug_line<'input>(_unit: Unit<'input>) {}

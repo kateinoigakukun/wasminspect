@@ -10,13 +10,13 @@ use super::module::{
 };
 use super::table::{self, TableInstance};
 use super::value::Value;
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, GlobalSectionReader,
-    GlobalType, Import, ImportSectionReader, MemoryType, ModuleReader, Name, SectionCode,
+    GlobalType, Import, MemoryType, ModuleReader, Name, SectionCode,
     TableType, Type,
 };
 

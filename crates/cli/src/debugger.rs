@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
-    CallFrame, Executor, FunctionInstance, InstIndex, Instruction, InstructionKind, Interceptor,
+    CallFrame, Executor, FunctionInstance, InstIndex, Instruction, Interceptor,
     MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap,
 };
 use wasminspect_wasi::instantiate_wasi;

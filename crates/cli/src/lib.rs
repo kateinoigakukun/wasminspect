@@ -22,7 +22,7 @@ pub fn run_loop(file: Option<String>) -> Result<()> {
         f.read_to_end(&mut buffer);
         debugger.load_module(&buffer)?;
         use dwarf::parse_dwarf;
-        let dwarf = parse_dwarf(&buffer);
+        let _dwarf = parse_dwarf(&buffer);
     }
     let mut process = process::Process::new(
         debugger,
