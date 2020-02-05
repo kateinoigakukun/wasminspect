@@ -1,15 +1,14 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use gimli::{
     DebugAbbrev, DebugAddr, DebugInfo, DebugLine, DebugLineStr, DebugLoc, DebugLocLists,
-    DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes, EndianSlice, LittleEndian,
-    LocationLists, RangeLists,
+    DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes, DebuggingInformationEntry,
+    EndianSlice, LineRow, LittleEndian, LocationLists, RangeLists, Unit,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use wasmparser::{ModuleReader, SectionCode};
 
 type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
 pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
-pub type Unit<'input> = gimli::Unit<Reader<'input>>;
 
 pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
     const EMPTY_SECTION: &[u8] = &[];
@@ -68,21 +67,71 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<()> {
     let mut headers = dwarf.units();
     while let Some(header) = headers.next()? {
         let unit = dwarf.unit(header)?;
-        transform_unit(unit)?
     }
     Ok(())
 }
 
-pub fn transform_unit<'input>(unit: Unit<'input>) -> Result<()> {
-    let mut entries = unit.entries();
-    if let Some((_depth, _cu_die)) = entries.next_dfs()? {}
-    Ok(())
+pub fn transform_debug_line<R: gimli::Reader>(
+    unit: &Unit<R, R::Offset>,
+    root: &DebuggingInformationEntry<R>,
+    dwarf: DebugLine<R>,
+    debug_line: &DebugLine<R>,
+) -> Result<DwarfSourceMap> {
+    let offset = match root.attr_value(gimli::DW_AT_stmt_list)? {
+        Some(gimli::AttributeValue::DebugLineRef(offset)) => offset,
+        _ => {
+            return Err(anyhow!("Debug line offset is not found"));
+        }
+    };
+
+    let program = debug_line
+        .program(offset, unit.header.address_size(), None, None)
+        .expect("parsable debug_line");
+
+    let header = program.header();
+
+    let mut files = Vec::new();
+    for file_entry in header.file_names() {
+        let dir_id = dirs[file_entry.directory_index() as usize];
+        let file_id = out_program.add_file(
+            clone_attr_string(
+                &file_entry.path_name(),
+                gimli::DW_FORM_string,
+                debug_str,
+                out_strings,
+            )?,
+            dir_id,
+            None,
+        );
+        files.push(file_id);
+    }
+
+    let mut rows = program.rows();
+    let mut sorted_rows = BTreeMap::new();
+    while let Some((_, row)) = rows.next_row()? {
+        sorted_rows.insert(row.address(), row.clone());
+    }
+    let sorted_rows: Vec<_> = sorted_rows.into_iter().collect();
+    Ok(DwarfSourceMap {
+        address_sorted_rows: sorted_rows,
+    })
 }
 
-pub fn find_debug_line<'input>(_unit: Unit<'input>) {}
+pub struct DwarfSourceMap {
+    address_sorted_rows: Vec<(u64, LineRow)>,
+}
 
 
-pub struct DwarfSourceMap {}
 
 use super::commands::sourcemap;
-impl sourcemap::SourceMap for DwarfSourceMap {}
+fn transform_lineinfo(row: LineRow) -> sourcemap::LineInfo {
+    sourcemap::LineInfo {
+    }
+}
+impl sourcemap::SourceMap for DwarfSourceMap {
+    fn find_line_info(&self, offset: usize) -> Option<sourcemap::LineInfo> {
+        match self.address_sorted_rows.binary_search_by_key(&(offset as u64), |i| i.0) {
+            Ok(i) => Some()
+        }
+    }
+}
