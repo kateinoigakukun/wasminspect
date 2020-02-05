@@ -3,9 +3,9 @@ mod debugger;
 mod dwarf;
 mod process;
 
-use std::io::Read;
-use std::env;
 use anyhow::Result;
+use std::env;
+use std::io::Read;
 
 fn history_file_path() -> String {
     format!(

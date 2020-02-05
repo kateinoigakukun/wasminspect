@@ -224,12 +224,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_tell".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I64,
-            Type::I32,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I64, Type::I32, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -286,12 +281,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_prestat_dir_name".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -311,12 +301,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_read".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -387,26 +372,17 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     );
     module.insert("random_get".to_string(), func);
 
-    let func = define_wasi_fn(
-        vec![],
-        Some(Type::I32),
-        |_args, ret, _ctx, _wasi_ctx| {
-            unsafe {
-                let result = sched_yield();
-                ret.push(WasmValue::I32(result as i32));
-            }
-            Ok(())
-        },
-    );
+    let func = define_wasi_fn(vec![], Some(Type::I32), |_args, ret, _ctx, _wasi_ctx| {
+        unsafe {
+            let result = sched_yield();
+            ret.push(WasmValue::I32(result as i32));
+        }
+        Ok(())
+    });
     module.insert("sched_yield".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -444,13 +420,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_filestat_get".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I32, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -527,12 +497,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_allocate".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I64,
-            Type::I64,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I64, Type::I64, Type::I32],
         Some(Type::I32),
         |args, ret, _ctx, wasi_ctx| {
             unsafe {
@@ -612,12 +577,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_filestat_set_size".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I64,
-            Type::I64,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I64, Type::I64, Type::I32],
         Some(Type::I32),
         |args, ret, _ctx, wasi_ctx| {
             unsafe {
@@ -636,13 +596,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_filestat_set_times".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I64,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I64, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -663,13 +617,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_pread".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I64,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I64, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -690,13 +638,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("fd_pwrite".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I64,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I64, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {
@@ -873,13 +815,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     module.insert("path_rename".to_string(), func);
 
     let func = define_wasi_fn(
-        vec![
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I32,
-            Type::I32,
-        ],
+        vec![Type::I32, Type::I32, Type::I32, Type::I32, Type::I32],
         Some(Type::I32),
         |args, ret, ctx, wasi_ctx| {
             unsafe {

@@ -14,7 +14,7 @@ use super::value::{
     ExtendInto, FromLittleEndian, IntoLittleEndian, NativeValue, Value, F32, F64, I32, I64, U32,
     U64,
 };
-use wasmparser::{Type, TypeOrFuncType, FuncType};
+use wasmparser::{FuncType, Type, TypeOrFuncType};
 
 use std::ops::*;
 
@@ -25,10 +25,7 @@ pub enum Trap {
     Stack(stack::Error),
     Table(table::Error),
     Value(value::Error),
-    IndirectCallTypeMismatch(
-        /* expected: */ FuncType,
-        /* actual: */ FuncType,
-    ),
+    IndirectCallTypeMismatch(/* expected: */ FuncType, /* actual: */ FuncType),
     UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
     UndefinedFunc(usize),
 }

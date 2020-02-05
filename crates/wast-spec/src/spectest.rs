@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::*;
-use wasmparser::{FuncType, Type, GlobalType};
+use wasmparser::{FuncType, GlobalType, Type};
 
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();
@@ -87,28 +87,40 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         "global_i32".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::I32(666),
-            GlobalType { content_type: Type::I32, mutable: false },
+            GlobalType {
+                content_type: Type::I32,
+                mutable: false,
+            },
         )),
     );
     module.insert(
         "global_i64".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::I64(666),
-            GlobalType { content_type: Type::I64, mutable: false },
+            GlobalType {
+                content_type: Type::I64,
+                mutable: false,
+            },
         )),
     );
     module.insert(
         "global_f32".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::F32(f32::from_bits(0x44268000)),
-            GlobalType { content_type: Type::F32, mutable: false },
+            GlobalType {
+                content_type: Type::F32,
+                mutable: false,
+            },
         )),
     );
     module.insert(
         "global_f64".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::F64(f64::from_bits(0x4084d00000000000)),
-            GlobalType { content_type: Type::F64, mutable: false },
+            GlobalType {
+                content_type: Type::F64,
+                mutable: false,
+            },
         )),
     );
 

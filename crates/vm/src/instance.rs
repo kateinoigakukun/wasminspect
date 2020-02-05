@@ -1,7 +1,6 @@
 use super::executor::{simple_invoke_func, WasmError};
 use super::host::HostValue;
 use super::module::ModuleIndex;
-use super::store;
 use super::store::Store;
 use super::value::Value;
 use std::collections::HashMap;
@@ -21,7 +20,7 @@ impl WasmInstance {
     ) -> Result<ModuleIndex> {
         let mut f = ::std::fs::File::open(module_filename)?;
         let mut buffer = Vec::new();
-        f.read_to_end(&mut buffer);
+        f.read_to_end(&mut buffer)?;
         let reader = wasmparser::ModuleReader::new(&buffer)?;
         self.load_module_from_parity_module(name, reader)
     }

@@ -1,4 +1,4 @@
-use wasminspect_vm::{WasmValue, Instruction};
+use wasminspect_vm::{Instruction, WasmValue};
 
 pub enum Breakpoint {
     Function { name: String },

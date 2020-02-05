@@ -1,6 +1,6 @@
 use super::address::*;
 use super::executor::{eval_const_expr, WasmError};
-use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance, eq_func_type};
+use super::func::{eq_func_type, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
 use super::host::HostValue;
 use super::linker::LinkableCollection;
@@ -326,19 +326,15 @@ impl Store {
             }
         }
 
-        self.load_imports(imports, module_index, &types);
-        self.load_functions(module_index, func_sigs, bodies, names, &types);
+        self.load_imports(imports, module_index, &types)?;
+        self.load_functions(module_index, func_sigs, bodies, names, &types)?;
         self.load_tables(tables, module_index, elem_segs)?;
         self.load_mems(mems, module_index, data_segs)?;
 
         let types = types.iter().map(|ty| ty.clone()).collect();
 
-        let instance = DefinedModuleInstance::new_from_parity_module(
-            module_index,
-            types,
-            exports,
-            start_func,
-        );
+        let instance =
+            DefinedModuleInstance::new_from_parity_module(module_index, types, exports, start_func);
         self.modules.push(ModuleInstance::Defined(instance));
         if let Some(name) = name {
             self.module_index_by_name.insert(name, module_index);

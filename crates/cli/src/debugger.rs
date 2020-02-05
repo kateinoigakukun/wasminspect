@@ -1,14 +1,14 @@
 use super::commands::debugger;
-use wasmparser::ModuleReader;
+use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
-    CallFrame, Executor, FunctionInstance, InstIndex, Interceptor, MemoryAddr, ModuleIndex,
-    ProgramCounter, Signal, Store, Trap, Instruction, InstructionKind,
+    CallFrame, Executor, FunctionInstance, InstIndex, Instruction, InstructionKind, Interceptor,
+    MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap,
 };
 use wasminspect_wasi::instantiate_wasi;
-use anyhow::Result;
+use wasmparser::ModuleReader;
 
 pub struct MainDebugger {
     store: Store,
@@ -21,10 +21,7 @@ pub struct MainDebugger {
 impl MainDebugger {
     pub fn load_module(&mut self, module: &[u8]) -> Result<()> {
         let mut reader = ModuleReader::new(module)?;
-        self.module_index = Some(
-            self.store
-                .load_parity_module(None, &mut reader)?,
-        );
+        self.module_index = Some(self.store.load_parity_module(None, &mut reader)?);
         Ok(())
     }
     pub fn new() -> Result<Self> {
@@ -150,16 +147,18 @@ impl debugger::Debugger for MainDebugger {
                         match result {
                             Ok(Signal::Next) => continue,
                             Ok(Signal::Breakpoint) => return Ok(debugger::RunResult::Breakpoint),
-                            Ok(Signal::End) => match executor.borrow_mut().pop_result(ret_types.to_vec()) {
-                                Ok(values) => {
-                                    self.executor = None;
-                                    return Ok(debugger::RunResult::Finish(values));
+                            Ok(Signal::End) => {
+                                match executor.borrow_mut().pop_result(ret_types.to_vec()) {
+                                    Ok(values) => {
+                                        self.executor = None;
+                                        return Ok(debugger::RunResult::Finish(values));
+                                    }
+                                    Err(err) => {
+                                        self.executor = None;
+                                        return Err(format!("Return value failure {:?}", err));
+                                    }
                                 }
-                                Err(err) => {
-                                    self.executor = None;
-                                    return Err(format!("Return value failure {:?}", err));
-                                }
-                            },
+                            }
                             Err(err) => {
                                 let err = Err(format!("Function exec failure {:?}", err));
                                 return err;

@@ -482,7 +482,7 @@ pub fn transform_inst(reader: &mut OperatorsReader) -> Result<Instruction> {
     let kind = match op {
         Unreachable => InstructionKind::Unreachable,
         Nop => InstructionKind::Nop,
-        Block { ty } => InstructionKind::Block { ty } ,
+        Block { ty } => InstructionKind::Block { ty },
         Loop { ty } => InstructionKind::Loop { ty },
         If { ty } => InstructionKind::If { ty },
         Else => InstructionKind::Else,
@@ -491,18 +491,21 @@ pub fn transform_inst(reader: &mut OperatorsReader) -> Result<Instruction> {
         BrIf { relative_depth } => InstructionKind::BrIf { relative_depth },
         BrTable { table } => {
             let br_table_depths = table.read_table().unwrap();
-            let payload = BrTableData { table: br_table_depths.0, default: br_table_depths.1 };
+            let payload = BrTableData {
+                table: br_table_depths.0,
+                default: br_table_depths.1,
+            };
             InstructionKind::BrTable { table: payload }
-        } ,
+        }
         Return => InstructionKind::Return,
-        Call { function_index } => InstructionKind::Call { function_index},
-        CallIndirect { index, table_index } => InstructionKind::CallIndirect { index, table_index},
+        Call { function_index } => InstructionKind::Call { function_index },
+        CallIndirect { index, table_index } => InstructionKind::CallIndirect { index, table_index },
         Drop => InstructionKind::Drop,
         Select => InstructionKind::Select,
-        TypedSelect { ty } => InstructionKind::TypedSelect {ty},
-        LocalGet { local_index } => InstructionKind::LocalGet {local_index},
-        LocalSet { local_index } => InstructionKind::LocalSet {local_index},
-        LocalTee { local_index } => InstructionKind::LocalTee {local_index},
+        TypedSelect { ty } => InstructionKind::TypedSelect { ty },
+        LocalGet { local_index } => InstructionKind::LocalGet { local_index },
+        LocalSet { local_index } => InstructionKind::LocalSet { local_index },
+        LocalTee { local_index } => InstructionKind::LocalTee { local_index },
         GlobalGet { global_index } => InstructionKind::GlobalGet { global_index },
         GlobalSet { global_index } => InstructionKind::GlobalSet { global_index },
         I32Load { memarg } => InstructionKind::I32Load { memarg },
@@ -665,7 +668,7 @@ pub fn transform_inst(reader: &mut OperatorsReader) -> Result<Instruction> {
         I64Extend8S => InstructionKind::I64Extend8S,
         I64Extend16S => InstructionKind::I64Extend16S,
         I64Extend32S => InstructionKind::I64Extend32S,
-    
+
         // 0xFC operators
         // Non-trapping Float-to-int Conversions
         I32TruncSatF32S => InstructionKind::I32TruncSatF32S,
@@ -676,22 +679,34 @@ pub fn transform_inst(reader: &mut OperatorsReader) -> Result<Instruction> {
         I64TruncSatF32U => InstructionKind::I64TruncSatF32U,
         I64TruncSatF64S => InstructionKind::I64TruncSatF64S,
         I64TruncSatF64U => InstructionKind::I64TruncSatF64U,
-    
+
         // 0xFC operators
         // bulk memory https://github.com/WebAssembly/bulk-memory-operations/blob/master/proposals/bulk-memory-operations/Overview.md
         MemoryInit { segment } => InstructionKind::MemoryInit { segment },
         DataDrop { segment } => InstructionKind::DataDrop { segment },
         MemoryCopy => InstructionKind::MemoryCopy,
         MemoryFill => InstructionKind::MemoryFill,
-        TableInit { segment, table: u32 } => InstructionKind::TableInit { segment, table: u32 },
+        TableInit {
+            segment,
+            table: u32,
+        } => InstructionKind::TableInit {
+            segment,
+            table: u32,
+        },
         ElemDrop { segment } => InstructionKind::ElemDrop { segment },
-        TableCopy { dst_table, src_table: u32 } => InstructionKind::TableCopy { dst_table, src_table: u32 },
+        TableCopy {
+            dst_table,
+            src_table: u32,
+        } => InstructionKind::TableCopy {
+            dst_table,
+            src_table: u32,
+        },
         TableFill { table } => InstructionKind::TableFill { table },
         TableGet { table } => InstructionKind::TableGet { table },
         TableSet { table } => InstructionKind::TableSet { table },
         TableGrow { table } => InstructionKind::TableGrow { table },
         TableSize { table } => InstructionKind::TableSize { table },
-    
+
         // 0xFE operators
         // https://github.com/WebAssembly/threads/blob/master/proposals/threads/Overview.md
         AtomicNotify { memarg } => InstructionKind::AtomicNotify { memarg },
@@ -761,7 +776,7 @@ pub fn transform_inst(reader: &mut OperatorsReader) -> Result<Instruction> {
         I64AtomicRmw8CmpxchgU { memarg } => InstructionKind::I64AtomicRmw8CmpxchgU { memarg },
         I64AtomicRmw16CmpxchgU { memarg } => InstructionKind::I64AtomicRmw16CmpxchgU { memarg },
         I64AtomicRmw32CmpxchgU { memarg } => InstructionKind::I64AtomicRmw32CmpxchgU { memarg },
-    
+
         // 0xFD operators
         // SIMD https://github.com/WebAssembly/simd/blob/master/proposals/simd/BinarySIMD.md
         V128Load { memarg } => InstructionKind::V128Load { memarg },
@@ -943,7 +958,6 @@ pub fn transform_inst(reader: &mut OperatorsReader) -> Result<Instruction> {
         I64x2Load32x2U { memarg } => InstructionKind::I64x2Load32x2U { memarg },
         I8x16RoundingAverageU => InstructionKind::I8x16RoundingAverageU,
         I16x8RoundingAverageU => InstructionKind::I16x8RoundingAverageU,
-
     };
     Ok(Instruction { kind, offset })
 }

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use gimli::{
     DebugAbbrev, DebugAddr, DebugInfo, DebugLine, DebugLineStr, DebugLoc, DebugLocLists,
     DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes, EndianSlice, LittleEndian,
@@ -5,7 +6,6 @@ use gimli::{
 };
 use std::collections::HashMap;
 use wasmparser::{ModuleReader, SectionCode};
-use anyhow::Result;
 
 type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
 pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
@@ -75,11 +75,8 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<()> {
 
 pub fn transform_unit<'input>(unit: Unit<'input>) -> Result<()> {
     let mut entries = unit.entries();
-    if let Some((depth, cu_die)) = entries.next_dfs()? {
-
-    }
+    if let Some((depth, cu_die)) = entries.next_dfs()? {}
     Ok(())
 }
 
-pub fn find_debug_line<'input>(unit: Unit<'input>) {
-}
+pub fn find_debug_line<'input>(unit: Unit<'input>) {}

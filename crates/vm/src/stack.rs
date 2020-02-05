@@ -259,11 +259,13 @@ impl Stack {
     }
 
     pub fn peek_values(&self) -> Vec<&Value> {
-        self.stack.iter()
+        self.stack
+            .iter()
             .filter_map(|v| match v {
                 StackValue::Value(v) => Some(v),
                 _ => None,
-            }).collect()
+            })
+            .collect()
     }
 }
 
