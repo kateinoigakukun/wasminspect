@@ -10,3 +10,4 @@ wast = "5.0.1"
 anyhow = "1.0.26"
 wasmparser = "0.49.0"
 wasmi-validation = "0.3.0"
+parity-wasm = { version = "0.41.0" }

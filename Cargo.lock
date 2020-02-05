@@ -945,6 +945,7 @@ name = "wast-spec"
 version = "0.1.0"
 dependencies = [
  "anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-wasm 0.41.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi-validation 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasminspect-vm 0.1.0",
  "wasmparser 0.49.0 (registry+https://github.com/rust-lang/crates.io-index)",

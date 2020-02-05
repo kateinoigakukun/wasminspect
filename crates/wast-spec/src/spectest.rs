@@ -1,44 +1,68 @@
-use parity_wasm::elements::{FunctionType, GlobalType, ValueType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::*;
+use wasmparser::{FuncType, Type, GlobalType};
 
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();
-    let ty = FunctionType::new(vec![], None);
+    let ty = FuncType {
+        form: Type::Func,
+        params: vec![].into_boxed_slice(),
+        returns: vec![].into_boxed_slice(),
+    };
     let func = HostValue::Func(HostFuncBody::new(ty, |_, _, _, _| Ok(())));
     module.insert("print".to_string(), func);
 
-    let ty = FunctionType::new(vec![ValueType::I32], None);
+    let ty = FuncType {
+        form: Type::Func,
+        params: vec![Type::I32].into_boxed_slice(),
+        returns: vec![].into_boxed_slice(),
+    };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: i32", params[0].as_i32().unwrap());
         Ok(())
     }));
     module.insert("print_i32".to_string(), func);
 
-    let ty = FunctionType::new(vec![ValueType::I64], None);
+    let ty = FuncType {
+        form: Type::Func,
+        params: vec![Type::I64].into_boxed_slice(),
+        returns: vec![].into_boxed_slice(),
+    };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: i64", params[0].as_i64().unwrap());
         Ok(())
     }));
     module.insert("print_i64".to_string(), func);
 
-    let ty = FunctionType::new(vec![ValueType::F32], None);
+    let ty = FuncType {
+        form: Type::Func,
+        params: vec![Type::F32].into_boxed_slice(),
+        returns: vec![].into_boxed_slice(),
+    };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: f32", params[0].as_f32().unwrap());
         Ok(())
     }));
     module.insert("print_f32".to_string(), func);
 
-    let ty = FunctionType::new(vec![ValueType::F64], None);
+    let ty = FuncType {
+        form: Type::Func,
+        params: vec![Type::F64].into_boxed_slice(),
+        returns: vec![].into_boxed_slice(),
+    };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: f64", params[0].as_f64().unwrap());
         Ok(())
     }));
     module.insert("print_f64".to_string(), func);
 
-    let ty = FunctionType::new(vec![ValueType::I32, ValueType::F32], None);
+    let ty = FuncType {
+        form: Type::Func,
+        params: vec![Type::I32, Type::F32].into_boxed_slice(),
+        returns: vec![].into_boxed_slice(),
+    };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: i32", params[0].as_i32().unwrap());
         println!("{}: f32", params[1].as_f32().unwrap());
@@ -46,7 +70,11 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     }));
     module.insert("print_i32_f32".to_string(), func);
 
-    let ty = FunctionType::new(vec![ValueType::F64, ValueType::F64], None);
+    let ty = FuncType {
+        form: Type::Func,
+        params: vec![Type::F64, Type::F64].into_boxed_slice(),
+        returns: vec![].into_boxed_slice(),
+    };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: f64", params[0].as_f64().unwrap());
         println!("{}: f64", params[1].as_f64().unwrap());
@@ -59,28 +87,28 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         "global_i32".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::I32(666),
-            GlobalType::new(ValueType::I32, false),
+            GlobalType { content_type: Type::I32, mutable: false },
         )),
     );
     module.insert(
         "global_i64".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::I64(666),
-            GlobalType::new(ValueType::I64, false),
+            GlobalType { content_type: Type::I64, mutable: false },
         )),
     );
     module.insert(
         "global_f32".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::F32(f32::from_bits(0x44268000)),
-            GlobalType::new(ValueType::F32, false),
+            GlobalType { content_type: Type::F32, mutable: false },
         )),
     );
     module.insert(
         "global_f64".to_string(),
         HostValue::Global(create_glbal(
             WasmValue::F64(f64::from_bits(0x4084d00000000000)),
-            GlobalType::new(ValueType::F64, false),
+            GlobalType { content_type: Type::F64, mutable: false },
         )),
     );
 
