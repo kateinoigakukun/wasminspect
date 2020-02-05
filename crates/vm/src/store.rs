@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, ModuleReader, Name, SectionCode, TableType, Type,
+    Import, MemoryType, ModuleReader, SectionCode, TableType, Type,
 };
 
 /// Store
