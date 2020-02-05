@@ -1,5 +1,4 @@
-use wasminspect_vm::WasmValue;
-use parity_wasm::elements::Instruction;
+use wasminspect_vm::{WasmValue, Instruction};
 
 pub enum Breakpoint {
     Function { name: String },

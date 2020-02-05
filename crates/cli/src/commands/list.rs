@@ -21,7 +21,7 @@ impl<D: Debugger> Command<D> for ListCommand {
             } else {
                 print!("  ")
             }
-            println!("{}", inst)
+            println!("{:?}", inst.kind)
         }
         Ok(())
     }

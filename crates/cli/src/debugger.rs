@@ -1,13 +1,14 @@
 use super::commands::debugger;
-use parity_wasm::elements::Instruction;
+use wasmparser::ModuleReader;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, Interceptor, MemoryAddr, ModuleIndex,
-    ProgramCounter, Signal, Store, Trap,
+    ProgramCounter, Signal, Store, Trap, Instruction, InstructionKind,
 };
 use wasminspect_wasi::instantiate_wasi;
+use anyhow::Result;
 
 pub struct MainDebugger {
     store: Store,
@@ -18,15 +19,15 @@ pub struct MainDebugger {
 }
 
 impl MainDebugger {
-    pub fn load_module(&mut self, parity_module: &parity_wasm::elements::Module) -> Result<(), String> {
+    pub fn load_module(&mut self, module: &[u8]) -> Result<()> {
+        let mut reader = ModuleReader::new(module)?;
         self.module_index = Some(
             self.store
-                .load_parity_module(None, parity_module)
-                .map_err(|err| format!("{}", err))?,
+                .load_parity_module(None, &mut reader)?,
         );
         Ok(())
     }
-    pub fn new() -> Result<Self, String> {
+    pub fn new() -> Result<Self> {
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
 
         let mut store = Store::new();
@@ -139,7 +140,7 @@ impl debugger::Debugger for MainDebugger {
                     }
                 }
                 (FunctionInstance::Defined(func), exec_addr) => {
-                    let ret_types = func.ty().return_type().map(|ty| vec![ty]).unwrap_or(vec![]);
+                    let ret_types = &func.ty().returns;
                     let frame = CallFrame::new_from_func(exec_addr, func, vec![], None);
                     let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                     let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
@@ -149,7 +150,7 @@ impl debugger::Debugger for MainDebugger {
                         match result {
                             Ok(Signal::Next) => continue,
                             Ok(Signal::Breakpoint) => return Ok(debugger::RunResult::Breakpoint),
-                            Ok(Signal::End) => match executor.borrow_mut().pop_result(ret_types) {
+                            Ok(Signal::End) => match executor.borrow_mut().pop_result(ret_types.to_vec()) {
                                 Ok(values) => {
                                     self.executor = None;
                                     return Ok(debugger::RunResult::Finish(values));

@@ -29,5 +29,6 @@ pub use self::store::Store;
 pub use self::table::TableInstance as HostTable;
 pub use self::value::Value as WasmValue;
 pub use self::interceptor::{Interceptor, NopInterceptor};
+pub use self::inst::{Instruction, InstructionKind};
 
 pub const WASM_PAGE_SIZE: usize = 0x10000;

@@ -3,19 +3,28 @@ use gimli::{
     DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes, EndianSlice, LittleEndian,
     LocationLists, RangeLists,
 };
-use parity_wasm::elements::{Module};
 use std::collections::HashMap;
-use anyhow::Error;
+use wasmparser::{ModuleReader, SectionCode};
+use anyhow::Result;
 
 type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
 pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
 pub type Unit<'input> = gimli::Unit<Reader<'input>>;
 
-pub fn parse_dwarf(module: &Module) -> Dwarf {
+pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
     const EMPTY_SECTION: &[u8] = &[];
+    let mut reader = ModuleReader::new(module)?;
     let mut sections = HashMap::new();
-    for section in module.custom_sections() {
-        sections.insert(section.name(), section.payload());
+    while !reader.eof() {
+        let section = reader.read().expect("section");
+        match section.code {
+            SectionCode::Custom { name, kind } => {
+                let mut reader = section.get_binary_reader();
+                let len = reader.bytes_remaining();
+                sections.insert(name, reader.read_bytes(len).expect("bytes"));
+            }
+            _ => (),
+        }
     }
     let endian = LittleEndian;
     let debug_str = DebugStr::new(sections.get(".debug_str").unwrap(), endian);
@@ -40,7 +49,7 @@ pub fn parse_dwarf(module: &Module) -> Dwarf {
     let debug_str_offsets = DebugStrOffsets::from(EndianSlice::new(EMPTY_SECTION, endian));
     let debug_types = DebugTypes::from(EndianSlice::new(EMPTY_SECTION, endian));
 
-    Dwarf {
+    Ok(Dwarf {
         debug_abbrev,
         debug_addr,
         debug_info,
@@ -52,10 +61,10 @@ pub fn parse_dwarf(module: &Module) -> Dwarf {
         debug_types,
         locations,
         ranges,
-    }
+    })
 }
 
-pub fn transform_dwarf(dwarf: Dwarf) -> Result<(), Error> {
+pub fn transform_dwarf(dwarf: Dwarf) -> Result<()> {
     let mut headers = dwarf.units();
     while let Some(header) = headers.next()? {
         let unit = dwarf.unit(header)?;
@@ -64,7 +73,7 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn transform_unit<'input>(unit: Unit<'input>) -> Result<(), Error> {
+pub fn transform_unit<'input>(unit: Unit<'input>) -> Result<()> {
     let mut entries = unit.entries();
     if let Some((depth, cu_die)) = entries.next_dfs()? {
 
