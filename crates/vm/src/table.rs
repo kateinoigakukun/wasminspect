@@ -46,7 +46,7 @@ impl TableInstance {
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: Vec<FuncAddr>) -> Result<()> {
+    pub fn initialize(&mut self, offset: usize, data: Vec<Option<FuncAddr>>) -> Result<()> {
         {
             if let Some(max_addr) = offset.checked_add(data.len()) {
                 if max_addr > self.buffer_len() {
@@ -57,7 +57,7 @@ impl TableInstance {
             }
         }
         for (index, func_addr) in data.into_iter().enumerate() {
-            self.buffer[offset + index] = Some(func_addr);
+            self.buffer[offset + index] = func_addr;
         }
         Ok(())
     }

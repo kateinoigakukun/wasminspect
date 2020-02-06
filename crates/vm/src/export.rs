@@ -1,6 +1,5 @@
 use super::address::*;
 use super::module::ModuleIndex;
-use parity_wasm::elements::Internal;
 
 pub struct ExportInstance {
     name: String,
@@ -16,27 +15,25 @@ impl ExportInstance {
         &self.value
     }
 
-    pub fn new_from_parity_entry(
-        parity_entry: parity_wasm::elements::ExportEntry,
-        module_index: ModuleIndex,
-    ) -> Self {
+    pub fn new_from_parity_entry(entry: wasmparser::Export, module_index: ModuleIndex) -> Self {
+        use wasmparser::ExternalKind;
         Self {
-            name: parity_entry.field().to_string(),
-            value: match parity_entry.internal() {
-                Internal::Function(func_index) => {
-                    let addr = FuncAddr::new_unsafe(module_index, *func_index as usize);
+            name: entry.field.to_string(),
+            value: match entry.kind {
+                ExternalKind::Function => {
+                    let addr = FuncAddr::new_unsafe(module_index, entry.index as usize);
                     ExternalValue::Func(addr)
                 }
-                Internal::Global(global_index) => {
-                    let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
+                ExternalKind::Global => {
+                    let addr = GlobalAddr::new_unsafe(module_index, entry.index as usize);
                     ExternalValue::Global(addr)
                 }
-                Internal::Memory(memory_index) => {
-                    let addr = MemoryAddr::new_unsafe(module_index, *memory_index as usize);
+                ExternalKind::Memory => {
+                    let addr = MemoryAddr::new_unsafe(module_index, entry.index as usize);
                     ExternalValue::Memory(addr)
                 }
-                Internal::Table(table_index) => {
-                    let addr = TableAddr::new_unsafe(module_index, *table_index as usize);
+                ExternalKind::Table => {
+                    let addr = TableAddr::new_unsafe(module_index, entry.index as usize);
                     ExternalValue::Table(addr)
                 }
             },

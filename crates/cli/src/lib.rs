@@ -1,8 +1,11 @@
 mod commands;
 mod debugger;
+mod dwarf;
 mod process;
 
+use anyhow::Result;
 use std::env;
+use std::io::Read;
 
 fn history_file_path() -> String {
     format!(
@@ -11,8 +14,21 @@ fn history_file_path() -> String {
     )
 }
 
-pub fn run_loop(file: Option<String>) -> Result<(), String> {
-    let debugger = debugger::MainDebugger::new(file)?;
+pub fn run_loop(file: Option<String>) -> Result<()> {
+    let mut debugger = debugger::MainDebugger::new()?;
+    let mut context = commands::command::CommandContext {
+        sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new())
+    };
+    if let Some(file) = file {
+        let mut f = ::std::fs::File::open(file)?;
+        let mut buffer = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        debugger.load_module(&buffer)?;
+        use dwarf::{parse_dwarf, transform_dwarf};
+        let dwarf = parse_dwarf(&buffer)?;
+        let debug_info = transform_dwarf(dwarf)?;
+        context.sourcemap = Box::new(debug_info.sourcemap);
+    }
     let mut process = process::Process::new(
         debugger,
         vec![
@@ -24,8 +40,7 @@ pub fn run_loop(file: Option<String>) -> Result<(), String> {
             Box::new(commands::breakpoint::BreakpointCommand::new()),
         ],
         &history_file_path(),
-    )
-    .map_err(|e| format!("{}", e))?;
-    process.run_loop().map_err(|e| format!("{}", e))?;
+    )?;
+    process.run_loop(context)?;
     Ok(())
 }
