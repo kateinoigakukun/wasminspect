@@ -71,10 +71,25 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<()> {
     Ok(())
 }
 
+use gimli::AttributeValue;
+fn extract_attr_string<R: gimli::Reader>(
+    attr_value: AttributeValue<R>,
+    debug_str: &DebugStr<R>,
+) -> Result<String> {
+    let bytes = match attr_value {
+        AttributeValue::DebugStrRef(str_offset) => debug_str.get_str(str_offset)?,
+        AttributeValue::String(b) => b,
+    };
+    Ok(String::from_utf8(bytes.to_slice()?.to_vec())?)
+}
+
+use std::ffi::OsStr;
+use std::path::Path;
+
 pub fn transform_debug_line<R: gimli::Reader>(
     unit: &Unit<R, R::Offset>,
     root: &DebuggingInformationEntry<R>,
-    dwarf: DebugLine<R>,
+    dwarf: gimli::Dwarf<R>,
     debug_line: &DebugLine<R>,
 ) -> Result<DwarfSourceMap> {
     let offset = match root.attr_value(gimli::DW_AT_stmt_list)? {
@@ -90,20 +105,18 @@ pub fn transform_debug_line<R: gimli::Reader>(
 
     let header = program.header();
 
+    let dirs = header.include_directories();
     let mut files = Vec::new();
     for file_entry in header.file_names() {
-        let dir_id = dirs[file_entry.directory_index() as usize];
-        let file_id = out_program.add_file(
-            clone_attr_string(
-                &file_entry.path_name(),
-                gimli::DW_FORM_string,
-                debug_str,
-                out_strings,
-            )?,
-            dir_id,
-            None,
+        let dir = dirs[file_entry.directory_index() as usize];
+        let dir_str = Path::new(dwarf.attr_string(unit, dir)?.to_string()?.as_ref());
+        let path = dir_str.join(
+            dwarf
+                .attr_string(unit, file_entry.path_name())?
+                .to_string()?
+                .as_ref(),
         );
-        files.push(file_id);
+        files.push(path);
     }
 
     let mut rows = program.rows();
@@ -114,24 +127,44 @@ pub fn transform_debug_line<R: gimli::Reader>(
     let sorted_rows: Vec<_> = sorted_rows.into_iter().collect();
     Ok(DwarfSourceMap {
         address_sorted_rows: sorted_rows,
+        paths: files,
     })
 }
 
 pub struct DwarfSourceMap {
     address_sorted_rows: Vec<(u64, LineRow)>,
+    paths: Vec<std::path::PathBuf>,
 }
 
-
-
 use super::commands::sourcemap;
-fn transform_lineinfo(row: LineRow) -> sourcemap::LineInfo {
-    sourcemap::LineInfo {
+impl DwarfSourceMap {
+    fn transform_lineinfo(self, row: LineRow) -> sourcemap::LineInfo {
+        let filepath = self.paths[row.file_index() as usize];
+        sourcemap::LineInfo {
+            filepath: filepath.to_str().unwrap().to_string(),
+            line: row.line(),
+            column: match row.column() {
+                gimli::ColumnType::Column(c) => sourcemap::ColumnType::Column(c),
+                gimli::ColumnType::LeftEdge => sourcemap::ColumnType::LeftEdge,
+            },
+        }
     }
 }
 impl sourcemap::SourceMap for DwarfSourceMap {
     fn find_line_info(&self, offset: usize) -> Option<sourcemap::LineInfo> {
-        match self.address_sorted_rows.binary_search_by_key(&(offset as u64), |i| i.0) {
-            Ok(i) => Some()
-        }
+        let row = match self
+            .address_sorted_rows
+            .binary_search_by_key(&(offset as u64), |i| i.0)
+        {
+            Ok(i) => Some(self.address_sorted_rows[i].1),
+            Err(i) => {
+                if i > 0 {
+                    Some(self.address_sorted_rows[i].1)
+                } else {
+                    None
+                }
+            }
+        }?;
+        Some(self.transform_lineinfo(row))
     }
 }
