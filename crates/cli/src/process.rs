@@ -54,8 +54,13 @@ impl<D: Debugger> Process<D> {
                         eprintln!("{}", err);
                     }
                 }
+            } else if cmd_name == "help" {
+                println!("Available commands:");
+                for (_, command) in &self.commands {
+                    println!("  {} -- {}", command.name(), command.description());
+                }
             } else {
-                eprintln!("invalid command name {}", cmd_name);
+                eprintln!("'{}' is not a valid command.", cmd_name);
             }
         }
         Ok(())

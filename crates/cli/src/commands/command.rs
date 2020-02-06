@@ -8,5 +8,8 @@ pub struct CommandContext {
 
 pub trait Command<D: Debugger> {
     fn name(&self) -> &'static str;
+    fn description(&self) -> &'static str {
+        "No description yet"
+    }
     fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()>;
 }
