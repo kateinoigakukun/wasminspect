@@ -63,35 +63,39 @@ pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
     })
 }
 
-pub fn transform_dwarf(dwarf: Dwarf) -> Result<()> {
+pub struct DwarfDebugInfo {
+    pub sourcemap: DwarfSourceMap,
+}
+pub fn transform_dwarf(dwarf: Dwarf) -> Result<DwarfDebugInfo> {
     let mut headers = dwarf.units();
+    let mut sourcemaps = Vec::new();
     while let Some(header) = headers.next()? {
         let unit = dwarf.unit(header)?;
+        let mut entries = unit.entries();
+        let root = match entries.next_dfs()? {
+            Some((_, entry)) => entry,
+            None => continue,
+        };
+        sourcemaps.push(transform_debug_line(
+            &unit,
+            root,
+            &dwarf,
+            &dwarf.debug_line,
+        )?)
     }
-    Ok(())
+    Ok(DwarfDebugInfo {
+        sourcemap: DwarfSourceMap { units: sourcemaps },
+    })
 }
 
-use gimli::AttributeValue;
-fn extract_attr_string<R: gimli::Reader>(
-    attr_value: AttributeValue<R>,
-    debug_str: &DebugStr<R>,
-) -> Result<String> {
-    let bytes = match attr_value {
-        AttributeValue::DebugStrRef(str_offset) => debug_str.get_str(str_offset)?,
-        AttributeValue::String(b) => b,
-    };
-    Ok(String::from_utf8(bytes.to_slice()?.to_vec())?)
-}
-
-use std::ffi::OsStr;
 use std::path::Path;
 
 pub fn transform_debug_line<R: gimli::Reader>(
     unit: &Unit<R, R::Offset>,
     root: &DebuggingInformationEntry<R>,
-    dwarf: gimli::Dwarf<R>,
+    dwarf: &gimli::Dwarf<R>,
     debug_line: &DebugLine<R>,
-) -> Result<DwarfSourceMap> {
+) -> Result<DwarfUnitSourceMap> {
     let offset = match root.attr_value(gimli::DW_AT_stmt_list)? {
         Some(gimli::AttributeValue::DebugLineRef(offset)) => offset,
         _ => {
@@ -105,12 +109,19 @@ pub fn transform_debug_line<R: gimli::Reader>(
 
     let header = program.header();
 
-    let dirs = header.include_directories();
+    let sequence_base_index: usize = if header.version() >= 5 { 0 } else { 1 };
+
+    let mut dirs = vec!["./".to_string()];
+    for dir in header.include_directories() {
+        let dir_str =
+            String::from_utf8(dwarf.attr_string(unit, dir.clone())?.to_slice()?.to_vec()).unwrap();
+        dirs.push(dir_str)
+    }
     let mut files = Vec::new();
     for file_entry in header.file_names() {
-        let dir = dirs[file_entry.directory_index() as usize];
-        let dir_str = Path::new(dwarf.attr_string(unit, dir)?.to_string()?.as_ref());
-        let path = dir_str.join(
+        let dir = dirs[file_entry.directory_index() as usize].clone();
+        let dir_path = Path::new(&dir);
+        let path = dir_path.join(
             dwarf
                 .attr_string(unit, file_entry.path_name())?
                 .to_string()?
@@ -125,21 +136,23 @@ pub fn transform_debug_line<R: gimli::Reader>(
         sorted_rows.insert(row.address(), row.clone());
     }
     let sorted_rows: Vec<_> = sorted_rows.into_iter().collect();
-    Ok(DwarfSourceMap {
+    Ok(DwarfUnitSourceMap {
         address_sorted_rows: sorted_rows,
         paths: files,
+        sequence_base_index,
     })
 }
 
-pub struct DwarfSourceMap {
+pub struct DwarfUnitSourceMap {
     address_sorted_rows: Vec<(u64, LineRow)>,
     paths: Vec<std::path::PathBuf>,
+    sequence_base_index: usize,
 }
 
 use super::commands::sourcemap;
-impl DwarfSourceMap {
-    fn transform_lineinfo(self, row: LineRow) -> sourcemap::LineInfo {
-        let filepath = self.paths[row.file_index() as usize];
+impl DwarfUnitSourceMap {
+    fn transform_lineinfo(&self, row: LineRow) -> sourcemap::LineInfo {
+        let filepath = self.paths[row.file_index() as usize - self.sequence_base_index].clone();
         sourcemap::LineInfo {
             filepath: filepath.to_str().unwrap().to_string(),
             line: row.line(),
@@ -150,7 +163,7 @@ impl DwarfSourceMap {
         }
     }
 }
-impl sourcemap::SourceMap for DwarfSourceMap {
+impl DwarfUnitSourceMap {
     fn find_line_info(&self, offset: usize) -> Option<sourcemap::LineInfo> {
         let row = match self
             .address_sorted_rows
@@ -159,12 +172,27 @@ impl sourcemap::SourceMap for DwarfSourceMap {
             Ok(i) => Some(self.address_sorted_rows[i].1),
             Err(i) => {
                 if i > 0 {
-                    Some(self.address_sorted_rows[i].1)
+                    Some(self.address_sorted_rows[i - 1].1)
                 } else {
                     None
                 }
             }
         }?;
         Some(self.transform_lineinfo(row))
+    }
+}
+
+pub struct DwarfSourceMap {
+    units: Vec<DwarfUnitSourceMap>,
+}
+
+impl sourcemap::SourceMap for DwarfSourceMap {
+    fn find_line_info(&self, offset: usize) -> Option<sourcemap::LineInfo> {
+        for unit in &self.units {
+            if let Some(line_info) = unit.find_line_info(offset) {
+                return Some(line_info);
+            }
+        }
+        return None;
     }
 }
