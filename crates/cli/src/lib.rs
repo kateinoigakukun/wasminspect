@@ -39,6 +39,7 @@ pub fn run_loop(file: Option<String>) -> Result<()> {
             Box::new(commands::stack::StackCommand::new()),
             Box::new(commands::breakpoint::BreakpointCommand::new()),
         ],
+        vec![],
         &history_file_path(),
     )?;
     process.run_loop(context)?;

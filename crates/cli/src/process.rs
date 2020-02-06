@@ -1,13 +1,15 @@
-use super::commands::command::{self, Command};
+use super::commands::command::{self, Command, AliasCommand};
 use super::commands::debugger::Debugger;
 use linefeed::{DefaultTerminal, Interface, ReadResult};
 use std::collections::HashMap;
 use std::io;
+use anyhow::Result;
 
 pub struct Process<D: Debugger> {
     interface: Interface<DefaultTerminal>,
     debugger: D,
     commands: HashMap<String, Box<dyn Command<D>>>,
+    aliases: HashMap<String, Box<dyn AliasCommand>>,
 
     history_file: String,
 }
@@ -16,6 +18,7 @@ impl<D: Debugger> Process<D> {
     pub fn new(
         debugger: D,
         commands: Vec<Box<dyn Command<D>>>,
+        aliases: Vec<Box<dyn AliasCommand>>,
         history_file: &str,
     ) -> io::Result<Self> {
         let interface = Interface::new("wasminspect")?;
@@ -32,36 +35,48 @@ impl<D: Debugger> Process<D> {
         for cmd in commands {
             cmd_map.insert(cmd.name().to_string().clone(), cmd);
         }
+        let mut alias_map = HashMap::new();
+        for cmd in aliases {
+            alias_map.insert(cmd.name().to_string().clone(), cmd);
+        }
         Ok(Self {
             interface,
             debugger,
             commands: cmd_map,
+            aliases: alias_map,
             history_file: history_file.to_string(),
         })
     }
 
-    pub fn run_loop(&mut self, context: command::CommandContext) -> io::Result<()> {
+    pub fn run_loop(&mut self, context: command::CommandContext) -> Result<()> {
         while let ReadResult::Input(line) = self.interface.read_line()? {
             if !line.trim().is_empty() {
                 self.interface.add_history_unique(line.clone());
             }
-            let cmd_name = extract_command_name(&line);
-            if let Some(cmd) = self.commands.get(cmd_name) {
-                let args = line.split_whitespace();
-                match cmd.run(&mut self.debugger, &context, args.collect()) {
-                    Ok(()) => (),
-                    Err(err) => {
-                        eprintln!("{}", err);
-                    }
+            self.dispatch_command(line, &context)?;
+        }
+        Ok(())
+    }
+
+    fn dispatch_command(&mut self, line: String, context: &command::CommandContext) -> Result<()> {
+        let cmd_name = extract_command_name(&line);
+        let args = line.split_whitespace().collect();
+        if let Some(cmd) = self.commands.get(cmd_name) {
+            match cmd.run(&mut self.debugger, &context, args) {
+                Ok(()) => (),
+                Err(err) => {
+                    eprintln!("{}", err);
                 }
-            } else if cmd_name == "help" {
-                println!("Available commands:");
-                for (_, command) in &self.commands {
-                    println!("  {} -- {}", command.name(), command.description());
-                }
-            } else {
-                eprintln!("'{}' is not a valid command.", cmd_name);
             }
+        } else if let Some(alias) = self.aliases.get(cmd_name) {
+            self.dispatch_command(alias.run(args)?, context)?
+        } else if cmd_name == "help" {
+            println!("Available commands:");
+            for (_, command) in &self.commands {
+                println!("  {} -- {}", command.name(), command.description());
+            }
+        } else {
+            eprintln!("'{}' is not a valid command.", cmd_name);
         }
         Ok(())
     }
