@@ -1,5 +1,5 @@
 use super::commands::debugger;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

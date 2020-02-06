@@ -17,8 +17,8 @@ impl<D: Debugger> Command<D> for BacktraceCommand {
     fn run(
         &self,
         debugger: &mut D,
-        context: &CommandContext,
-        args: Vec<&str>,
+        _context: &CommandContext,
+        _args: Vec<&str>,
     ) -> Result<()> {
         for (index, frame) in debugger.frame().iter().rev().enumerate() {
             println!("{}: {}", index, frame);

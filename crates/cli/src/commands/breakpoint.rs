@@ -27,7 +27,7 @@ impl<D: Debugger> Command<D> for BreakpointCommand {
     fn run(
         &self,
         debugger: &mut D,
-        context: &CommandContext,
+        _context: &CommandContext,
         args: Vec<&str>,
     ) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;

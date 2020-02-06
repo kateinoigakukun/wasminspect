@@ -30,7 +30,7 @@ impl<D: Debugger> Command<D> for MemoryCommand {
     fn run(
         &self,
         debugger: &mut D,
-        context: &CommandContext,
+        _context: &CommandContext,
         args: Vec<&str>,
     ) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;

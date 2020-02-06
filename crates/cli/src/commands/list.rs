@@ -16,7 +16,7 @@ impl<D: Debugger> Command<D> for ListCommand {
         "list"
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         let (insts, next_index) = debugger.instructions()?;
         let current_index = if next_index == 0 { 0 } else { next_index - 1 };
         let first_inst = insts[current_index].clone();

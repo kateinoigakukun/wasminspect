@@ -18,8 +18,8 @@ impl<D: Debugger> Command<D> for StackCommand {
     fn run(
         &self,
         debugger: &mut D,
-        context: &CommandContext,
-        args: Vec<&str>,
+        _context: &CommandContext,
+        _args: Vec<&str>,
     ) -> Result<()> {
         for (index, value) in debugger.stack_values().iter().enumerate() {
             println!("{}: {}", index, value)

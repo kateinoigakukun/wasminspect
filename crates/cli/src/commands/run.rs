@@ -3,7 +3,7 @@ use super::debugger::{Debugger, RunResult};
 use std::io::Write;
 
 use structopt::StructOpt;
-use clap::{App, Arg};
+
 use anyhow::Result;
 
 pub struct RunCommand {}
@@ -26,7 +26,7 @@ impl<D: Debugger> Command<D> for RunCommand {
     fn run(
         &self,
         debugger: &mut D,
-        context: &CommandContext,
+        _context: &CommandContext,
         args: Vec<&str>,
     ) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;

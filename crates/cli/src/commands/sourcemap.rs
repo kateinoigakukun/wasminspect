@@ -22,7 +22,7 @@ impl EmptySourceMap {
     }
 }
 impl SourceMap for EmptySourceMap {
-    fn find_line_info(&self, offset: usize) -> Option<LineInfo> {
+    fn find_line_info(&self, _offset: usize) -> Option<LineInfo> {
         None
     }
 }
