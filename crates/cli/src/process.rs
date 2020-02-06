@@ -69,7 +69,8 @@ impl<D: Debugger> Process<D> {
                 }
             }
         } else if let Some(alias) = self.aliases.get(cmd_name) {
-            self.dispatch_command(alias.run(args)?, context)?
+            let line = alias.run(args)?.clone();
+            self.dispatch_command(line, context)?
         } else if cmd_name == "help" {
             println!("Available commands:");
             for (_, command) in &self.commands {
