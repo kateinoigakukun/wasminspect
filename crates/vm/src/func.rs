@@ -56,6 +56,7 @@ impl DefinedFunctionInstance {
         ty: FuncType,
         module_index: ModuleIndex,
         body: FunctionBody,
+        base_offset: usize,
     ) -> Result<Self> {
         let mut locals = Vec::new();
         let reader = body.get_locals_reader()?;
@@ -67,7 +68,7 @@ impl DefinedFunctionInstance {
         let mut reader = body.get_operators_reader()?;
         let mut instructions = Vec::new();
         while !reader.eof() {
-            let inst = transform_inst(&mut reader)?;
+            let inst = transform_inst(&mut reader, base_offset)?;
             instructions.push(inst);
         }
         Ok(Self {

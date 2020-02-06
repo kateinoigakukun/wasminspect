@@ -262,6 +262,8 @@ impl Store {
 
         let mut start_func = None;
 
+        let mut code_section_base_offset = None;
+
         while !reader.eof() {
             let section = reader.read()?;
             match section.code {
@@ -309,6 +311,7 @@ impl Store {
                 }
                 SectionCode::Code => {
                     let section = section.get_code_section_reader()?;
+                    code_section_base_offset = Some(section.original_position());
                     bodies.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         bodies.push(entry?);
@@ -357,7 +360,9 @@ impl Store {
 
         self.load_imports(imports, module_index, &types)?;
         self.load_globals(globals, module_index)?;
-        self.load_functions(module_index, func_sigs, bodies, func_names, &types)?;
+        if let Some(base_offset) = code_section_base_offset {
+            self.load_functions(module_index, func_sigs, bodies, func_names, &types, base_offset)?;
+        }
         self.load_tables(tables, module_index, elem_segs)?;
         self.load_mems(mems, module_index, data_segs)?;
 
@@ -624,6 +629,7 @@ impl Store {
         bodies: Vec<FunctionBody>,
         names: HashMap<u32, String>,
         types: &[FuncType],
+        base_offset: usize
     ) -> Result<Vec<FuncAddr>> {
         let mut func_addrs = Vec::new();
         let imported_funcs = self.funcs.items(module_index);
@@ -637,7 +643,7 @@ impl Store {
                 "<module #{} defined func #{}>",
                 module_index.0, index
             ));
-            let defined = DefinedFunctionInstance::new(name, func_type, module_index, body)?;
+            let defined = DefinedFunctionInstance::new(name, func_type, module_index, body, base_offset)?;
             let instance = FunctionInstance::Defined(defined);
             let func_addr = self.funcs.push(module_index, instance);
             func_addrs.push(func_addr);

@@ -848,7 +848,9 @@ pub fn eval_const_expr(
     module_index: ModuleIndex,
 ) -> anyhow::Result<Value> {
     use super::inst::transform_inst;
-    let inst = transform_inst(&mut init_expr.get_operators_reader())?;
+    let mut reader = init_expr.get_operators_reader();
+    let base_offset = reader.original_position();
+    let inst = transform_inst(&mut reader, base_offset)?;
     let val = match inst.kind {
         InstructionKind::I32Const { value } => Value::I32(value),
         InstructionKind::I64Const { value } => Value::I64(value),
