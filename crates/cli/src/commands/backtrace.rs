@@ -1,5 +1,4 @@
-use super::command::{Command, CommandContext};
-use super::debugger::Debugger;
+use super::command::AliasCommand;
 use anyhow::Result;
 
 pub struct BacktraceCommand {}
@@ -10,19 +9,12 @@ impl BacktraceCommand {
     }
 }
 
-impl<D: Debugger> Command<D> for BacktraceCommand {
+impl AliasCommand for BacktraceCommand {
     fn name(&self) -> &'static str {
         "bt"
     }
-    fn run(
-        &self,
-        debugger: &mut D,
-        _context: &CommandContext,
-        _args: Vec<&str>,
-    ) -> Result<()> {
-        for (index, frame) in debugger.frame().iter().rev().enumerate() {
-            println!("{}: {}", index, frame);
-        }
-        Ok(())
+
+    fn run(&self, _args: Vec<&str>) -> Result<String> {
+        Ok("thread backtrace".to_string())
     }
 }

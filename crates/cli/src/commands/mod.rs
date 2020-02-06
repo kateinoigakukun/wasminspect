@@ -7,3 +7,4 @@ pub mod memory;
 pub mod run;
 pub mod stack;
 pub mod sourcemap;
+pub mod thread;
