@@ -101,6 +101,15 @@ impl debugger::Debugger for MainDebugger {
         self.executor.is_some()
     }
 
+    fn step(&self) -> Result<Signal> {
+        let executor = if let Some(ref executor) = self.executor {
+            executor
+        } else {
+            return Err(anyhow!("No execution context"));
+        };
+        Ok(executor.borrow_mut().execute_step(&self.store, self)?)
+    }
+
     fn run(&mut self, name: Option<String>) -> Result<debugger::RunResult> {
         if let Some(module_index) = self.module_index {
             let module = self.store.module(module_index).defined().unwrap();

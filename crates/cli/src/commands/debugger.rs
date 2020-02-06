@@ -1,4 +1,4 @@
-use wasminspect_vm::{Instruction, WasmValue};
+use wasminspect_vm::{Instruction, WasmValue, Signal};
 use anyhow::Result;
 
 pub enum Breakpoint {
@@ -18,4 +18,5 @@ pub trait Debugger {
     fn set_breakpoint(&mut self, breakpoint: Breakpoint);
     fn stack_values(&self) -> Vec<String>;
     fn instructions(&self) -> Result<(&[Instruction], usize)>;
+    fn step(&self) -> Result<Signal>;
 }
