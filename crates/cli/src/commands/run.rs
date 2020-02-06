@@ -2,6 +2,7 @@ use super::command::{Command, CommandContext};
 use super::debugger::{Debugger, RunResult};
 use std::io::Write;
 
+use structopt::StructOpt;
 use clap::{App, Arg};
 use anyhow::Result;
 
@@ -13,7 +14,11 @@ impl RunCommand {
     }
 }
 
-const ARG_FUNCTION_NAME_KEY: &str = "function_name";
+#[derive(StructOpt)]
+struct Opts {
+    #[structopt(name = "FUNCTION NAME")]
+    name: Option<String>,
+}
 impl<D: Debugger> Command<D> for RunCommand {
     fn name(&self) -> &'static str {
         "run"
@@ -24,14 +29,7 @@ impl<D: Debugger> Command<D> for RunCommand {
         context: &CommandContext,
         args: Vec<&str>,
     ) -> Result<()> {
-        let mut app = App::new("run").arg(Arg::with_name(ARG_FUNCTION_NAME_KEY).takes_value(true));
-        let matches = match app.get_matches_from_safe_borrow(args) {
-            Ok(m) => m,
-            Err(_) => {
-                let _ = app.print_long_help();
-                return Ok(());
-            }
-        };
+        let opts = Opts::from_iter_safe(args)?;
         if debugger.is_running() {
             print!("There is a running process, kill it and restart?: [Y/n] ");
             std::io::stdout().flush().unwrap();
@@ -42,11 +40,7 @@ impl<D: Debugger> Command<D> for RunCommand {
                 return Ok(());
             }
         }
-        match debugger.run(
-            matches
-                .value_of(ARG_FUNCTION_NAME_KEY)
-                .map(|name| name.to_string()),
-        ) {
+        match debugger.run(opts.name) {
             Ok(RunResult::Finish(values)) => {
                 println!("{:?}", values);
             }
