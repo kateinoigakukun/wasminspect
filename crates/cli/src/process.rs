@@ -40,7 +40,7 @@ impl<D: Debugger> Process<D> {
         })
     }
 
-    pub fn run_loop(&mut self) -> io::Result<()> {
+    pub fn run_loop(&mut self, context: command::CommandContext) -> io::Result<()> {
         while let ReadResult::Input(line) = self.interface.read_line()? {
             if !line.trim().is_empty() {
                 self.interface.add_history_unique(line.clone());
@@ -48,10 +48,10 @@ impl<D: Debugger> Process<D> {
             let cmd_name = extract_command_name(&line);
             if let Some(cmd) = self.commands.get(cmd_name) {
                 let args = line.split_whitespace();
-                match cmd.run(&mut self.debugger, args.collect()) {
+                match cmd.run(&mut self.debugger, &context, args.collect()) {
                     Ok(()) => (),
-                    Err(command::Error::Command(message)) => {
-                        eprintln!("{}", message);
+                    Err(err) => {
+                        eprintln!("{}", err);
                     }
                 }
             } else {

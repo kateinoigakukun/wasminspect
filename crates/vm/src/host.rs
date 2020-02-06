@@ -10,7 +10,7 @@ use super::memory::MemoryInstance;
 use super::module::ModuleIndex;
 use super::store::Store;
 use super::table::TableInstance;
-use parity_wasm::elements::FunctionType;
+use wasmparser::FuncType;
 
 type Ref<T> = Rc<RefCell<T>>;
 
@@ -37,12 +37,12 @@ impl HostValue {
 }
 
 pub struct HostFuncBody {
-    ty: FunctionType,
+    ty: FuncType,
     code: Box<dyn Fn(&[Value], &mut Vec<Value>, &mut HostContext, &Store) -> Result<(), Trap>>,
 }
 
 impl HostFuncBody {
-    pub fn new<F>(ty: FunctionType, code: F) -> Self
+    pub fn new<F>(ty: FuncType, code: F) -> Self
     where
         F: Fn(&[Value], &mut Vec<Value>, &mut HostContext, &Store) -> Result<(), Trap>,
         F: 'static,
@@ -73,7 +73,7 @@ impl HostFuncBody {
         }
     }
 
-    pub fn ty(&self) -> &FunctionType {
+    pub fn ty(&self) -> &FuncType {
         &self.ty
     }
 }

@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["/Users/kateinoigakukun/Downloads/a.out"],
+            "args": ["${workspaceFolder}/tests/simple-example/c-dwarf/main.wasm"],
             "cwd": "${workspaceFolder}"
         },
         {

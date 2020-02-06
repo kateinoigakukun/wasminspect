@@ -40,7 +40,9 @@ type Result<T> = std::result::Result<T, Error>;
 impl MemoryInstance {
     pub fn new(initial: usize, maximum: Option<usize>) -> Self {
         Self {
-            data: std::iter::repeat(0).take(initial * WASM_PAGE_SIZE).collect(),
+            data: std::iter::repeat(0)
+                .take(initial * WASM_PAGE_SIZE)
+                .collect(),
             initial,
             max: maximum,
         }
@@ -95,5 +97,9 @@ impl MemoryInstance {
     }
     pub fn raw_data_mut(&mut self) -> &mut [u8] {
         &mut self.data
+    }
+
+    pub fn raw_data(&self) -> &[u8] {
+        &self.data
     }
 }

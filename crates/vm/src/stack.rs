@@ -2,7 +2,7 @@ use super::address::*;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
 use super::value::Value;
-use parity_wasm::elements::ValueType;
+use wasmparser::Type;
 
 #[derive(Debug)]
 pub enum StackValueType {
@@ -116,17 +116,18 @@ impl CallFrame {
     fn new(
         module_index: ModuleIndex,
         exec_addr: ExecutableFuncAddr,
-        local_tys: &[ValueType],
+        local_tys: &[Type],
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
         let mut locals = Vec::new();
         for ty in local_tys {
             let v = match ty {
-                ValueType::I32 => Value::I32(0),
-                ValueType::I64 => Value::I64(0),
-                ValueType::F32 => Value::F32(0.0),
-                ValueType::F64 => Value::F64(0.0),
+                Type::I32 => Value::I32(0),
+                Type::I64 => Value::I64(0),
+                Type::F32 => Value::F32(0.0),
+                Type::F64 => Value::F64(0.0),
+                _ => unimplemented!(),
             };
             locals.push(v);
         }
@@ -148,7 +149,7 @@ impl CallFrame {
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        let mut local_tys = func.ty().params().to_vec();
+        let mut local_tys = func.ty().params.to_vec();
         local_tys.append(&mut func.locals().to_vec());
         Self::new(func.module_index(), exec_addr, &local_tys, args, pc)
     }
@@ -258,11 +259,13 @@ impl Stack {
     }
 
     pub fn peek_values(&self) -> Vec<&Value> {
-        self.stack.iter()
+        self.stack
+            .iter()
             .filter_map(|v| match v {
                 StackValue::Value(v) => Some(v),
                 _ => None,
-            }).collect()
+            })
+            .collect()
     }
 }
 
@@ -383,7 +386,7 @@ impl std::fmt::Debug for Stack {
         for v in &self.stack {
             match v {
                 StackValue::Value(value) => {
-                    writeln!(f, "| Value({})|{:?}|", value.value_type(), value)?;
+                    writeln!(f, "| Value({:?})|{:?}|", value.value_type(), value)?;
                 }
                 StackValue::Label(label) => {
                     writeln!(f, "| Label |{:?}|", label)?;

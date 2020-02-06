@@ -20,7 +20,7 @@ impl<T> fmt::Debug for GlobalAddress<T> {
 }
 
 #[derive(PartialEq, Eq, Hash)]
-pub struct LinkableAddress<T>(ModuleIndex, usize, std::marker::PhantomData<T>);
+pub struct LinkableAddress<T>(ModuleIndex, pub(crate) usize, std::marker::PhantomData<T>);
 
 impl<T> LinkableAddress<T> {
     pub fn new_unsafe(module: ModuleIndex, index: usize) -> Self {
@@ -118,10 +118,6 @@ impl<T> LinkableCollection<T> {
                 .map(|index| GlobalAddress(*index, std::marker::PhantomData))
                 .collect(),
         )
-    }
-
-    pub fn len(&self) -> usize {
-        self.items.len()
     }
 
     pub fn is_empty(&self, module_index: ModuleIndex) -> bool {

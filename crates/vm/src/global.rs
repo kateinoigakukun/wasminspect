@@ -1,5 +1,5 @@
 use super::value::Value;
-use parity_wasm::elements::GlobalType;
+use wasmparser::GlobalType;
 
 pub struct GlobalInstance {
     ty: GlobalType,
@@ -21,7 +21,7 @@ impl GlobalInstance {
     }
 
     pub fn is_mutable(&self) -> bool {
-        self.ty.is_mutable()
+        self.ty.mutable
     }
 
     pub fn ty(&self) -> &GlobalType {

@@ -6,7 +6,10 @@ use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasmi_validation::{validate_module, PlainValidator};
-use wasminspect_vm::{ModuleIndex, WasmError, WasmInstance, WasmValue};
+use wasminspect_vm::{
+    simple_invoke_func, FuncAddr, ModuleIndex, WasmError, WasmInstance, WasmValue,
+};
+use wasmparser::ModuleReader;
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -29,28 +32,34 @@ impl WastContext {
         self.run_buffer(path.to_str().unwrap(), &bytes)
     }
 
-    pub fn instantiate(
+    pub fn extract_start_section(bytes: &[u8]) -> Option<u32> {
+        let module =
+            parity_wasm::deserialize_buffer::<parity_wasm::elements::Module>(&bytes).unwrap();
+        return module.start_section();
+    }
+    pub fn instantiate<'a>(
         &self,
-        bytes: &[u8],
+        bytes: &'a [u8],
         ignore_validation: bool,
-    ) -> Result<parity_wasm::elements::Module> {
+    ) -> Result<ModuleReader<'a>> {
         let module = parity_wasm::deserialize_buffer(&bytes)
             .with_context(|| anyhow!("Failed to parse wasm"))?;
+        let reader = ModuleReader::new(bytes)?;
         match validate_module::<PlainValidator>(&module)
             .map_err(|e| anyhow!("validation error: {}", e))
         {
             Err(err) => {
                 if ignore_validation {
-                    Ok(module)
+                    Ok(reader)
                 } else {
                     if format!("{}", err).contains("trying to import mutable global glob") {
-                        Ok(module)
+                        Ok(reader)
                     } else {
                         Err(err)
                     }
                 }
             }
-            Ok(_) => Ok(module),
+            Ok(_) => Ok(reader),
         }
     }
     fn module(
@@ -60,10 +69,16 @@ impl WastContext {
         ignore_validation: bool,
     ) -> Result<()> {
         let module = self.instantiate(&bytes, ignore_validation)?;
+        let start_section = Self::extract_start_section(bytes);
         let module_index = self
             .instance
             .load_module_from_parity_module(module_name.map(|n| n.to_string()), module)
             .map_err(|e| anyhow!("Failed to instantiate: {}", e))?;
+        if let Some(start_section) = start_section {
+            let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
+            simple_invoke_func(func_addr, vec![], &mut self.instance.store)
+                .map_err(|e| anyhow!("Failed to exec start func: {}", e))?;
+        }
         self.current = Some(module_index);
         if let Some(module_name) = module_name {
             self.module_index_by_name
@@ -320,11 +335,19 @@ impl WastContext {
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
                 let module = self.instantiate(&binary, false)?;
-                Ok(self
+                let start_section = Self::extract_start_section(&binary);
+                let module_index = self
                     .instance
                     .load_module_from_parity_module(None, module)
-                    .map(|_| vec![])
-                    .map_err(|e| anyhow!("{}", e)))
+                    .map_err(|e| anyhow!("{}", e))?;
+                if let Some(start_section) = start_section {
+                    let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
+                    return Ok(
+                        simple_invoke_func(func_addr, vec![], &mut self.instance.store)
+                            .map_err(|e| anyhow!("Failed to exec start func: {}", e)),
+                    );
+                }
+                Ok(Ok(vec![]))
             }
             wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
         }
