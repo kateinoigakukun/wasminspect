@@ -22,6 +22,8 @@ enum Opts {
     StepIn,
     #[structopt(name = "step-over")]
     StepOver,
+    #[structopt(name = "step-out")]
+    StepOut,
     #[structopt(name = "step-inst-in")]
     StepInstIn,
     #[structopt(name = "step-inst-over")]
@@ -77,6 +79,11 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                     initial_line_info.filepath == line_info.filepath
                         && initial_line_info.line == line_info.line
                 } {}
+                let line_info = current_line_info(debugger, &context.sourcemap)?;
+                display_source(line_info)?;
+            }
+            Opts::StepOut => {
+                debugger.step(StepStyle::StepOut)?;
                 let line_info = current_line_info(debugger, &context.sourcemap)?;
                 display_source(line_info)?;
             }

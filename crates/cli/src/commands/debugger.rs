@@ -14,6 +14,7 @@ pub enum RunResult {
 pub enum StepStyle {
     StepInstIn,
     StepInstOver,
+    StepOut,
 }
 
 pub trait Debugger {
