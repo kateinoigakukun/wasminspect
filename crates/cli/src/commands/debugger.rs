@@ -19,4 +19,5 @@ pub trait Debugger {
     fn stack_values(&self) -> Vec<String>;
     fn instructions(&self) -> Result<(&[Instruction], usize)>;
     fn step(&self) -> Result<Signal>;
+    // fn program_counter(&self) -> Result<usize>;
 }

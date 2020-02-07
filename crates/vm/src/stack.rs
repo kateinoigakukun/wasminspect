@@ -107,9 +107,11 @@ impl ProgramCounter {
 #[derive(Clone)]
 pub struct CallFrame {
     pub module_index: ModuleIndex,
-    pub exec_addr: ExecutableFuncAddr,
     pub locals: Vec<Value>,
     pub ret_pc: Option<ProgramCounter>,
+
+    // Only for debug use
+    pub exec_addr: ExecutableFuncAddr,
 }
 
 impl CallFrame {
@@ -356,10 +358,6 @@ impl Stack {
             }
             None => Err(Error::PopEmptyStack),
         }
-    }
-
-    pub fn current_func_addr(&self) -> Result<ExecutableFuncAddr> {
-        self.current_frame().map(|f| f.exec_addr)
     }
 
     pub fn is_over_top_level(&self) -> bool {

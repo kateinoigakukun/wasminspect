@@ -14,6 +14,8 @@ use structopt::StructOpt;
 
 #[derive(StructOpt)]
 enum Opts {
+    #[structopt(name = "info")]
+    Info,
     #[structopt(name = "backtrace")]
     Backtrace,
     #[structopt(name = "step-in")]
@@ -28,6 +30,8 @@ impl<D: Debugger> Command<D> for ThreadCommand {
     fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args.clone())?;
         match opts {
+            Opts::Info => {
+            }
             Opts::Backtrace => {
                 for (index, frame) in debugger.frame().iter().rev().enumerate() {
                     println!("{}: {}", index, frame);

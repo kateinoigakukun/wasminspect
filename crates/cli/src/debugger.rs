@@ -71,6 +71,16 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
+    // fn thread_info(&self) -> Result<()> {
+    //     let executor = if let Some(ref executor) = self.executor {
+    //         executor
+    //     } else {
+    //         return Err(anyhow!("No execution context"));
+    //     };
+    //     // executor.borrow().pc
+    //     unimplemented!()
+    // }
+
     fn frame(&self) -> Vec<String> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();

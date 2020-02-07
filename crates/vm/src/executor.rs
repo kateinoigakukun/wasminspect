@@ -94,8 +94,7 @@ impl Executor {
     }
 
     pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
-        let addr = self.stack.current_func_addr().map_err(Trap::Stack)?;
-        let func = store.func_global(addr);
+        let func = store.func_global(self.pc.exec_addr());
         Ok(&func.defined().unwrap().instructions())
     }
 
@@ -186,7 +185,7 @@ impl Executor {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
                     let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-                    let func = store.func_global(frame.exec_addr);
+                    let func = store.func_global(self.pc.exec_addr());
                     let arity = func.ty().returns.len();
                     let mut result = vec![];
                     for _ in 0..arity {
@@ -726,7 +725,7 @@ impl Executor {
     }
     fn do_return(&mut self, store: &Store) -> ExecResult<Signal> {
         let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
-        let func = store.func_global(frame.exec_addr);
+        let func = store.func_global(self.pc.exec_addr());
         let arity = func.ty().returns.len();
         let mut result = vec![];
         for _ in 0..arity {
