@@ -1,7 +1,7 @@
 use super::command::{Command, CommandContext};
 use super::debugger::Debugger;
-use super::sourcemap::{ColumnType, LineInfo, SourceMap};
-use anyhow::{anyhow, Result};
+
+use anyhow::{Result};
 
 pub struct DisassembleCommand {}
 
@@ -16,7 +16,7 @@ impl<D: Debugger> Command<D> for DisassembleCommand {
         "disassemble"
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, _context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         let (insts, next_index) = debugger.instructions()?;
         for (index, inst) in insts.iter().enumerate() {
             let prefix = if index == next_index { "->" } else { "  " };
