@@ -109,9 +109,14 @@ pub fn transform_debug_line<R: gimli::Reader>(
 
     let header = program.header();
 
-    let sequence_base_index: usize = if header.version() >= 5 { 0 } else { 1 };
-
-    let mut dirs = vec!["./".to_string()];
+    let sequence_base_index: usize;
+    let mut dirs = vec![];
+    if header.version() <= 4 {
+        dirs.push("./".to_string());
+        sequence_base_index = 1;
+    } else {
+        sequence_base_index = 0;
+    }
     for dir in header.include_directories() {
         let dir_str =
             String::from_utf8(dwarf.attr_string(unit, dir.clone())?.to_slice()?.to_vec()).unwrap();
