@@ -126,12 +126,18 @@ pub fn transform_debug_line<R: gimli::Reader>(
     for file_entry in header.file_names() {
         let dir = dirs[file_entry.directory_index() as usize].clone();
         let dir_path = Path::new(&dir);
-        let path = dir_path.join(
+        let mut path = dir_path.join(
             dwarf
                 .attr_string(unit, file_entry.path_name())?
                 .to_string()?
                 .as_ref(),
         );
+        if !path.is_absolute() {
+            if let Some(comp_dir) = unit.comp_dir.clone() {
+                let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
+                path = Path::new(&comp_dir).join(path);
+            }
+        }
         files.push(path);
     }
 
