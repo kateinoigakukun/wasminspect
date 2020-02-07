@@ -9,3 +9,4 @@ pub mod run;
 pub mod sourcemap;
 pub mod stack;
 pub mod thread;
+pub mod expression;
