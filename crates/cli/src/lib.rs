@@ -17,7 +17,7 @@ fn history_file_path() -> String {
 pub fn run_loop(file: Option<String>) -> Result<()> {
     let mut debugger = debugger::MainDebugger::new()?;
     let mut context = commands::command::CommandContext {
-        sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new())
+        sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new()),
     };
     if let Some(file) = file {
         let mut f = ::std::fs::File::open(file)?;
@@ -40,9 +40,7 @@ pub fn run_loop(file: Option<String>) -> Result<()> {
             Box::new(commands::breakpoint::BreakpointCommand::new()),
             Box::new(commands::disassemble::DisassembleCommand::new()),
         ],
-        vec![
-            Box::new(commands::backtrace::BacktraceCommand::new()),
-        ],
+        vec![Box::new(commands::backtrace::BacktraceCommand::new())],
         &history_file_path(),
     )?;
     process.run_loop(context)?;

@@ -28,7 +28,7 @@ enum Opts {
     StepInstOver,
 }
 
-use super::list::{display_source, current_line_info};
+use super::list::{current_line_info, display_source};
 impl<D: Debugger> Command<D> for ThreadCommand {
     fn name(&self) -> &'static str {
         "thread"
@@ -74,7 +74,8 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                 while {
                     debugger.step(style)?;
                     let line_info = current_line_info(debugger, &context.sourcemap)?;
-                    initial_line_info.filepath == line_info.filepath && initial_line_info.line == line_info.line
+                    initial_line_info.filepath == line_info.filepath
+                        && initial_line_info.line == line_info.line
                 } {}
                 let line_info = current_line_info(debugger, &context.sourcemap)?;
                 display_source(line_info)?;

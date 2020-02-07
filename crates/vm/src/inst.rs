@@ -960,5 +960,8 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I8x16RoundingAverageU => InstructionKind::I8x16RoundingAverageU,
         I16x8RoundingAverageU => InstructionKind::I16x8RoundingAverageU,
     };
-    Ok(Instruction { kind, offset: offset - base_offset })
+    Ok(Instruction {
+        kind,
+        offset: offset - base_offset,
+    })
 }

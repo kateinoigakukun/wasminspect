@@ -111,7 +111,9 @@ impl debugger::Debugger for MainDebugger {
         match style {
             StepInstIn => return Ok(executor.borrow_mut().execute_step(&self.store, self)?),
             StepInstOver => {
-                fn frame_depth(executor: &Executor) -> usize { executor.stack.peek_frames().len() }
+                fn frame_depth(executor: &Executor) -> usize {
+                    executor.stack.peek_frames().len()
+                }
                 let initial_frame_depth = frame_depth(&executor.borrow());
                 let mut last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
                 while initial_frame_depth < frame_depth(&executor.borrow()) {

@@ -1,5 +1,5 @@
-use wasminspect_vm::{Instruction, WasmValue, Signal};
 use anyhow::Result;
+use wasminspect_vm::{Instruction, Signal, WasmValue};
 
 pub enum Breakpoint {
     Function { name: String },
@@ -12,7 +12,8 @@ pub enum RunResult {
 
 #[derive(Clone, Copy)]
 pub enum StepStyle {
-    StepInstIn, StepInstOver
+    StepInstIn,
+    StepInstOver,
 }
 
 pub trait Debugger {

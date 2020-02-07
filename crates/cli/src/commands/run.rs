@@ -23,12 +23,7 @@ impl<D: Debugger> Command<D> for RunCommand {
     fn name(&self) -> &'static str {
         "run"
     }
-    fn run(
-        &self,
-        debugger: &mut D,
-        _context: &CommandContext,
-        args: Vec<&str>,
-    ) -> Result<()> {
+    fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         if debugger.is_running() {
             print!("There is a running process, kill it and restart?: [Y/n] ");

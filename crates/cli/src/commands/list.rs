@@ -22,7 +22,10 @@ impl<D: Debugger> Command<D> for ListCommand {
     }
 }
 
-pub fn current_line_info<D: Debugger>(debugger: &D, sourcemap: &Box<dyn SourceMap>) -> Result<LineInfo> {
+pub fn current_line_info<D: Debugger>(
+    debugger: &D,
+    sourcemap: &Box<dyn SourceMap>,
+) -> Result<LineInfo> {
     let (insts, next_index) = debugger.instructions()?;
     let current_index = if next_index == 0 { 0 } else { next_index - 1 };
     let first_inst = insts[current_index].clone();
