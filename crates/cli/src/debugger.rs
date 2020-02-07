@@ -101,13 +101,25 @@ impl debugger::Debugger for MainDebugger {
         self.executor.is_some()
     }
 
-    fn step(&self) -> Result<Signal> {
+    fn step(&self, style: debugger::StepStyle) -> Result<Signal> {
         let executor = if let Some(ref executor) = self.executor {
             executor
         } else {
             return Err(anyhow!("No execution context"));
         };
-        Ok(executor.borrow_mut().execute_step(&self.store, self)?)
+        use debugger::StepStyle::*;
+        match style {
+            StepInstIn => return Ok(executor.borrow_mut().execute_step(&self.store, self)?),
+            StepInstOver => {
+                fn frame_depth(executor: &Executor) -> usize { executor.stack.peek_frames().len() }
+                let initial_frame_depth = frame_depth(&executor.borrow());
+                let mut last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                while initial_frame_depth < frame_depth(&executor.borrow()) {
+                    last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                }
+                return Ok(last_signal);
+            }
+        }
     }
 
     fn run(&mut self, name: Option<String>) -> Result<debugger::RunResult> {

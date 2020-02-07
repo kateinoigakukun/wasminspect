@@ -1,5 +1,5 @@
 use super::command::{Command, CommandContext};
-use super::debugger::Debugger;
+use super::debugger::{Debugger, StepStyle};
 
 pub struct ThreadCommand {}
 
@@ -20,9 +20,15 @@ enum Opts {
     Backtrace,
     #[structopt(name = "step-in")]
     StepIn,
+    #[structopt(name = "step-over")]
+    StepOver,
+    #[structopt(name = "step-inst-in")]
+    StepInstIn,
+    #[structopt(name = "step-inst-over")]
+    StepInstOver,
 }
 
-use super::list::display_source;
+use super::list::{display_source, current_line_info};
 impl<D: Debugger> Command<D> for ThreadCommand {
     fn name(&self) -> &'static str {
         "thread"
@@ -58,12 +64,30 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                     println!("{}: {}", index, frame);
                 }
             }
-            Opts::StepIn => {
-                debugger.step()?;
-                let (insts, next_index) = debugger.instructions()?;
-                let current_index = if next_index == 0 { 0 } else { next_index - 1 };
-                let current_inst = insts[current_index].clone();
-                display_source(current_inst.offset, &context.sourcemap)?;
+            Opts::StepIn | Opts::StepOver => {
+                let style = match opts {
+                    Opts::StepIn => StepStyle::StepInstIn,
+                    Opts::StepOver => StepStyle::StepInstOver,
+                    _ => panic!(),
+                };
+                let initial_line_info = current_line_info(debugger, &context.sourcemap)?;
+                while {
+                    debugger.step(style)?;
+                    let line_info = current_line_info(debugger, &context.sourcemap)?;
+                    initial_line_info.filepath == line_info.filepath && initial_line_info.line == line_info.line
+                } {}
+                let line_info = current_line_info(debugger, &context.sourcemap)?;
+                display_source(line_info)?;
+            }
+            Opts::StepInstIn | Opts::StepInstOver => {
+                let style = match opts {
+                    Opts::StepInstIn => StepStyle::StepInstIn,
+                    Opts::StepInstOver => StepStyle::StepInstOver,
+                    _ => panic!(),
+                };
+                debugger.step(style)?;
+                let line_info = current_line_info(debugger, &context.sourcemap)?;
+                display_source(line_info)?;
             }
         }
         Ok(())

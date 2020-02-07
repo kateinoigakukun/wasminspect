@@ -10,6 +10,11 @@ pub enum RunResult {
     Breakpoint,
 }
 
+#[derive(Clone, Copy)]
+pub enum StepStyle {
+    StepInstIn, StepInstOver
+}
+
 pub trait Debugger {
     fn run(&mut self, name: Option<String>) -> Result<RunResult>;
     fn is_running(&self) -> bool;
@@ -18,5 +23,5 @@ pub trait Debugger {
     fn set_breakpoint(&mut self, breakpoint: Breakpoint);
     fn stack_values(&self) -> Vec<String>;
     fn instructions(&self) -> Result<(&[Instruction], usize)>;
-    fn step(&self) -> Result<Signal>;
+    fn step(&self, style: StepStyle) -> Result<Signal>;
 }

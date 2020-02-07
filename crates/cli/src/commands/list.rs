@@ -17,18 +17,22 @@ impl<D: Debugger> Command<D> for ListCommand {
     }
 
     fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
-        let (insts, next_index) = debugger.instructions()?;
-        let current_index = if next_index == 0 { 0 } else { next_index - 1 };
-        let first_inst = insts[current_index].clone();
-        display_source(first_inst.offset, &context.sourcemap)
+        let line_info = current_line_info(debugger, &context.sourcemap)?;
+        display_source(line_info)
     }
 }
 
-pub fn display_source(offset: usize, sourcemap: &Box<dyn SourceMap>) -> Result<()> {
-    let line_info: LineInfo = match sourcemap.find_line_info(offset) {
-        Some(info) => info,
-        None => return Err(anyhow!("Source info not found")),
-    };
+pub fn current_line_info<D: Debugger>(debugger: &D, sourcemap: &Box<dyn SourceMap>) -> Result<LineInfo> {
+    let (insts, next_index) = debugger.instructions()?;
+    let current_index = if next_index == 0 { 0 } else { next_index - 1 };
+    let first_inst = insts[current_index].clone();
+    match sourcemap.find_line_info(first_inst.offset) {
+        Some(info) => Ok(info),
+        None => Err(anyhow!("Source info not found")),
+    }
+}
+
+pub fn display_source(line_info: LineInfo) -> Result<()> {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
     let source = BufReader::new(File::open(line_info.filepath)?);
