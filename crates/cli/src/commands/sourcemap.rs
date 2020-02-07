@@ -4,6 +4,15 @@ pub enum ColumnType {
     Column(u64),
 }
 
+impl Into<u64> for ColumnType {
+    fn into(self) -> u64 {
+        match self {
+            ColumnType::Column(c) => c,
+            ColumnType::LeftEdge => 0,
+        }
+    }
+}
+
 pub struct LineInfo {
     pub filepath: String,
     pub line: Option<u64>,

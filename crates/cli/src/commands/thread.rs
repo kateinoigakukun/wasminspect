@@ -31,6 +31,27 @@ impl<D: Debugger> Command<D> for ThreadCommand {
         let opts = Opts::from_iter_safe(args.clone())?;
         match opts {
             Opts::Info => {
+                let frames = debugger.frame();
+                let frame_name = frames.last().unwrap();
+                let (insts, next_index) = debugger.instructions()?;
+                let current_index = if next_index == 0 { 0 } else { next_index - 1 };
+                let current_inst = insts[current_index].clone();
+                let code_offset = current_inst.offset;
+                if let Some(line_info) = context.sourcemap.find_line_info(code_offset) {
+                    println!(
+                        "0x{:x} `{} at {}:{}:{}`",
+                        code_offset,
+                        frame_name,
+                        line_info.filepath,
+                        line_info
+                            .line
+                            .map(|l| format!("{}", l))
+                            .unwrap_or("".to_string()),
+                        Into::<u64>::into(line_info.column)
+                    );
+                } else {
+                    println!("0x{:x} `{}`", code_offset, frame_name);
+                }
             }
             Opts::Backtrace => {
                 for (index, frame) in debugger.frame().iter().rev().enumerate() {
@@ -41,8 +62,8 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                 debugger.step()?;
                 let (insts, next_index) = debugger.instructions()?;
                 let current_index = if next_index == 0 { 0 } else { next_index - 1 };
-                let first_inst = insts[current_index].clone();
-                display_source(first_inst.offset, &context.sourcemap)?;
+                let current_inst = insts[current_index].clone();
+                display_source(current_inst.offset, &context.sourcemap)?;
             }
         }
         Ok(())
