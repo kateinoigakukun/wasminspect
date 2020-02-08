@@ -10,7 +10,6 @@ use wasmparser::{ModuleReader, SectionCode};
 type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
 pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
 
-
 pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
     const EMPTY_SECTION: &[u8] = &[];
     let mut reader = ModuleReader::new(module)?;
@@ -97,14 +96,16 @@ struct SubroutineBuilder<R: gimli::Reader> {
     name: Option<String>,
     pc: std::ops::Range<u64>,
     variables: Vec<SymbolVariable<R>>,
+    encoding: gimli::Encoding,
 }
 
 impl<R: gimli::Reader> SubroutineBuilder<R> {
-    fn new(pc: std::ops::Range<u64>, name: Option<String>) -> Self {
+    fn new(pc: std::ops::Range<u64>, name: Option<String>, encoding: gimli::Encoding) -> Self {
         Self {
             pc,
             name,
             variables: vec![],
+            encoding,
         }
     }
 
@@ -117,6 +118,7 @@ impl<R: gimli::Reader> SubroutineBuilder<R> {
             pc: self.pc.clone(),
             name: self.name.clone(),
             variables: self.variables.clone(),
+            encoding: self.encoding,
         }
     }
 }
@@ -133,7 +135,8 @@ where
 pub struct Subroutine<R: gimli::Reader> {
     pub name: Option<String>,
     pub pc: std::ops::Range<u64>,
-    pub variables: Vec<SymbolVariable<R<>>>
+    pub variables: Vec<SymbolVariable<R>>,
+    pub encoding: gimli::Encoding,
 }
 
 pub fn transform_subprogram<R: gimli::Reader>(
@@ -176,7 +179,11 @@ pub fn transform_subprogram<R: gimli::Reader>(
                         None => None,
                     };
                     if let Some(high_pc) = high_pc {
-                        current = Some(SubroutineBuilder::new(low_pc..high_pc, name));
+                        current = Some(SubroutineBuilder::new(
+                            low_pc..high_pc,
+                            name,
+                            unit.encoding(),
+                        ));
                     }
                 }
             }
@@ -194,15 +201,18 @@ pub fn transform_subprogram<R: gimli::Reader>(
             _ => {}
         }
     }
+    if let Some(ref builder) = current {
+        subroutines.push(builder.build())
+    }
     Ok(subroutines)
 }
 
 use gimli::Expression;
 fn evaluate_variable_location<R: gimli::Reader>(
-    unit: &Unit<R, R::Offset>,
+    encoding: gimli::Encoding,
     expr: Expression<R>,
 ) -> Result<Vec<gimli::Piece<R>>> {
-    let mut evaluation = expr.evaluation(unit.encoding());
+    let mut evaluation = expr.evaluation(encoding);
     let result = evaluation.evaluate()?;
     use gimli::EvaluationResult;
     match result {
@@ -343,11 +353,34 @@ pub struct DwarfSubroutineMap<'input> {
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
     fn display_variable(&self, code_offset: usize, name: String) {
         let offset = &(code_offset as u64);
-        let subroutine = self
+        let subroutine = match self
             .subroutines
             .iter()
             .filter(|s| s.pc.contains(offset))
-            .next();
-        // subroutine.
+            .next()
+        {
+            Some(s) => s,
+            None => return,
+        };
+        let var = match subroutine
+            .variables
+            .iter()
+            .filter(|v| v.name == name)
+            .next()
+        {
+            Some(v) => v,
+            None => {
+                println!("'{}' is not valid variable name", name);
+                return;
+            }
+        };
+        match var.location {
+            AttributeValue::Exprloc(expr) => {
+                let piece = evaluate_variable_location(subroutine.encoding, expr);
+                println!("{:?}", piece);
+            }
+            AttributeValue::LocationListsRef(listsref) => println!("listsref"),
+            _ => panic!(),
+        }
     }
 }
