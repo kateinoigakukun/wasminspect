@@ -71,6 +71,13 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
+    fn store(&self) -> &Store {
+        &self.store
+    }
+    fn current_frame(&self) -> Option<debugger::FunctionFrame> {
+        self.module_index
+            .map(|idx| debugger::FunctionFrame { module_index: idx })
+    }
     fn frame(&self) -> Vec<String> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
@@ -207,7 +214,11 @@ impl debugger::Debugger for MainDebugger {
 
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
-        let key = self.function_breakpoints.keys().filter(|k| k.contains(name)).next();
+        let key = self
+            .function_breakpoints
+            .keys()
+            .filter(|k| k.contains(name))
+            .next();
         if let Some(_) = key {
             Ok(Signal::Breakpoint)
         } else {

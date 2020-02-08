@@ -13,3 +13,4 @@ pub mod memory;
 pub mod run;
 pub mod stack;
 pub mod thread;
+pub mod global;
