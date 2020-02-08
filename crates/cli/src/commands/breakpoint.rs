@@ -24,6 +24,11 @@ impl<D: Debugger> Command<D> for BreakpointCommand {
     fn name(&self) -> &'static str {
         "breakpoint"
     }
+
+    fn description(&self) -> &'static str {
+        "Commands for operating on breakpoints."
+    }
+
     fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {

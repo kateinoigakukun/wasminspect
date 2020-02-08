@@ -16,6 +16,10 @@ impl<D: Debugger> Command<D> for DisassembleCommand {
         "disassemble"
     }
 
+    fn description(&self) -> &'static str {
+        "Disassemble instructions in the current function."
+    }
+
     fn run(&self, debugger: &mut D, _context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         display_asm(debugger)
     }

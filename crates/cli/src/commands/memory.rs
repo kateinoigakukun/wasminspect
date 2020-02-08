@@ -27,6 +27,10 @@ impl<D: Debugger> Command<D> for MemoryCommand {
     fn name(&self) -> &'static str {
         "memory"
     }
+
+    fn description(&self) -> &'static str {
+        "Commands for operating on memory."
+    }
     fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {

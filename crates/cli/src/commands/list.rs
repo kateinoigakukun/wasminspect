@@ -16,6 +16,10 @@ impl<D: Debugger> Command<D> for ListCommand {
         "list"
     }
 
+    fn description(&self) -> &'static str {
+        "List relevant source code."
+    }
+
     fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         let line_info = current_line_info(debugger, &context.sourcemap)?;
         display_source(line_info)

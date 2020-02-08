@@ -23,6 +23,10 @@ impl<D: Debugger> Command<D> for RunCommand {
     fn name(&self) -> &'static str {
         "run"
     }
+
+    fn description(&self) -> &'static str {
+        "Launch the executable in the debugger."
+    }
     fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         if debugger.is_running() {

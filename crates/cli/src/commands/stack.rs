@@ -15,6 +15,10 @@ impl<D: Debugger> Command<D> for StackCommand {
         "stack"
     }
 
+    fn description(&self) -> &'static str {
+        "Commands for operating stack."
+    }
+
     fn run(&self, debugger: &mut D, _context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         for (index, value) in debugger.stack_values().iter().enumerate() {
             println!("{}: {}", index, value)

@@ -25,6 +25,11 @@ impl<D: Debugger> Command<D> for GlobalCommand {
     fn name(&self) -> &'static str {
         "global"
     }
+
+    fn description(&self) -> &'static str {
+        "Commands for operating globals."
+    }
+
     fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         use wasminspect_vm::*;

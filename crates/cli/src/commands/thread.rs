@@ -36,6 +36,11 @@ impl<D: Debugger> Command<D> for ThreadCommand {
     fn name(&self) -> &'static str {
         "thread"
     }
+
+    fn description(&self) -> &'static str {
+        "Commands for operating the thread."
+    }
+
     fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args.clone())?;
         match opts {
