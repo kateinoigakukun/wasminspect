@@ -207,7 +207,8 @@ impl debugger::Debugger for MainDebugger {
 
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
-        if self.function_breakpoints.contains_key(name) {
+        let key = self.function_breakpoints.keys().filter(|k| k.contains(name)).next();
+        if let Some(_) = key {
             Ok(Signal::Breakpoint)
         } else {
             Ok(Signal::Next)
