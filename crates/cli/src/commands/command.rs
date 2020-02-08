@@ -1,9 +1,11 @@
 use super::debugger::Debugger;
 use super::sourcemap::SourceMap;
+use super::subroutine::SubroutineMap;
 use anyhow::Result;
 
-pub struct CommandContext {
+pub struct CommandContext<'a> {
     pub sourcemap: Box<dyn SourceMap>,
+    pub subroutine: Box<dyn SubroutineMap + 'a>,
 }
 
 pub trait Command<D: Debugger> {

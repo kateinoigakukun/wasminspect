@@ -16,18 +16,21 @@ fn history_file_path() -> String {
 
 pub fn run_loop(file: Option<String>) -> Result<()> {
     let mut debugger = debugger::MainDebugger::new()?;
+    let mut buffer = Vec::new();
     let mut context = commands::command::CommandContext {
         sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new()),
+        subroutine: Box::new(commands::subroutine::EmptySubroutineMap::new()),
     };
+
     if let Some(file) = file {
         let mut f = ::std::fs::File::open(file)?;
-        let mut buffer = Vec::new();
         f.read_to_end(&mut buffer)?;
         debugger.load_module(&buffer)?;
         use dwarf::{parse_dwarf, transform_dwarf};
         let dwarf = parse_dwarf(&buffer)?;
         let debug_info = transform_dwarf(dwarf)?;
         context.sourcemap = Box::new(debug_info.sourcemap);
+        context.subroutine = Box::new(debug_info.subroutine);
     }
     let mut process = process::Process::new(
         debugger,

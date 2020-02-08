@@ -10,7 +10,8 @@ use wasmparser::{ModuleReader, SectionCode};
 type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
 pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
 
-pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
+
+pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
     const EMPTY_SECTION: &[u8] = &[];
     let mut reader = ModuleReader::new(module)?;
     let mut sections = HashMap::new();
@@ -63,11 +64,11 @@ pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
     })
 }
 
-pub struct DwarfDebugInfo {
+pub struct DwarfDebugInfo<'a> {
     pub sourcemap: DwarfSourceMap,
-    pub subroutine: DwarfSubroutineMap,
+    pub subroutine: DwarfSubroutineMap<'a>,
 }
-pub fn transform_dwarf(dwarf: Dwarf) -> Result<DwarfDebugInfo> {
+pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
@@ -94,12 +95,12 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<DwarfDebugInfo> {
 
 struct SubroutineBuilder<R: gimli::Reader> {
     name: Option<String>,
-    pc: (u64, u64),
+    pc: std::ops::Range<u64>,
     variables: Vec<SymbolVariable<R>>,
 }
 
 impl<R: gimli::Reader> SubroutineBuilder<R> {
-    fn new(pc: (u64, u64), name: Option<String>) -> Self {
+    fn new(pc: std::ops::Range<u64>, name: Option<String>) -> Self {
         Self {
             pc,
             name,
@@ -111,14 +112,16 @@ impl<R: gimli::Reader> SubroutineBuilder<R> {
         self.variables.push(var);
     }
 
-    fn build(&self) -> Subroutine {
+    fn build(&self) -> Subroutine<R> {
         Subroutine {
-            pc: self.pc,
+            pc: self.pc.clone(),
             name: self.name.clone(),
+            variables: self.variables.clone(),
         }
     }
 }
 
+#[derive(Clone)]
 pub struct SymbolVariable<R>
 where
     R: gimli::Reader,
@@ -127,15 +130,16 @@ where
     location: gimli::AttributeValue<R>,
 }
 
-pub struct Subroutine {
+pub struct Subroutine<R: gimli::Reader> {
     pub name: Option<String>,
-    pub pc: (u64, u64),
+    pub pc: std::ops::Range<u64>,
+    pub variables: Vec<SymbolVariable<R<>>>
 }
 
 pub fn transform_subprogram<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
-) -> Result<Vec<Subroutine>> {
+) -> Result<Vec<Subroutine<R>>> {
     let mut entries = unit.entries();
     let root_cu = entries.next_dfs();
 
@@ -169,10 +173,10 @@ pub fn transform_subprogram<R: gimli::Reader>(
                         Some(AttributeValue::Udata(size)) => Some(low_pc + size),
                         Some(AttributeValue::Addr(high_pc)) => Some(high_pc),
                         Some(x) => unreachable!("high_pc can't be {:?}", x),
-                        None => None
+                        None => None,
                     };
                     if let Some(high_pc) = high_pc {
-                        current = Some(SubroutineBuilder::new((low_pc, high_pc), name));
+                        current = Some(SubroutineBuilder::new(low_pc..high_pc, name));
                     }
                 }
             }
@@ -332,10 +336,18 @@ impl sourcemap::SourceMap for DwarfSourceMap {
 }
 
 use super::commands::subroutine;
-pub struct DwarfSubroutineMap {
-    pub subroutines: Vec<Subroutine>,
+pub struct DwarfSubroutineMap<'input> {
+    pub subroutines: Vec<Subroutine<Reader<'input>>>,
 }
 
-impl subroutine::SubroutineMap for DwarfSubroutineMap {
-    fn find_subroutine(offset: usize) {}
+impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
+    fn display_variable(&self, code_offset: usize, name: String) {
+        let offset = &(code_offset as u64);
+        let subroutine = self
+            .subroutines
+            .iter()
+            .filter(|s| s.pc.contains(offset))
+            .next();
+        // subroutine.
+    }
 }
