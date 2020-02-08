@@ -19,6 +19,7 @@ pub enum StepStyle {
 
 pub struct FunctionFrame {
     pub module_index: ModuleIndex,
+    pub argument_count: usize,
 }
 
 pub trait Debugger {

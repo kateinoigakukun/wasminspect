@@ -210,9 +210,11 @@ pub fn transform_subprogram<R: gimli::Reader>(
 use gimli::Expression;
 fn evaluate_variable_location<R: gimli::Reader>(
     encoding: gimli::Encoding,
+    rbp: u32,
     expr: Expression<R>,
 ) -> Result<Vec<gimli::Piece<R>>> {
     let mut evaluation = expr.evaluation(encoding);
+    evaluation.set_initial_value(rbp.into());
     let result = evaluation.evaluate()?;
     use gimli::EvaluationResult;
     match result {
@@ -351,7 +353,13 @@ pub struct DwarfSubroutineMap<'input> {
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
-    fn display_variable(&self, code_offset: usize, name: String) {
+    fn display_variable(
+        &self,
+        code_offset: usize,
+        rbp: u32,
+        memory: &[u8],
+        name: String,
+    ) -> Result<()> {
         let offset = &(code_offset as u64);
         let subroutine = match self
             .subroutines
@@ -360,7 +368,7 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             .next()
         {
             Some(s) => s,
-            None => return,
+            None => return Err(anyhow!("failed to determine subroutine")),
         };
         let var = match subroutine
             .variables
@@ -370,17 +378,18 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
         {
             Some(v) => v,
             None => {
-                println!("'{}' is not valid variable name", name);
-                return;
+                return Err(anyhow!("'{}' is not valid variable name", name));
             }
         };
-        match var.location {
+        let piece = match var.location {
             AttributeValue::Exprloc(expr) => {
-                let piece = evaluate_variable_location(subroutine.encoding, expr);
-                println!("{:?}", piece);
+                evaluate_variable_location(subroutine.encoding, rbp, expr)?
             }
-            AttributeValue::LocationListsRef(listsref) => println!("listsref"),
+            AttributeValue::LocationListsRef(listsref) => unimplemented!("listsref"),
             _ => panic!(),
-        }
+        };
+
+        println!("{:?}", piece);
+        Ok(())
     }
 }

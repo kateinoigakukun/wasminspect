@@ -83,8 +83,19 @@ impl debugger::Debugger for MainDebugger {
         }
     }
     fn current_frame(&self) -> Option<debugger::FunctionFrame> {
-        self.module_index
-            .map(|idx| debugger::FunctionFrame { module_index: idx })
+        let executor = if let Some(ref executor) = self.executor {
+            executor
+        } else {
+            return None;
+        };
+        let executor = executor.borrow();
+        let frame = executor.stack.current_frame().unwrap();
+        let func = self.store.func_global(frame.exec_addr);
+
+        self.module_index.map(|idx| debugger::FunctionFrame {
+            module_index: idx,
+            argument_count: func.ty().params.len(),
+        })
     }
     fn frame(&self) -> Vec<String> {
         if let Some(ref executor) = self.executor {
