@@ -14,3 +14,4 @@ pub mod run;
 pub mod stack;
 pub mod thread;
 pub mod global;
+pub mod local;

@@ -26,6 +26,7 @@ pub trait Debugger {
     fn is_running(&self) -> bool;
     fn frame(&self) -> Vec<String>;
     fn current_frame(&self) -> Option<FunctionFrame>;
+    fn locals(&self) -> Vec<WasmValue>;
     fn memory(&self) -> Result<Vec<u8>>;
     fn store(&self) -> &Store;
     fn set_breakpoint(&mut self, breakpoint: Breakpoint);

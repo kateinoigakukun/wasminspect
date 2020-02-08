@@ -31,6 +31,7 @@ enum Opts {
 }
 
 use super::list::{current_line_info, display_source};
+use super::disassemble::display_asm;
 impl<D: Debugger> Command<D> for ThreadCommand {
     fn name(&self) -> &'static str {
         "thread"
@@ -94,8 +95,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                     _ => panic!(),
                 };
                 debugger.step(style)?;
-                let line_info = current_line_info(debugger, &context.sourcemap)?;
-                display_source(line_info)?;
+                display_asm(debugger)?;
             }
         }
         Ok(())

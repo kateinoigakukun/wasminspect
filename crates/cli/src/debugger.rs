@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, Instruction, Interceptor, MemoryAddr,
-    ModuleIndex, ProgramCounter, Signal, Store, Trap,
+    ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 use wasmparser::ModuleReader;
@@ -73,6 +73,14 @@ impl debugger::Debugger for MainDebugger {
 
     fn store(&self) -> &Store {
         &self.store
+    }
+    fn locals(&self) -> Vec<WasmValue> {
+        if let Some(ref executor) = self.executor {
+            let executor = executor.borrow();
+            executor.stack.current_frame().unwrap().locals.clone()
+        } else {
+            Vec::new()
+        }
     }
     fn current_frame(&self) -> Option<debugger::FunctionFrame> {
         self.module_index
