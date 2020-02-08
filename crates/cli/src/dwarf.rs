@@ -84,8 +84,12 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<DwarfDebugInfo> {
         )?)
     }
     Ok(DwarfDebugInfo {
-        sourcemap: DwarfSourceMap { units: sourcemaps },
+        sourcemap: DwarfSourceMap::new(sourcemaps),
     })
+}
+
+
+pub fn transform_subprogram<R: gimli::Reader>(unit: &Unit<R, R::Offset>) {
 }
 
 use std::path::Path;
@@ -162,7 +166,7 @@ pub struct DwarfUnitSourceMap {
 
 use super::commands::sourcemap;
 impl DwarfUnitSourceMap {
-    fn transform_lineinfo(&self, row: LineRow) -> sourcemap::LineInfo {
+    fn transform_lineinfo(&self, row: &LineRow) -> sourcemap::LineInfo {
         let filepath = self.paths[row.file_index() as usize - self.sequence_base_index].clone();
         sourcemap::LineInfo {
             filepath: filepath.to_str().unwrap().to_string(),
@@ -174,36 +178,50 @@ impl DwarfUnitSourceMap {
         }
     }
 }
-impl DwarfUnitSourceMap {
-    fn find_line_info(&self, offset: usize) -> Option<sourcemap::LineInfo> {
-        let row = match self
-            .address_sorted_rows
-            .binary_search_by_key(&(offset as u64), |i| i.0)
-        {
-            Ok(i) => Some(self.address_sorted_rows[i].1),
-            Err(i) => {
-                if i > 0 {
-                    Some(self.address_sorted_rows[i - 1].1)
-                } else {
-                    None
-                }
-            }
-        }?;
-        Some(self.transform_lineinfo(row))
-    }
-}
 
 pub struct DwarfSourceMap {
-    units: Vec<DwarfUnitSourceMap>,
+    address_sorted_rows: Vec<(u64, sourcemap::LineInfo)>,
+}
+
+impl DwarfSourceMap {
+    fn new(units: Vec<DwarfUnitSourceMap>) -> Self {
+        let mut rows = BTreeMap::new();
+        for unit in &units {
+            for (addr, row) in &unit.address_sorted_rows {
+                let line_info = unit.transform_lineinfo(row);
+                rows.insert(*addr, line_info);
+            }
+        }
+        Self {
+            address_sorted_rows: rows.into_iter().collect()
+        }
+    }
 }
 
 impl sourcemap::SourceMap for DwarfSourceMap {
     fn find_line_info(&self, offset: usize) -> Option<sourcemap::LineInfo> {
-        for unit in &self.units {
-            if let Some(line_info) = unit.find_line_info(offset) {
-                return Some(line_info);
+        match self
+            .address_sorted_rows
+            .binary_search_by_key(&(offset as u64), |i| i.0)
+        {
+            Ok(i) => Some(self.address_sorted_rows[i].1.clone()),
+            Err(i) => {
+                if i > 0 {
+                    Some(self.address_sorted_rows[i - 1].1.clone())
+                } else {
+                    None
+                }
             }
         }
-        return None;
+    }
+}
+
+
+use super::commands::subroutine;
+pub struct DwarfSubroutineMap {
+}
+
+impl subroutine::SubroutineMap for DwarfSubroutineMap {
+    fn find_subroutine(offset: usize) {
     }
 }

@@ -13,6 +13,7 @@ impl Into<u64> for ColumnType {
     }
 }
 
+#[derive(Clone)]
 pub struct LineInfo {
     pub filepath: String,
     pub line: Option<u64>,
