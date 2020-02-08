@@ -10,5 +10,5 @@ impl EmptySubroutineMap {
     }
 }
 impl SubroutineMap for EmptySubroutineMap {
-    fn display_variable(&self, code_offset: usize, name: String) {}
+    fn display_variable(&self, _: usize, _: String) {}
 }
