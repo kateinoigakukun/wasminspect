@@ -39,14 +39,22 @@ pub fn display_source(line_info: LineInfo) -> Result<()> {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
     let source = BufReader::new(File::open(line_info.filepath)?);
-    let range = line_info.line.map(|l| (l - 20)..(l + 20));
+    let range = line_info.line.map(|l| {
+        if l < 20 {
+            (0..(l + 20))
+        } else {
+            (l - 20)..(l + 20)
+        }
+    });
     for (index, line) in source.lines().enumerate() {
         // line_info.line begin with 1
         let index = index + 1;
         let line = line?;
 
         let should_display = range.as_ref().map(|r| r.contains(&(index as u64)));
-        if !(should_display.unwrap_or(true)) { continue }
+        if !(should_display.unwrap_or(true)) {
+            continue;
+        }
         let out = if Some(index as u64) == line_info.line {
             let mut out = format!("-> {: <4} ", index);
             match line_info.column {

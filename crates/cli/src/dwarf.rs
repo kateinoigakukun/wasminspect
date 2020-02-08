@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use gimli::{
-    DebugAbbrev, DebugAddr, DebugInfo, DebugLine, DebugLineStr, DebugLoc, DebugLocLists,
-    DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes, DebuggingInformationEntry,
-    EndianSlice, LineRow, LittleEndian, LocationLists, RangeLists, Unit,
+    AttributeValue, DebugAbbrev, DebugAddr, DebugInfo, DebugLine, DebugLineStr, DebugLoc,
+    DebugLocLists, DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes,
+    DebuggingInformationEntry, EndianSlice, LineRow, LittleEndian, LocationLists, RangeLists, Unit,
 };
 use std::collections::{BTreeMap, HashMap};
 use wasmparser::{ModuleReader, SectionCode};
@@ -65,10 +65,12 @@ pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
 
 pub struct DwarfDebugInfo {
     pub sourcemap: DwarfSourceMap,
+    pub subroutine: DwarfSubroutineMap,
 }
 pub fn transform_dwarf(dwarf: Dwarf) -> Result<DwarfDebugInfo> {
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
+    let mut subroutines = Vec::new();
     while let Some(header) = headers.next()? {
         let unit = dwarf.unit(header)?;
         let mut entries = unit.entries();
@@ -81,15 +83,128 @@ pub fn transform_dwarf(dwarf: Dwarf) -> Result<DwarfDebugInfo> {
             root,
             &dwarf,
             &dwarf.debug_line,
-        )?)
+        )?);
+        subroutines.append(&mut transform_subprogram(&dwarf, &unit)?);
     }
     Ok(DwarfDebugInfo {
         sourcemap: DwarfSourceMap::new(sourcemaps),
+        subroutine: DwarfSubroutineMap { subroutines },
     })
 }
 
+struct SubroutineBuilder<R: gimli::Reader> {
+    name: Option<String>,
+    pc: (u64, u64),
+    variables: Vec<SymbolVariable<R>>,
+}
 
-pub fn transform_subprogram<R: gimli::Reader>(unit: &Unit<R, R::Offset>) {
+impl<R: gimli::Reader> SubroutineBuilder<R> {
+    fn new(pc: (u64, u64), name: Option<String>) -> Self {
+        Self {
+            pc,
+            name,
+            variables: vec![],
+        }
+    }
+
+    fn add_variable(&mut self, var: SymbolVariable<R>) {
+        self.variables.push(var);
+    }
+
+    fn build(&self) -> Subroutine {
+        Subroutine {
+            pc: self.pc,
+            name: self.name.clone(),
+        }
+    }
+}
+
+pub struct SymbolVariable<R>
+where
+    R: gimli::Reader,
+{
+    name: String,
+    location: gimli::AttributeValue<R>,
+}
+
+pub struct Subroutine {
+    pub name: Option<String>,
+    pub pc: (u64, u64),
+}
+
+pub fn transform_subprogram<R: gimli::Reader>(
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R, R::Offset>,
+) -> Result<Vec<Subroutine>> {
+    let mut entries = unit.entries();
+    let root_cu = entries.next_dfs();
+
+    let mut subroutines = vec![];
+
+    let mut current: Option<SubroutineBuilder<R>> = None;
+    while let Some((depth_delta, entry)) = entries.next_dfs()? {
+        println!("[Parse DIE for collect subprograms] {:?}", entry);
+        match entry.tag() {
+            gimli::DW_TAG_subprogram => {
+                let name = match entry.attr_value(gimli::DW_AT_name)? {
+                    Some(attr) => Some(
+                        dwarf
+                            .attr_string(unit, attr)?
+                            .to_string()?
+                            .as_ref()
+                            .to_string(),
+                    ),
+                    None => None,
+                };
+                if let Some(ref builder) = current {
+                    subroutines.push(builder.build())
+                }
+
+                let low_pc_attr = entry.attr_value(gimli::DW_AT_low_pc)?;
+                println!("low_pc_attr: {:?}", low_pc_attr);
+                let high_pc_attr = entry.attr_value(gimli::DW_AT_high_pc)?;
+                println!("high_pc_attr: {:?}", high_pc_attr);
+                if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
+                    let high_pc = match high_pc_attr {
+                        Some(AttributeValue::Udata(size)) => Some(low_pc + size),
+                        Some(AttributeValue::Addr(high_pc)) => Some(high_pc),
+                        Some(x) => unreachable!("high_pc can't be {:?}", x),
+                        None => None
+                    };
+                    if let Some(high_pc) = high_pc {
+                        current = Some(SubroutineBuilder::new((low_pc, high_pc), name));
+                    }
+                }
+            }
+            gimli::DW_TAG_variable => {
+                let location = entry.attr_value(gimli::DW_AT_location)?.unwrap();
+                let name = dwarf
+                    .attr_string(unit, entry.attr_value(gimli::DW_AT_name)?.unwrap())?
+                    .to_string()?
+                    .as_ref()
+                    .to_string();
+                let var = SymbolVariable { name, location };
+                current.as_mut().unwrap().add_variable(var);
+            }
+            gimli::DW_TAG_formal_parameter => {}
+            _ => {}
+        }
+    }
+    Ok(subroutines)
+}
+
+use gimli::Expression;
+fn evaluate_variable_location<R: gimli::Reader>(
+    unit: &Unit<R, R::Offset>,
+    expr: Expression<R>,
+) -> Result<Vec<gimli::Piece<R>>> {
+    let mut evaluation = expr.evaluation(unit.encoding());
+    let result = evaluation.evaluate()?;
+    use gimli::EvaluationResult;
+    match result {
+        EvaluationResult::Complete => Ok(evaluation.result()),
+        x => unimplemented!("{:?}", x),
+    }
 }
 
 use std::path::Path;
@@ -193,7 +308,7 @@ impl DwarfSourceMap {
             }
         }
         Self {
-            address_sorted_rows: rows.into_iter().collect()
+            address_sorted_rows: rows.into_iter().collect(),
         }
     }
 }
@@ -216,12 +331,11 @@ impl sourcemap::SourceMap for DwarfSourceMap {
     }
 }
 
-
 use super::commands::subroutine;
 pub struct DwarfSubroutineMap {
+    pub subroutines: Vec<Subroutine>,
 }
 
 impl subroutine::SubroutineMap for DwarfSubroutineMap {
-    fn find_subroutine(offset: usize) {
-    }
+    fn find_subroutine(offset: usize) {}
 }
