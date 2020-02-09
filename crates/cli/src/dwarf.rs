@@ -126,12 +126,12 @@ pub fn transform_subprogram<R: gimli::Reader>(
     unit: &Unit<R, R::Offset>,
 ) -> Result<Vec<Subroutine<R>>> {
     let mut entries = unit.entries();
-    let root_cu = entries.next_dfs();
+    let _root_cu = entries.next_dfs();
 
     let mut subroutines = vec![];
 
     let mut current: Option<Subroutine<R>> = None;
-    while let Some((depth_delta, entry)) = entries.next_dfs()? {
+    while let Some((_depth_delta, entry)) = entries.next_dfs()? {
         // println!(
         //     "[Parse DIE for collect subprograms] tag = 0x{:x}",
         //     entry.tag().0
@@ -180,7 +180,7 @@ pub fn transform_subprogram<R: gimli::Reader>(
             }
             _ => {
                 match entry.attr_value(gimli::DW_AT_name)? {
-                    Some(attr) => {
+                    Some(_attr) => {
                         // let name = clone_string_attribute(dwarf, unit, attr)?;
                         // println!(
                         //     "[Parse DIE for collect subprograms] unhandled named '{}'",
@@ -405,7 +405,7 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
         &self,
         code_offset: usize,
         rbp: u32,
-        memory: &[u8],
+        _memory: &[u8],
         name: String,
     ) -> Result<()> {
         let offset = &(code_offset as u64);
@@ -440,10 +440,10 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
                 AttributeValue::Exprloc(expr) => {
                     evaluate_variable_location(subroutine.encoding, rbp, expr)?
                 }
-                AttributeValue::LocationListsRef(listsref) => unimplemented!("listsref"),
+                AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
                 _ => panic!(),
             },
-            VariableContent::ConstValue(ref bytes) => unimplemented!(),
+            VariableContent::ConstValue(ref _bytes) => unimplemented!(),
             VariableContent::Unknown { ref debug_info } => {
                 unimplemented!("Unknown variable content found {}", debug_info)
             }
