@@ -3,7 +3,7 @@ mod debugger;
 mod dwarf;
 mod process;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use std::env;
 use std::io::Read;
 
@@ -14,7 +14,7 @@ fn history_file_path() -> String {
     )
 }
 
-pub fn run_loop(file: Option<String>, init_source: String) -> Result<()> {
+pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()> {
     let mut debugger = debugger::MainDebugger::new()?;
     let mut buffer = Vec::new();
     let mut context = commands::command::CommandContext {
@@ -52,12 +52,26 @@ pub fn run_loop(file: Option<String>, init_source: String) -> Result<()> {
         vec![Box::new(commands::backtrace::BacktraceCommand::new())],
         &history_file_path(),
     )?;
+
     {
-        use std::fs::File;
-        use std::io::{BufRead, BufReader};
-        let init_source_lines = BufReader::new(File::open(init_source)?).lines();
-        for line in init_source_lines {
-            process.dispatch_command(line?, &context)?;
+        let is_default = init_source.is_none();
+        let lines = match {
+            let init_source = init_source.unwrap_or("~/.wasminspect_init".to_string());
+            use std::fs::File;
+            use std::io::{BufRead, BufReader};
+            File::open(init_source).map(|file| BufReader::new(file).lines())
+        } {
+            Ok(lines) => lines.map(|l| l.unwrap()).collect::<Vec<String>>(),
+            Err(err) => {
+                if is_default {
+                    vec![]
+                } else {
+                    return Err(anyhow!("{}", err));
+                }
+            }
+        };
+        for line in lines {
+            process.dispatch_command(line, &context)?;
         }
     }
     process.run_loop(context)?;

@@ -6,8 +6,8 @@ struct Opts {
     /// The wasm binary file
     #[structopt(name = "FILE")]
     filepath: Option<String>,
-    #[structopt(short, long, default_value = "~/.wasminspect_init")]
-    source: String,
+    #[structopt(short, long)]
+    source: Option<String>,
 }
 
 fn main() {
