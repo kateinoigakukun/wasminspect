@@ -143,7 +143,8 @@ pub fn transform_subprogram<R: gimli::Reader>(
 
     let mut subroutines = vec![];
 
-    let mut current: Option<Subroutine<R>> = None;
+    let mut stack: Vec<Subroutine<R>> = vec![];
+    let mut is_debug_target = false;
     while let Some((_depth_delta, entry)) = entries.next_dfs()? {
         // println!(
         //     "[Parse DIE for collect subprograms] tag = 0x{:x}",
@@ -155,9 +156,9 @@ pub fn transform_subprogram<R: gimli::Reader>(
                     Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
                     None => None,
                 };
-                if let Some(current) = current.take() {
-                    subroutines.push(current);
-                }
+                println!("{:?}", name);
+                is_debug_target =
+                    name == Some("swift_getAssociatedTypeWitnessSlowImpl".to_string());
 
                 let low_pc_attr = entry.attr_value(gimli::DW_AT_low_pc)?;
                 // println!("low_pc_attr: {:?}", low_pc_attr);
@@ -171,7 +172,7 @@ pub fn transform_subprogram<R: gimli::Reader>(
                         None => None,
                     };
                     if let Some(high_pc) = high_pc {
-                        current = Some(Subroutine {
+                        stack.push(Subroutine {
                             pc: low_pc..high_pc,
                             name,
                             encoding: unit.encoding(),
@@ -182,32 +183,33 @@ pub fn transform_subprogram<R: gimli::Reader>(
             }
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
                 let var = transform_variable(dwarf, unit, entry)?;
-                // println!(
-                //     "[Parse DIE for collect subprograms] variable '{}'",
-                //     var.name
-                // );
-                if let Some(current) = current.as_mut() {
+                if is_debug_target {
+                    println!(
+                        "[Parse DIE for collect subprograms] variable '{:?}'",
+                        var.name
+                    );
+                }
+                if let Some(current) = stack.last_mut() {
                     current.variables.push(var)
                 }
             }
             _ => {
-                match entry.attr_value(gimli::DW_AT_name)? {
-                    Some(_attr) => {
-                        // let name = clone_string_attribute(dwarf, unit, attr)?;
-                        // println!(
-                        //     "[Parse DIE for collect subprograms] unhandled named '{}'",
-                        //     name
-                        // );
-                    }
-                    None => {
-                        // println!("[Parse DIE for collect subprograms] unhandled unnamed");
-                    }
-                };
+                if is_debug_target {
+                    match entry.attr_value(gimli::DW_AT_name)? {
+                        Some(_attr) => {
+                            // let name = clone_string_attribute(dwarf, unit, attr)?;
+                            // println!(
+                            //     "[Parse DIE for collect subprograms] unhandled named '{}'",
+                            //     name
+                            // );
+                        }
+                        None => {
+                            // println!("[Parse DIE for collect subprograms] unhandled unnamed");
+                        }
+                    };
+                }
             }
         }
-    }
-    if let Some(current) = current.take() {
-        subroutines.push(current);
     }
     Ok(subroutines)
 }
@@ -390,7 +392,7 @@ impl sourcemap::SourceMap for DwarfSourceMap {
                 if i > 0 {
                     self.address_sorted_rows[i - 1].1.clone()
                 } else {
-                    return None
+                    return None;
                 }
             }
         };
