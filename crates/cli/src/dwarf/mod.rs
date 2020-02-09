@@ -138,80 +138,68 @@ pub fn transform_subprogram<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
 ) -> Result<Vec<Subroutine<R>>> {
-    let mut entries = unit.entries();
-    let _root_cu = entries.next_dfs();
-
+    let mut tree = unit.entries_tree(None)?;
+    let root = tree.root()?;
     let mut subroutines = vec![];
+    transform_subprogram_rec(root, dwarf, unit, &mut subroutines)?;
+    Ok(subroutines)
+}
 
-    let mut stack: Vec<Subroutine<R>> = vec![];
-    let mut is_debug_target = false;
-    while let Some((_depth_delta, entry)) = entries.next_dfs()? {
-        // println!(
-        //     "[Parse DIE for collect subprograms] tag = 0x{:x}",
-        //     entry.tag().0
-        // );
-        match entry.tag() {
-            gimli::DW_TAG_subprogram => {
-                let name = match entry.attr_value(gimli::DW_AT_name)? {
-                    Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
-                    None => None,
-                };
-                println!("{:?}", name);
-                is_debug_target =
-                    name == Some("swift_getAssociatedTypeWitnessSlowImpl".to_string());
+pub fn transform_subprogram_rec<R: gimli::Reader>(
+    node: gimli::EntriesTreeNode<R>,
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R, R::Offset>,
+    out_subroutines: &mut Vec<Subroutine<R>>,
+) -> Result<()> {
+    let mut subroutine = None;
+    if node.entry().tag() == gimli::DW_TAG_subprogram {
+        let name = match node.entry().attr_value(gimli::DW_AT_name)? {
+            Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
+            None => None,
+        };
 
-                let low_pc_attr = entry.attr_value(gimli::DW_AT_low_pc)?;
-                // println!("low_pc_attr: {:?}", low_pc_attr);
-                let high_pc_attr = entry.attr_value(gimli::DW_AT_high_pc)?;
-                // println!("high_pc_attr: {:?}", high_pc_attr);
-                if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
-                    let high_pc = match high_pc_attr {
-                        Some(AttributeValue::Udata(size)) => Some(low_pc + size),
-                        Some(AttributeValue::Addr(high_pc)) => Some(high_pc),
-                        Some(x) => unreachable!("high_pc can't be {:?}", x),
-                        None => None,
-                    };
-                    if let Some(high_pc) = high_pc {
-                        stack.push(Subroutine {
-                            pc: low_pc..high_pc,
-                            name,
-                            encoding: unit.encoding(),
-                            variables: vec![],
-                        });
-                    }
-                }
+        let low_pc_attr = node.entry().attr_value(gimli::DW_AT_low_pc)?;
+        // println!("low_pc_attr: {:?}", low_pc_attr);
+        let high_pc_attr = node.entry().attr_value(gimli::DW_AT_high_pc)?;
+        // println!("high_pc_attr: {:?}", high_pc_attr);
+        if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
+            let high_pc = match high_pc_attr {
+                Some(AttributeValue::Udata(size)) => Some(low_pc + size),
+                Some(AttributeValue::Addr(high_pc)) => Some(high_pc),
+                Some(x) => unreachable!("high_pc can't be {:?}", x),
+                None => None,
+            };
+            if let Some(high_pc) = high_pc {
+                subroutine = Some(Subroutine {
+                    pc: low_pc..high_pc,
+                    name,
+                    encoding: unit.encoding(),
+                    variables: vec![],
+                });
             }
+        }
+    }
+
+    let mut children = node.children();
+    while let Some(child) = children.next()? {
+        match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
-                let var = transform_variable(dwarf, unit, entry)?;
-                if is_debug_target {
-                    println!(
-                        "[Parse DIE for collect subprograms] variable '{:?}'",
-                        var.name
-                    );
-                }
-                if let Some(current) = stack.last_mut() {
+                let var = transform_variable(dwarf, unit, child.entry())?;
+                if let Some(current) = subroutine.as_mut() {
                     current.variables.push(var)
                 }
             }
             _ => {
-                if is_debug_target {
-                    match entry.attr_value(gimli::DW_AT_name)? {
-                        Some(_attr) => {
-                            // let name = clone_string_attribute(dwarf, unit, attr)?;
-                            // println!(
-                            //     "[Parse DIE for collect subprograms] unhandled named '{}'",
-                            //     name
-                            // );
-                        }
-                        None => {
-                            // println!("[Parse DIE for collect subprograms] unhandled unnamed");
-                        }
-                    };
-                }
+                transform_subprogram_rec(child, dwarf, unit, out_subroutines)?;
             }
         }
     }
-    Ok(subroutines)
+
+    if let Some(subroutine) = subroutine.take() {
+        out_subroutines.push(subroutine);
+    }
+
+    Ok(())
 }
 
 fn transform_variable<R: gimli::Reader>(
