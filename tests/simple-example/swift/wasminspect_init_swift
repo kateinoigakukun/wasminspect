@@ -1,0 +1,9 @@
+settings set directory.map /home/katei/swiftwasm-source /Users/katei/projects/swiftwasm-source
+breakpoint set swift_getAssociatedTypeWitnessSlowImpl
+run
+process continue
+process continue
+process continue
+thread step-over
+thread step-over
+thread step-in
