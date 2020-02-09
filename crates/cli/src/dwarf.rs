@@ -167,8 +167,7 @@ pub fn transform_subprogram<R: gimli::Reader>(
                     }
                 }
             }
-            gimli::DW_TAG_formal_parameter => {}
-            gimli::DW_TAG_variable => {
+            gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
                 let var = transform_variable(dwarf, unit, entry)?;
                 // println!(
                 //     "[Parse DIE for collect subprograms] variable '{}'",
