@@ -395,7 +395,7 @@ use super::commands::subroutine;
 use types::*;
 pub struct DwarfSubroutineMap<'input> {
     pub subroutines: Vec<Subroutine<Reader<'input>>>,
-    type_hash: HashMap<usize, TypeInfo>,
+    type_hash: HashMap<usize, TypeInfo<usize>>,
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
@@ -473,16 +473,12 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
         };
 
         if let Some(offset) = var.ty_offset {
-            if let Some(ty) = self.type_hash.get(&offset) {
-                use format::format_object;
-                match piece.location {
-                    gimli::Location::Address { address } => {
-                        println!("{}", format_object(ty, &memory[(address as usize)..]));
-                    }
-                    _ => unimplemented!(),
+            use format::format_object;
+            match piece.location {
+                gimli::Location::Address { address } => {
+                    println!("{}", format_object(offset, &memory[(address as usize)..], &self.type_hash)?);
                 }
-            } else {
-                println!("type located at '{}' is not parsed yet", offset);
+                _ => unimplemented!(),
             }
         } else {
             println!("no explicit type");
