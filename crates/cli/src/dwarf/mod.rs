@@ -481,7 +481,11 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
                     }
                     _ => unimplemented!(),
                 }
+            } else {
+                println!("type located at '{}' is not parsed yet", offset);
             }
+        } else {
+            println!("no explicit type");
         }
         Ok(())
     }
