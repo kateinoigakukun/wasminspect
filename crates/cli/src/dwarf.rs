@@ -97,7 +97,7 @@ pub struct SymbolVariable<R>
 where
     R: gimli::Reader,
 {
-    name: String,
+    name: Option<String>,
     content: VariableContent<R>,
 }
 
@@ -132,10 +132,10 @@ pub fn transform_subprogram<R: gimli::Reader>(
 
     let mut current: Option<Subroutine<R>> = None;
     while let Some((depth_delta, entry)) = entries.next_dfs()? {
-        println!(
-            "[Parse DIE for collect subprograms] tag = 0x{:x}",
-            entry.tag().0
-        );
+        // println!(
+        //     "[Parse DIE for collect subprograms] tag = 0x{:x}",
+        //     entry.tag().0
+        // );
         match entry.tag() {
             gimli::DW_TAG_subprogram => {
                 let name = match entry.attr_value(gimli::DW_AT_name)? {
@@ -147,9 +147,9 @@ pub fn transform_subprogram<R: gimli::Reader>(
                 }
 
                 let low_pc_attr = entry.attr_value(gimli::DW_AT_low_pc)?;
-                println!("low_pc_attr: {:?}", low_pc_attr);
+                // println!("low_pc_attr: {:?}", low_pc_attr);
                 let high_pc_attr = entry.attr_value(gimli::DW_AT_high_pc)?;
-                println!("high_pc_attr: {:?}", high_pc_attr);
+                // println!("high_pc_attr: {:?}", high_pc_attr);
                 if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
                     let high_pc = match high_pc_attr {
                         Some(AttributeValue::Udata(size)) => Some(low_pc + size),
@@ -167,12 +167,13 @@ pub fn transform_subprogram<R: gimli::Reader>(
                     }
                 }
             }
+            gimli::DW_TAG_formal_parameter => {}
             gimli::DW_TAG_variable => {
                 let var = transform_variable(dwarf, unit, entry)?;
-                println!(
-                    "[Parse DIE for collect subprograms] variable '{}'",
-                    var.name
-                );
+                // println!(
+                //     "[Parse DIE for collect subprograms] variable '{}'",
+                //     var.name
+                // );
                 if let Some(current) = current.as_mut() {
                     current.variables.push(var)
                 }
@@ -180,14 +181,14 @@ pub fn transform_subprogram<R: gimli::Reader>(
             _ => {
                 match entry.attr_value(gimli::DW_AT_name)? {
                     Some(attr) => {
-                        let name = clone_string_attribute(dwarf, unit, attr)?;
-                        println!(
-                            "[Parse DIE for collect subprograms] unhandled named '{}'",
-                            name
-                        );
+                        // let name = clone_string_attribute(dwarf, unit, attr)?;
+                        // println!(
+                        //     "[Parse DIE for collect subprograms] unhandled named '{}'",
+                        //     name
+                        // );
                     }
                     None => {
-                        println!("[Parse DIE for collect subprograms] unhandled unnamed");
+                        // println!("[Parse DIE for collect subprograms] unhandled unnamed");
                     }
                 };
             }
@@ -205,7 +206,7 @@ fn transform_variable<R: gimli::Reader>(
     entry: &DebuggingInformationEntry<R>,
 ) -> Result<SymbolVariable<R>> {
     let mut content = VariableContent::Unknown {
-        debug_info: format!("{:?}", entry.attrs()),
+        debug_info: "".to_string(), //format!("{:?}", entry.attrs()),
     };
     let mut has_explicit_location = false;
     if let Some(location) = entry.attr_value(gimli::DW_AT_location)? {
@@ -229,7 +230,10 @@ fn transform_variable<R: gimli::Reader>(
             content = VariableContent::ConstValue(bytes);
         }
     }
-    let name = clone_string_attribute(dwarf, unit, entry.attr_value(gimli::DW_AT_name)?.unwrap())?;
+    let name = match entry.attr_value(gimli::DW_AT_name)? {
+        Some(name_attr) => Some(clone_string_attribute(dwarf, unit, name_attr)?),
+        None => None,
+    };
     Ok(SymbolVariable { name, content })
 }
 
@@ -384,6 +388,19 @@ pub struct DwarfSubroutineMap<'input> {
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
+    fn variable_name_list(&self, code_offset: usize) -> Result<Vec<String>> {
+        let offset = &(code_offset as u64);
+        let subroutine = match self
+            .subroutines
+            .iter()
+            .filter(|s| s.pc.contains(offset))
+            .next()
+        {
+            Some(s) => s,
+            None => return Err(anyhow!("failed to determine subroutine")),
+        };
+        Ok(subroutine.variables.iter().filter_map(|var| var.name.clone()).collect())
+    }
     fn display_variable(
         &self,
         code_offset: usize,
@@ -404,7 +421,13 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
         let var = match subroutine
             .variables
             .iter()
-            .filter(|v| v.name == name)
+            .filter(|v| {
+                if let Some(vname) = v.name.clone() {
+                    vname == name
+                } else {
+                    false
+                }
+            })
             .next()
         {
             Some(v) => v,

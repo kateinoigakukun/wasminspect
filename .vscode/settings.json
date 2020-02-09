@@ -1,3 +1,4 @@
 {
-    "lldb.executable": "rust-lldb"
+    "lldb.executable": "rust-lldb",
+    "rust-analyzer.displayInlayHints": false,
 }
