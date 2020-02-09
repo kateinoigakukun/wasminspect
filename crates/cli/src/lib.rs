@@ -14,7 +14,7 @@ fn history_file_path() -> String {
     )
 }
 
-pub fn run_loop(file: Option<String>) -> Result<()> {
+pub fn run_loop(file: Option<String>, init_source: String) -> Result<()> {
     let mut debugger = debugger::MainDebugger::new()?;
     let mut buffer = Vec::new();
     let mut context = commands::command::CommandContext {
@@ -52,6 +52,14 @@ pub fn run_loop(file: Option<String>) -> Result<()> {
         vec![Box::new(commands::backtrace::BacktraceCommand::new())],
         &history_file_path(),
     )?;
+    {
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+        let init_source_lines = BufReader::new(File::open(init_source)?).lines();
+        for line in init_source_lines {
+            process.dispatch_command(line?, &context)?;
+        }
+    }
     process.run_loop(context)?;
     Ok(())
 }

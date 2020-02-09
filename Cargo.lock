@@ -879,6 +879,7 @@ name = "wasminspect"
 version = "0.1.0"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "structopt 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmi-validation 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasminspect-cli 0.1.0",
  "wasminspect-vm 0.1.0",
