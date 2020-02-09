@@ -189,11 +189,11 @@ pub fn transform_subprogram<R: gimli::Reader>(
             }
             gimli::DW_TAG_variable => {
                 let location = entry.attr_value(gimli::DW_AT_location)?.unwrap();
-                let name = dwarf
-                    .attr_string(unit, entry.attr_value(gimli::DW_AT_name)?.unwrap())?
-                    .to_string()?
-                    .as_ref()
-                    .to_string();
+                let name = clone_string_attribute(
+                    dwarf,
+                    unit,
+                    entry.attr_value(gimli::DW_AT_name)?.unwrap(),
+                )?;
                 let var = SymbolVariable { name, location };
                 current.as_mut().unwrap().add_variable(var);
             }
@@ -205,6 +205,25 @@ pub fn transform_subprogram<R: gimli::Reader>(
         subroutines.push(builder.build())
     }
     Ok(subroutines)
+}
+
+fn transform_variable<R: gimli::Reader>(
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R, R::Offset>,
+    entry: &DebuggingInformationEntry<R>,
+) {
+}
+
+fn clone_string_attribute<R: gimli::Reader>(
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R, R::Offset>,
+    attr: AttributeValue<R>,
+) -> Result<String> {
+    Ok(dwarf
+        .attr_string(unit, attr)?
+        .to_string()?
+        .as_ref()
+        .to_string())
 }
 
 use gimli::Expression;
@@ -253,9 +272,7 @@ pub fn transform_debug_line<R: gimli::Reader>(
         sequence_base_index = 0;
     }
     for dir in header.include_directories() {
-        let dir_str =
-            String::from_utf8(dwarf.attr_string(unit, dir.clone())?.to_slice()?.to_vec()).unwrap();
-        dirs.push(dir_str)
+        dirs.push(clone_string_attribute(dwarf, unit, dir.clone())?);
     }
     let mut files = Vec::new();
     for file_entry in header.file_names() {
