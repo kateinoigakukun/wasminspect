@@ -25,7 +25,7 @@ pub enum ModifierKind {
 }
 #[derive(Debug)]
 pub struct ModifiedTypeInfo<Offset> {
-    pub content_ty_offset: Offset,
+    pub content_ty_offset: Option<Offset>,
     pub kind: ModifierKind,
 }
 
@@ -126,8 +126,11 @@ fn parse_modified_type<R: gimli::Reader>(
     unit: &gimli::Unit<R, R::Offset>,
 ) -> Result<ModifiedTypeInfo<R::Offset>> {
     let ty = match node.entry().attr_value(gimli::DW_AT_type)? {
-        Some(gimli::AttributeValue::UnitRef(ref offset)) => offset.0,
-        _ => return Err(anyhow!("Failed to get pointee type")),
+        Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
+        x => {
+            println!("Failed to get pointee type: {:?} {:?} {:?}", node.entry().offset(), x, kind);
+            None
+        },
     };
     Ok(ModifiedTypeInfo {
         content_ty_offset: ty,

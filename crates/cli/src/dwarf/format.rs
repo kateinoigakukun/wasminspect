@@ -3,7 +3,11 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 
-fn type_name(ty_offset: usize, type_hash: &HashMap<usize, TypeInfo<usize>>) -> Result<String> {
+fn type_name(ty_offset: Option<usize>, type_hash: &HashMap<usize, TypeInfo<usize>>) -> Result<String> {
+    let ty_offset = match ty_offset {
+        Some(o) => o,
+        None => return Ok("none".to_string()),
+    };
     let ty = type_hash
         .get(&ty_offset)
         .ok_or(anyhow!("Failed to get type from offset '{}'", ty_offset))?;
@@ -92,11 +96,18 @@ pub fn format_object(
                 ))
             },
             _ => {
-                return Ok(format!(
-                    "{}({})",
-                    type_name(ty_offset, type_hash)?,
-                    format_object(mod_type.content_ty_offset, memory, type_hash)?
-                ))
+                if let Some(offset) = mod_type.content_ty_offset {
+                    return Ok(format!(
+                        "{}({})",
+                        type_name(Some(ty_offset), type_hash)?,
+                        format_object(offset, memory, type_hash)?
+                    ));
+                } else {
+                    return Ok(format!(
+                        "{}(unknown)",
+                        type_name(Some(ty_offset), type_hash)?,
+                    ));
+                }
             }
         },
     }
