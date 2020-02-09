@@ -25,6 +25,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'wasminspect' with Swift WebAssembly",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=wasminspect",
+                    "--package=wasminspect"
+                ],
+                "filter": {
+                    "name": "wasminspect",
+                    "kind": "bin"
+                }
+            },
+            "args": ["${workspaceFolder}/tests/simple-example/swift/specialize_partial_apply.swift.wasm"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug integration tests in executable 'wasminspect'",
             "cargo": {
                 "args": [
