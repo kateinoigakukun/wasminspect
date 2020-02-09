@@ -7,6 +7,11 @@ use gimli::{
 use std::collections::{BTreeMap, HashMap};
 use wasmparser::{ModuleReader, SectionCode};
 
+mod types;
+mod utils;
+
+use utils::*;
+
 type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
 pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
 
@@ -88,7 +93,10 @@ pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
     }
     Ok(DwarfDebugInfo {
         sourcemap: DwarfSourceMap::new(sourcemaps),
-        subroutine: DwarfSubroutineMap { subroutines },
+        subroutine: DwarfSubroutineMap {
+            subroutines,
+            debug_types: dwarf.debug_types,
+        },
     })
 }
 
@@ -233,19 +241,12 @@ fn transform_variable<R: gimli::Reader>(
         Some(name_attr) => Some(clone_string_attribute(dwarf, unit, name_attr)?),
         None => None,
     };
-    Ok(SymbolVariable { name, content })
-}
 
-fn clone_string_attribute<R: gimli::Reader>(
-    dwarf: &gimli::Dwarf<R>,
-    unit: &Unit<R, R::Offset>,
-    attr: AttributeValue<R>,
-) -> Result<String> {
-    Ok(dwarf
-        .attr_string(unit, attr)?
-        .to_string()?
-        .as_ref()
-        .to_string())
+    let ty = match entry.attr_value(gimli::DW_AT_type)? {
+        Some(AttributeValue::UnitRef(ref offset)) => Some(offset),
+        _ => None,
+    };
+    Ok(SymbolVariable { name, content })
 }
 
 use gimli::Expression;
@@ -384,6 +385,7 @@ impl sourcemap::SourceMap for DwarfSourceMap {
 use super::commands::subroutine;
 pub struct DwarfSubroutineMap<'input> {
     pub subroutines: Vec<Subroutine<Reader<'input>>>,
+    debug_types: DebugTypes<Reader<'input>>,
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
@@ -398,7 +400,11 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
-        Ok(subroutine.variables.iter().filter_map(|var| var.name.clone()).collect())
+        Ok(subroutine
+            .variables
+            .iter()
+            .filter_map(|var| var.name.clone())
+            .collect())
     }
     fn display_variable(
         &self,
