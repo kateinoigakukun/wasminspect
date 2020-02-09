@@ -7,6 +7,7 @@ use gimli::{
 use std::collections::{BTreeMap, HashMap};
 use wasmparser::{ModuleReader, SectionCode};
 
+mod format;
 mod types;
 mod utils;
 
@@ -76,6 +77,8 @@ pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
+
+    let mut type_hash = HashMap::new();
     while let Some(header) = headers.next()? {
         let unit = dwarf.unit(header)?;
         let mut entries = unit.entries();
@@ -90,12 +93,13 @@ pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
             &dwarf.debug_line,
         )?);
         subroutines.append(&mut transform_subprogram(&dwarf, &unit)?);
+        get_types(&dwarf, &unit, &mut type_hash)?;
     }
     Ok(DwarfDebugInfo {
         sourcemap: DwarfSourceMap::new(sourcemaps),
         subroutine: DwarfSubroutineMap {
             subroutines,
-            debug_types: dwarf.debug_types,
+            type_hash,
         },
     })
 }
@@ -107,6 +111,7 @@ where
 {
     name: Option<String>,
     content: VariableContent<R>,
+    ty_offset: Option<R::Offset>,
 }
 
 #[derive(Clone)]
@@ -243,10 +248,14 @@ fn transform_variable<R: gimli::Reader>(
     };
 
     let ty = match entry.attr_value(gimli::DW_AT_type)? {
-        Some(AttributeValue::UnitRef(ref offset)) => Some(offset),
+        Some(AttributeValue::UnitRef(ref offset)) => Some(offset.0),
         _ => None,
     };
-    Ok(SymbolVariable { name, content })
+    Ok(SymbolVariable {
+        name,
+        content,
+        ty_offset: ty,
+    })
 }
 
 use gimli::Expression;
@@ -383,9 +392,10 @@ impl sourcemap::SourceMap for DwarfSourceMap {
 }
 
 use super::commands::subroutine;
+use types::*;
 pub struct DwarfSubroutineMap<'input> {
     pub subroutines: Vec<Subroutine<Reader<'input>>>,
-    debug_types: DebugTypes<Reader<'input>>,
+    type_hash: HashMap<usize, TypeInfo>,
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
@@ -410,7 +420,7 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
         &self,
         code_offset: usize,
         rbp: u32,
-        _memory: &[u8],
+        memory: &[u8],
         name: String,
     ) -> Result<()> {
         let offset = &(code_offset as u64);
@@ -454,7 +464,25 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             }
         };
 
-        println!("{:?}", piece);
+        let piece = match piece.iter().next() {
+            Some(p) => p,
+            None => {
+                println!("failed to get piece of variable");
+                return Ok(());
+            }
+        };
+
+        if let Some(offset) = var.ty_offset {
+            if let Some(ty) = self.type_hash.get(&offset) {
+                use format::format_object;
+                match piece.location {
+                    gimli::Location::Address { address } => {
+                        println!("{}", format_object(ty, &memory[(address as usize)..]));
+                    }
+                    _ => unimplemented!(),
+                }
+            }
+        }
         Ok(())
     }
 }
