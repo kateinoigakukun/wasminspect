@@ -129,7 +129,14 @@ where
     R: gimli::Reader,
 {
     name: String,
-    location: gimli::AttributeValue<R>,
+    content: VariableContent<R>,
+}
+
+#[derive(Clone)]
+enum VariableContent<R: gimli::Reader> {
+    Location(gimli::AttributeValue<R>),
+    ConstValue(Vec<u8>),
+    Unknown { debug_info: String },
 }
 
 pub struct Subroutine<R: gimli::Reader> {
@@ -150,17 +157,14 @@ pub fn transform_subprogram<R: gimli::Reader>(
 
     let mut current: Option<SubroutineBuilder<R>> = None;
     while let Some((depth_delta, entry)) = entries.next_dfs()? {
-        println!("[Parse DIE for collect subprograms] {:?}", entry);
+        println!(
+            "[Parse DIE for collect subprograms] tag = {:x}",
+            entry.tag().0
+        );
         match entry.tag() {
             gimli::DW_TAG_subprogram => {
                 let name = match entry.attr_value(gimli::DW_AT_name)? {
-                    Some(attr) => Some(
-                        dwarf
-                            .attr_string(unit, attr)?
-                            .to_string()?
-                            .as_ref()
-                            .to_string(),
-                    ),
+                    Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
                     None => None,
                 };
                 if let Some(ref builder) = current {
@@ -188,17 +192,25 @@ pub fn transform_subprogram<R: gimli::Reader>(
                 }
             }
             gimli::DW_TAG_variable => {
-                let location = entry.attr_value(gimli::DW_AT_location)?.unwrap();
-                let name = clone_string_attribute(
-                    dwarf,
-                    unit,
-                    entry.attr_value(gimli::DW_AT_name)?.unwrap(),
-                )?;
-                let var = SymbolVariable { name, location };
+                let var = transform_variable(dwarf, unit, entry)?;
+                println!(
+                    "[Parse DIE for collect subprograms] variable '{}'",
+                    var.name
+                );
                 current.as_mut().unwrap().add_variable(var);
             }
             gimli::DW_TAG_formal_parameter => {}
-            _ => {}
+            _ => {
+                match entry.attr_value(gimli::DW_AT_name)? {
+                    Some(attr) => {
+                        let name = clone_string_attribute(dwarf, unit, attr)?;
+                        println!("[Parse DIE for collect subprograms] unhandled named '{}'", name);
+                    },
+                    None => {
+                        println!("[Parse DIE for collect subprograms] unhandled unnamed");
+                    },
+                };
+            }
         }
     }
     if let Some(ref builder) = current {
@@ -211,7 +223,34 @@ fn transform_variable<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
     entry: &DebuggingInformationEntry<R>,
-) {
+) -> Result<SymbolVariable<R>> {
+    let mut content = VariableContent::Unknown {
+        debug_info: format!("{:?}", entry.attrs()),
+    };
+    let mut has_explicit_location = false;
+    if let Some(location) = entry.attr_value(gimli::DW_AT_location)? {
+        content = VariableContent::Location(location);
+        has_explicit_location = true;
+    }
+    if let Some(constant) = entry.attr_value(gimli::DW_AT_const_value)? {
+        if !has_explicit_location {
+            // TODO: support big endian
+            let bytes = match constant {
+                AttributeValue::Block(block) => block.to_slice()?.to_vec(),
+                AttributeValue::Data1(b) => vec![b],
+                AttributeValue::Data2(b) => b.to_le_bytes().to_vec(),
+                AttributeValue::Data4(b) => b.to_le_bytes().to_vec(),
+                AttributeValue::Data8(b) => b.to_le_bytes().to_vec(),
+                AttributeValue::Sdata(b) => b.to_le_bytes().to_vec(),
+                AttributeValue::Udata(b) => b.to_le_bytes().to_vec(),
+                AttributeValue::String(b) => b.to_slice()?.to_vec(),
+                _ => unimplemented!(),
+            };
+            content = VariableContent::ConstValue(bytes);
+        }
+    }
+    let name = clone_string_attribute(dwarf, unit, entry.attr_value(gimli::DW_AT_name)?.unwrap())?;
+    Ok(SymbolVariable { name, content })
 }
 
 fn clone_string_attribute<R: gimli::Reader>(
@@ -278,12 +317,7 @@ pub fn transform_debug_line<R: gimli::Reader>(
     for file_entry in header.file_names() {
         let dir = dirs[file_entry.directory_index() as usize].clone();
         let dir_path = Path::new(&dir);
-        let mut path = dir_path.join(
-            dwarf
-                .attr_string(unit, file_entry.path_name())?
-                .to_string()?
-                .as_ref(),
-        );
+        let mut path = dir_path.join(clone_string_attribute(dwarf, unit, file_entry.path_name())?);
         if !path.is_absolute() {
             if let Some(comp_dir) = unit.comp_dir.clone() {
                 let comp_dir = String::from_utf8(comp_dir.to_slice()?.to_vec()).unwrap();
@@ -398,12 +432,18 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
                 return Err(anyhow!("'{}' is not valid variable name", name));
             }
         };
-        let piece = match var.location {
-            AttributeValue::Exprloc(expr) => {
-                evaluate_variable_location(subroutine.encoding, rbp, expr)?
+        let piece = match var.content {
+            VariableContent::Location(location) => match location {
+                AttributeValue::Exprloc(expr) => {
+                    evaluate_variable_location(subroutine.encoding, rbp, expr)?
+                }
+                AttributeValue::LocationListsRef(listsref) => unimplemented!("listsref"),
+                _ => panic!(),
+            },
+            VariableContent::ConstValue(ref bytes) => unimplemented!(),
+            VariableContent::Unknown { ref debug_info } => {
+                unimplemented!("Unknown variable content found {}", debug_info)
             }
-            AttributeValue::LocationListsRef(listsref) => unimplemented!("listsref"),
-            _ => panic!(),
         };
 
         println!("{:?}", piece);
