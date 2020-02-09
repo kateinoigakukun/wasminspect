@@ -92,37 +92,6 @@ pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
     })
 }
 
-struct SubroutineBuilder<R: gimli::Reader> {
-    name: Option<String>,
-    pc: std::ops::Range<u64>,
-    variables: Vec<SymbolVariable<R>>,
-    encoding: gimli::Encoding,
-}
-
-impl<R: gimli::Reader> SubroutineBuilder<R> {
-    fn new(pc: std::ops::Range<u64>, name: Option<String>, encoding: gimli::Encoding) -> Self {
-        Self {
-            pc,
-            name,
-            variables: vec![],
-            encoding,
-        }
-    }
-
-    fn add_variable(&mut self, var: SymbolVariable<R>) {
-        self.variables.push(var);
-    }
-
-    fn build(&self) -> Subroutine<R> {
-        Subroutine {
-            pc: self.pc.clone(),
-            name: self.name.clone(),
-            variables: self.variables.clone(),
-            encoding: self.encoding,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct SymbolVariable<R>
 where
@@ -146,6 +115,12 @@ pub struct Subroutine<R: gimli::Reader> {
     pub encoding: gimli::Encoding,
 }
 
+struct Namespace<R: gimli::Reader> {
+    pub name: Option<String>,
+    pub variables: Vec<SymbolVariable<R>>,
+    pub encoding: gimli::Encoding,
+}
+
 pub fn transform_subprogram<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
@@ -155,10 +130,10 @@ pub fn transform_subprogram<R: gimli::Reader>(
 
     let mut subroutines = vec![];
 
-    let mut current: Option<SubroutineBuilder<R>> = None;
+    let mut current: Option<Subroutine<R>> = None;
     while let Some((depth_delta, entry)) = entries.next_dfs()? {
         println!(
-            "[Parse DIE for collect subprograms] tag = {:x}",
+            "[Parse DIE for collect subprograms] tag = 0x{:x}",
             entry.tag().0
         );
         match entry.tag() {
@@ -167,8 +142,8 @@ pub fn transform_subprogram<R: gimli::Reader>(
                     Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
                     None => None,
                 };
-                if let Some(ref builder) = current {
-                    subroutines.push(builder.build())
+                if let Some(current) = current.take() {
+                    subroutines.push(current);
                 }
 
                 let low_pc_attr = entry.attr_value(gimli::DW_AT_low_pc)?;
@@ -183,11 +158,12 @@ pub fn transform_subprogram<R: gimli::Reader>(
                         None => None,
                     };
                     if let Some(high_pc) = high_pc {
-                        current = Some(SubroutineBuilder::new(
-                            low_pc..high_pc,
+                        current = Some(Subroutine {
+                            pc: low_pc..high_pc,
                             name,
-                            unit.encoding(),
-                        ));
+                            encoding: unit.encoding(),
+                            variables: vec![],
+                        });
                     }
                 }
             }
@@ -197,24 +173,28 @@ pub fn transform_subprogram<R: gimli::Reader>(
                     "[Parse DIE for collect subprograms] variable '{}'",
                     var.name
                 );
-                current.as_mut().unwrap().add_variable(var);
+                if let Some(current) = current.as_mut() {
+                    current.variables.push(var)
+                }
             }
-            gimli::DW_TAG_formal_parameter => {}
             _ => {
                 match entry.attr_value(gimli::DW_AT_name)? {
                     Some(attr) => {
                         let name = clone_string_attribute(dwarf, unit, attr)?;
-                        println!("[Parse DIE for collect subprograms] unhandled named '{}'", name);
-                    },
+                        println!(
+                            "[Parse DIE for collect subprograms] unhandled named '{}'",
+                            name
+                        );
+                    }
                     None => {
                         println!("[Parse DIE for collect subprograms] unhandled unnamed");
-                    },
+                    }
                 };
             }
         }
     }
-    if let Some(ref builder) = current {
-        subroutines.push(builder.build())
+    if let Some(current) = current.take() {
+        subroutines.push(current);
     }
     Ok(subroutines)
 }
