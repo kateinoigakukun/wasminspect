@@ -21,19 +21,17 @@ impl<D: Debugger> Command<D> for ListCommand {
     }
 
     fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
-        let line_info = current_line_info(debugger, &context.sourcemap)?;
+        let line_info = next_line_info(debugger, &context.sourcemap)?;
         display_source(line_info)
     }
 }
 
-pub fn current_line_info<D: Debugger>(
+pub fn next_line_info<D: Debugger>(
     debugger: &D,
     sourcemap: &Box<dyn SourceMap>,
 ) -> Result<LineInfo> {
     let (insts, next_index) = debugger.instructions()?;
-    let current_index = if next_index == 0 { 0 } else { next_index - 1 };
-    let first_inst = insts[current_index].clone();
-    match sourcemap.find_line_info(first_inst.offset) {
+    match sourcemap.find_line_info(insts[next_index].offset) {
         Some(info) => Ok(info),
         None => Err(anyhow!("Source info not found")),
     }
