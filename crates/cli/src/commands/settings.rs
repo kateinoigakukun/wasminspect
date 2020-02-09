@@ -3,8 +3,6 @@ use super::debugger::Debugger;
 use anyhow::Result;
 
 use structopt::StructOpt;
-#[macro_use]
-use clap::arg_enum;
 
 pub struct SettingsCommand {}
 
