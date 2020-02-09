@@ -354,8 +354,10 @@ impl DwarfUnitSourceMap {
     }
 }
 
+use std::cell::RefCell;
 pub struct DwarfSourceMap {
     address_sorted_rows: Vec<(u64, sourcemap::LineInfo)>,
+    directory_map: RefCell<HashMap<String, String>>,
 }
 
 impl DwarfSourceMap {
@@ -369,25 +371,33 @@ impl DwarfSourceMap {
         }
         Self {
             address_sorted_rows: rows.into_iter().collect(),
+            directory_map: RefCell::new(HashMap::new()),
         }
     }
 }
 
 impl sourcemap::SourceMap for DwarfSourceMap {
+    fn set_directory_map(&self, from: String, to: String) {
+        self.directory_map.borrow_mut().insert(from, to);
+    }
     fn find_line_info(&self, offset: usize) -> Option<sourcemap::LineInfo> {
-        match self
+        let mut line_info = match self
             .address_sorted_rows
             .binary_search_by_key(&(offset as u64), |i| i.0)
         {
-            Ok(i) => Some(self.address_sorted_rows[i].1.clone()),
+            Ok(i) => self.address_sorted_rows[i].1.clone(),
             Err(i) => {
                 if i > 0 {
-                    Some(self.address_sorted_rows[i - 1].1.clone())
+                    self.address_sorted_rows[i - 1].1.clone()
                 } else {
-                    None
+                    return None
                 }
             }
+        };
+        for (from, to) in self.directory_map.borrow().iter() {
+            line_info.filepath = line_info.filepath.replace(from, to);
         }
+        Some(line_info)
     }
 }
 

@@ -16,3 +16,4 @@ pub mod thread;
 pub mod global;
 pub mod local;
 pub mod frame;
+pub mod settings;

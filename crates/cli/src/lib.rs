@@ -46,6 +46,7 @@ pub fn run_loop(file: Option<String>) -> Result<()> {
             Box::new(commands::global::GlobalCommand::new()),
             Box::new(commands::local::LocalCommand::new()),
             Box::new(commands::frame::FrameCommand::new()),
+            Box::new(commands::settings::SettingsCommand::new()),
         ],
         vec![Box::new(commands::backtrace::BacktraceCommand::new())],
         &history_file_path(),
