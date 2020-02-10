@@ -47,7 +47,7 @@ pub fn display_source(line_info: LineInfo) -> Result<()> {
     }
     let range = line_info.line.map(|l| {
         if l < 20 {
-            (0..(l + 20))
+            0..(l + 20)
         } else {
             (l - 20)..(l + 20)
         }
