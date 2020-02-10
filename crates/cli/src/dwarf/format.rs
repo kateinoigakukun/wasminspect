@@ -57,8 +57,7 @@ pub fn type_name<'input>(
                     "violate {}",
                     type_name(mod_type.content_ty_offset, type_hash)?
                 ),
-            };
-            panic!()
+            }
         }
     };
     Ok(result)
