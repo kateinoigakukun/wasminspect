@@ -4,9 +4,9 @@ use gimli::{
     DebugLocLists, DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes,
     DebuggingInformationEntry, EndianSlice, LineRow, LittleEndian, LocationLists, RangeLists, Unit,
 };
+use log::trace;
 use std::collections::{BTreeMap, HashMap};
 use wasmparser::{ModuleReader, SectionCode};
-use log::trace;
 
 mod format;
 mod types;
@@ -484,7 +484,15 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             use format::format_object;
             match piece.location {
                 gimli::Location::Address { address } => {
-                    println!("{}", format_object(offset, &memory[(address as usize)..], &self.type_hash)?);
+                    println!(
+                        "{}",
+                        format_object(
+                            offset,
+                            &memory[(address as usize)..],
+                            subroutine.encoding,
+                            &self.type_hash
+                        )?
+                    );
                 }
                 _ => unimplemented!(),
             }

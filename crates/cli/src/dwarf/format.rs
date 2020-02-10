@@ -1,3 +1,4 @@
+use super::evaluate_variable_location;
 use super::types::*;
 use super::Reader;
 use std::collections::HashMap;
@@ -17,49 +18,53 @@ pub fn type_name<'input>(
         .ok_or(anyhow!("Failed to get type from offset '{}'", ty_offset))?;
     let result = match ty {
         TypeInfo::BaseType(base_type) => base_type.name.clone(),
-        TypeInfo::StructType(struct_type) => struct_type.name.clone().unwrap_or("struct <<not parsed yet>>".to_string()),
-        TypeInfo::TypeDef(type_def) => type_def.name.clone().unwrap_or("typedef <<not parsed yet>>".to_string()),
-        TypeInfo::ModifiedType(mod_type) => {
-            match mod_type.kind {
-                ModifierKind::Atomic => format!(
-                    "std::atomic<{}>",
-                    type_name(mod_type.content_ty_offset, type_hash)?
-                ),
-                ModifierKind::Const => format!(
-                    "const {}",
-                    type_name(mod_type.content_ty_offset, type_hash)?
-                ),
-                ModifierKind::Immutable => format!(
-                    "immutable {}",
-                    type_name(mod_type.content_ty_offset, type_hash)?
-                ),
-                ModifierKind::Packed => format!(
-                    "packed {}",
-                    type_name(mod_type.content_ty_offset, type_hash)?
-                ),
-                ModifierKind::Pointer => {
-                    format!("{}*", type_name(mod_type.content_ty_offset, type_hash)?)
-                }
-                ModifierKind::Reference => {
-                    format!("{}&", type_name(mod_type.content_ty_offset, type_hash)?)
-                }
-                ModifierKind::Restrict => format!(
-                    "restrict {}",
-                    type_name(mod_type.content_ty_offset, type_hash)?
-                ),
-                ModifierKind::RvalueReference => {
-                    format!("{}&&", type_name(mod_type.content_ty_offset, type_hash)?)
-                }
-                ModifierKind::Shared => format!(
-                    "shared {}",
-                    type_name(mod_type.content_ty_offset, type_hash)?
-                ),
-                ModifierKind::Volatile => format!(
-                    "violate {}",
-                    type_name(mod_type.content_ty_offset, type_hash)?
-                ),
+        TypeInfo::StructType(struct_type) => struct_type
+            .name
+            .clone()
+            .unwrap_or("struct <<not parsed yet>>".to_string()),
+        TypeInfo::TypeDef(type_def) => type_def
+            .name
+            .clone()
+            .unwrap_or("typedef <<not parsed yet>>".to_string()),
+        TypeInfo::ModifiedType(mod_type) => match mod_type.kind {
+            ModifierKind::Atomic => format!(
+                "std::atomic<{}>",
+                type_name(mod_type.content_ty_offset, type_hash)?
+            ),
+            ModifierKind::Const => format!(
+                "const {}",
+                type_name(mod_type.content_ty_offset, type_hash)?
+            ),
+            ModifierKind::Immutable => format!(
+                "immutable {}",
+                type_name(mod_type.content_ty_offset, type_hash)?
+            ),
+            ModifierKind::Packed => format!(
+                "packed {}",
+                type_name(mod_type.content_ty_offset, type_hash)?
+            ),
+            ModifierKind::Pointer => {
+                format!("{}*", type_name(mod_type.content_ty_offset, type_hash)?)
             }
-        }
+            ModifierKind::Reference => {
+                format!("{}&", type_name(mod_type.content_ty_offset, type_hash)?)
+            }
+            ModifierKind::Restrict => format!(
+                "restrict {}",
+                type_name(mod_type.content_ty_offset, type_hash)?
+            ),
+            ModifierKind::RvalueReference => {
+                format!("{}&&", type_name(mod_type.content_ty_offset, type_hash)?)
+            }
+            ModifierKind::Shared => format!(
+                "shared {}",
+                type_name(mod_type.content_ty_offset, type_hash)?
+            ),
+            ModifierKind::Volatile => format!(
+                "violate {}",
+                type_name(mod_type.content_ty_offset, type_hash)?
+            ),
+        },
     };
     Ok(result)
 }
@@ -67,6 +72,7 @@ pub fn type_name<'input>(
 pub fn format_object<'input>(
     ty_offset: usize,
     memory: &[u8],
+    encoding: gimli::Encoding,
     type_hash: &HashMap<usize, TypeInfo<Reader<'input>>>,
 ) -> Result<String> {
     let ty = type_hash
@@ -84,8 +90,40 @@ pub fn format_object<'input>(
                 _ => unimplemented!(),
             }
         }
-        TypeInfo::StructType(..) => {
-            unimplemented!();
+        TypeInfo::StructType(struct_type) => {
+            let mut members_str = vec![];
+            for member in &struct_type.members {
+                let offset: usize = match member.location {
+                    MemberLocation::ConstOffset(offset) => offset as usize,
+                    MemberLocation::LocationDescription(expr) => {
+                        let pieces = evaluate_variable_location(encoding, 0, expr)?;
+                        let piece = match pieces.iter().next() {
+                            Some(p) => p,
+                            None => panic!(),
+                        };
+                        match piece.location {
+                            gimli::Location::Address { address } => address as usize,
+                            _ => unimplemented!(),
+                        }
+                    }
+                };
+                members_str.push(format!(
+                    "{}: {}",
+                    member
+                        .name
+                        .clone()
+                        .unwrap_or("<<not parsed yet>>".to_string()),
+                    format_object(member.ty, &memory[offset..], encoding, type_hash)?
+                ))
+            }
+            Ok(format!(
+                "{} {{\n{}\n}}",
+                struct_type
+                    .name
+                    .clone()
+                    .unwrap_or("<<not parsed yet>>".to_string()),
+                members_str.join(",\n"),
+            ))
         }
         TypeInfo::TypeDef(..) => {
             unimplemented!();
@@ -111,7 +149,7 @@ pub fn format_object<'input>(
                     return Ok(format!(
                         "{}({})",
                         type_name(Some(ty_offset), type_hash)?,
-                        format_object(offset, memory, type_hash)?
+                        format_object(offset, memory, encoding, type_hash)?
                     ));
                 } else {
                     return Ok(format!(
