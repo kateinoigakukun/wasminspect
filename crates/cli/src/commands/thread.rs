@@ -30,11 +30,17 @@ enum Opts {
     StepInstOver,
 }
 
-use super::list::{current_line_info, display_source};
+use super::list::{next_line_info, display_source};
+use super::disassemble::display_asm;
 impl<D: Debugger> Command<D> for ThreadCommand {
     fn name(&self) -> &'static str {
         "thread"
     }
+
+    fn description(&self) -> &'static str {
+        "Commands for operating the thread."
+    }
+
     fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args.clone())?;
         match opts {
@@ -72,19 +78,19 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                     Opts::StepOver => StepStyle::StepInstOver,
                     _ => panic!(),
                 };
-                let initial_line_info = current_line_info(debugger, &context.sourcemap)?;
+                let initial_line_info = next_line_info(debugger, &context.sourcemap)?;
                 while {
                     debugger.step(style)?;
-                    let line_info = current_line_info(debugger, &context.sourcemap)?;
+                    let line_info = next_line_info(debugger, &context.sourcemap)?;
                     initial_line_info.filepath == line_info.filepath
                         && initial_line_info.line == line_info.line
                 } {}
-                let line_info = current_line_info(debugger, &context.sourcemap)?;
+                let line_info = next_line_info(debugger, &context.sourcemap)?;
                 display_source(line_info)?;
             }
             Opts::StepOut => {
                 debugger.step(StepStyle::StepOut)?;
-                let line_info = current_line_info(debugger, &context.sourcemap)?;
+                let line_info = next_line_info(debugger, &context.sourcemap)?;
                 display_source(line_info)?;
             }
             Opts::StepInstIn | Opts::StepInstOver => {
@@ -94,8 +100,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                     _ => panic!(),
                 };
                 debugger.step(style)?;
-                let line_info = current_line_info(debugger, &context.sourcemap)?;
-                display_source(line_info)?;
+                display_asm(debugger)?;
             }
         }
         Ok(())

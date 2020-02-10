@@ -58,7 +58,7 @@ impl<D: Debugger> Process<D> {
         Ok(())
     }
 
-    fn dispatch_command(&mut self, line: String, context: &command::CommandContext) -> Result<()> {
+    pub fn dispatch_command(&mut self, line: String, context: &command::CommandContext) -> Result<()> {
         let cmd_name = extract_command_name(&line);
         let args = line.split_whitespace().collect();
         if let Some(cmd) = self.commands.get(cmd_name) {

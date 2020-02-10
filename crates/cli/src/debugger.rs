@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, Instruction, Interceptor, MemoryAddr,
-    ModuleIndex, ProgramCounter, Signal, Store, Trap,
+    ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 use wasmparser::ModuleReader;
@@ -71,6 +71,32 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
+    fn store(&self) -> &Store {
+        &self.store
+    }
+    fn locals(&self) -> Vec<WasmValue> {
+        if let Some(ref executor) = self.executor {
+            let executor = executor.borrow();
+            executor.stack.current_frame().unwrap().locals.clone()
+        } else {
+            Vec::new()
+        }
+    }
+    fn current_frame(&self) -> Option<debugger::FunctionFrame> {
+        let executor = if let Some(ref executor) = self.executor {
+            executor
+        } else {
+            return None;
+        };
+        let executor = executor.borrow();
+        let frame = executor.stack.current_frame().unwrap();
+        let func = self.store.func_global(frame.exec_addr);
+
+        self.module_index.map(|idx| debugger::FunctionFrame {
+            module_index: idx,
+            argument_count: func.ty().params.len(),
+        })
+    }
     fn frame(&self) -> Vec<String> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
@@ -119,6 +145,9 @@ impl debugger::Debugger for MainDebugger {
                 let mut last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
                 while initial_frame_depth < frame_depth(&executor.borrow()) {
                     last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                    if let Signal::Breakpoint = last_signal {
+                        return Ok(last_signal);
+                    }
                 }
                 return Ok(last_signal);
             }
@@ -127,8 +156,27 @@ impl debugger::Debugger for MainDebugger {
                 let mut last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
                 while initial_frame_depth <= frame_depth(&executor.borrow()) {
                     last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                    if let Signal::Breakpoint = last_signal {
+                        return Ok(last_signal);
+                    }
                 }
                 return Ok(last_signal);
+            }
+        }
+    }
+
+    fn process(&self) -> Result<Signal> {
+        let executor = if let Some(ref executor) = self.executor {
+            executor
+        } else {
+            return Err(anyhow!("No execution context"));
+        };
+        loop {
+            let result = executor.borrow_mut().execute_step(&self.store, self);
+            match result {
+                Ok(Signal::Next) => continue,
+                Ok(Signal::Breakpoint) | Ok(Signal::End) => return Ok(result.ok().unwrap()),
+                Err(err) => return Err(anyhow!("Function exec failure {:?}", err)),
             }
         }
     }
@@ -174,28 +222,20 @@ impl debugger::Debugger for MainDebugger {
                     let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                     let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
                     self.executor = Some(executor.clone());
-                    loop {
-                        let result = executor.borrow_mut().execute_step(&self.store, self);
-                        match result {
-                            Ok(Signal::Next) => continue,
-                            Ok(Signal::Breakpoint) => return Ok(debugger::RunResult::Breakpoint),
-                            Ok(Signal::End) => {
-                                match executor.borrow_mut().pop_result(ret_types.to_vec()) {
-                                    Ok(values) => {
-                                        self.executor = None;
-                                        return Ok(debugger::RunResult::Finish(values));
-                                    }
-                                    Err(err) => {
-                                        self.executor = None;
-                                        return Err(anyhow!("Return value failure {:?}", err));
-                                    }
-                                }
+                    let result = self.process()?;
+                    match result {
+                        Signal::Next => unreachable!(),
+                        Signal::Breakpoint => return Ok(debugger::RunResult::Breakpoint),
+                        Signal::End => match executor.borrow_mut().pop_result(ret_types.to_vec()) {
+                            Ok(values) => {
+                                self.executor = None;
+                                return Ok(debugger::RunResult::Finish(values));
                             }
                             Err(err) => {
-                                let err = Err(anyhow!("Function exec failure {:?}", err));
-                                return err;
+                                self.executor = None;
+                                return Err(anyhow!("Return value failure {:?}", err));
                             }
-                        }
+                        },
                     }
                 }
             }
@@ -207,7 +247,12 @@ impl debugger::Debugger for MainDebugger {
 
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
-        if self.function_breakpoints.contains_key(name) {
+        let key = self
+            .function_breakpoints
+            .keys()
+            .filter(|k| name.contains(k.clone()))
+            .next();
+        if let Some(_) = key {
             Ok(Signal::Breakpoint)
         } else {
             Ok(Signal::Next)

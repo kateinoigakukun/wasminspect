@@ -311,7 +311,8 @@ impl Store {
                 }
                 SectionCode::Code => {
                     let section = section.get_code_section_reader()?;
-                    code_section_base_offset = Some(section.original_position());
+                    // -1 means section code size
+                    code_section_base_offset = Some(section.original_position() - 1);
                     bodies.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         bodies.push(entry?);

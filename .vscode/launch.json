@@ -19,7 +19,31 @@
                     "kind": "bin"
                 }
             },
-            "args": ["${workspaceFolder}/tests/simple-example/c-dwarf/main.wasm"],
+            "args": [
+                "${workspaceFolder}/tests/simple-example/c-dwarf/main.wasm"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'wasminspect' with Swift WebAssembly",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=wasminspect",
+                    "--package=wasminspect"
+                ],
+                "filter": {
+                    "name": "wasminspect",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "${workspaceFolder}/tests/simple-example/swift/specialize_partial_apply.swift.wasm",
+                "--source",
+                "${workspaceFolder}/tests/simple-example/swift/wasminspect_init_swift",
+            ],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -43,7 +67,9 @@
         {
             "type": "lldb",
             "request": "launch",
-            "sourceLanguages": ["rust"],
+            "sourceLanguages": [
+                "rust"
+            ],
             "name": "Debug testsuite in executable 'wasminspect'",
             "cargo": {
                 "args": [

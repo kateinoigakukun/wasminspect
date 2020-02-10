@@ -13,6 +13,7 @@ impl Into<u64> for ColumnType {
     }
 }
 
+#[derive(Clone)]
 pub struct LineInfo {
     pub filepath: String,
     pub line: Option<u64>,
@@ -21,6 +22,7 @@ pub struct LineInfo {
 
 pub trait SourceMap {
     fn find_line_info(&self, offset: usize) -> Option<LineInfo>;
+    fn set_directory_map(&self, from: String, to: String);
 }
 
 pub struct EmptySourceMap {}
@@ -31,7 +33,8 @@ impl EmptySourceMap {
     }
 }
 impl SourceMap for EmptySourceMap {
-    fn find_line_info(&self, _offset: usize) -> Option<LineInfo> {
+    fn find_line_info(&self, _: usize) -> Option<LineInfo> {
         None
     }
+    fn set_directory_map(&self, _: String, _: String) {}
 }
