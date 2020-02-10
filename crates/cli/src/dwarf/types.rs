@@ -30,31 +30,37 @@ pub struct ModifiedTypeInfo<Offset> {
 }
 
 #[derive(Debug)]
-pub struct Member<Offset> {
+pub struct Member<R: gimli::Reader> {
     pub name: Option<String>,
-    pub offset: usize,
-    pub ty: Offset,
+    pub ty: R::Offset,
+    pub location: MemberLocation<R>,
+}
+
+#[derive(Debug)]
+pub enum MemberLocation<R: gimli::Reader> {
+    LocationDescription(gimli::Expression<R>),
+    ConstOffset(u64),
+    Unknown { debug_info: String },
+}
+
+#[derive(Debug)]
+pub struct StructTypeInfo<R: gimli::Reader> {
+    pub name: Option<String>,
+    pub members: Vec<Member<R>>,
     pub byte_size: u64,
 }
 
 #[derive(Debug)]
-pub struct StructTypeInfo<Offset> {
-    pub name: Option<String>,
-    pub members: Vec<Member<Offset>>,
-    pub byte_size: u64,
-}
-
-#[derive(Debug)]
-pub enum TypeInfo<Offset> {
+pub enum TypeInfo<R: gimli::Reader> {
     BaseType(BaseTypeInfo),
-    ModifiedType(ModifiedTypeInfo<Offset>),
-    StructType(StructTypeInfo<Offset>),
+    ModifiedType(ModifiedTypeInfo<R::Offset>),
+    StructType(StructTypeInfo<R>),
 }
 
 pub fn get_types<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,
-    out_type_hash: &mut HashMap<R::Offset, TypeInfo<R::Offset>>,
+    out_type_hash: &mut HashMap<R::Offset, TypeInfo<R>>,
 ) -> Result<()> {
     let mut tree = unit.entries_tree(None)?;
     let root = tree.root()?;
@@ -65,11 +71,13 @@ pub fn parse_types_rec<R: gimli::Reader>(
     node: gimli::EntriesTreeNode<R>,
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,
-    out_type_hash: &mut HashMap<R::Offset, TypeInfo<R::Offset>>,
+    out_type_hash: &mut HashMap<R::Offset, TypeInfo<R>>,
 ) -> Result<()> {
     let mut ty = match node.entry().tag() {
-        gimli::DW_TAG_base_type => Some(TypeInfo::BaseType(parse_base_type(&node, dwarf, unit)?)),
-        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => Some(TypeInfo::StructType(
+        gimli::DW_TAG_base_type => Some(TypeInfo::<R>::BaseType(parse_base_type(
+            &node, dwarf, unit,
+        )?)),
+        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => Some(TypeInfo::<R>::StructType(
             parse_partial_struct_type(&node, dwarf, unit)?,
         )),
         gimli::DW_TAG_atomic_type
@@ -170,7 +178,7 @@ fn parse_partial_struct_type<R: gimli::Reader>(
     node: &gimli::EntriesTreeNode<R>,
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,
-) -> Result<StructTypeInfo<R::Offset>> {
+) -> Result<StructTypeInfo<R>> {
     let name = match node.entry().attr_value(gimli::DW_AT_name)? {
         Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
         None => None,
@@ -195,7 +203,7 @@ fn parse_member<R: gimli::Reader>(
     node: &gimli::EntriesTreeNode<R>,
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,
-) -> Result<Member<R::Offset>> {
+) -> Result<Member<R>> {
     let name = match node.entry().attr_value(gimli::DW_AT_name)? {
         Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
         None => None,
@@ -212,9 +220,22 @@ fn parse_member<R: gimli::Reader>(
         Some(s) => s,
         None => return Err(anyhow!("Failed to get byte_size")),
     };
+    // DWARF v5 Page 118
+    let mut member_location = MemberLocation::ConstOffset(0);
+    if let Some(loc_attr) = node.entry().attr_value(gimli::DW_AT_data_member_location)? {
+        match loc_attr {
+            gimli::AttributeValue::Udata(offset) => {
+                member_location = MemberLocation::ConstOffset(offset);
+            }
+            gimli::AttributeValue::Exprloc(expr) => {
+                member_location = MemberLocation::LocationDescription(expr);
+            }
+            _ => unimplemented!(),
+        }
+    }
     Ok(Member {
         name,
-        byte_size,
+        location: member_location,
         ty,
     })
 }

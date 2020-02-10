@@ -395,7 +395,7 @@ use super::commands::subroutine;
 use types::*;
 pub struct DwarfSubroutineMap<'input> {
     pub subroutines: Vec<Subroutine<Reader<'input>>>,
-    type_hash: HashMap<usize, TypeInfo<usize>>,
+    type_hash: HashMap<usize, TypeInfo<Reader<'input>>>,
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
