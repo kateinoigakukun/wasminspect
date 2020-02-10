@@ -152,10 +152,6 @@ fn parse_modified_type<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,
 ) -> Result<ModifiedTypeInfo<R::Offset>> {
-    let name = match node.entry().attr_value(gimli::DW_AT_name)? {
-        Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-        None => return Err(anyhow!("Failed to get name")),
-    };
     let ty = match node.entry().attr_value(gimli::DW_AT_type)? {
         Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
         x => {
@@ -211,14 +207,6 @@ fn parse_member<R: gimli::Reader>(
     let ty = match node.entry().attr_value(gimli::DW_AT_type)? {
         Some(gimli::AttributeValue::UnitRef(ref offset)) => offset.0,
         _ => return Err(anyhow!("Failed to get type offset")),
-    };
-    let byte_size = match node
-        .entry()
-        .attr_value(gimli::DW_AT_byte_size)?
-        .and_then(|attr| attr.udata_value())
-    {
-        Some(s) => s,
-        None => return Err(anyhow!("Failed to get byte_size")),
     };
     // DWARF v5 Page 118
     let mut member_location = MemberLocation::ConstOffset(0);

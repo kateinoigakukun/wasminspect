@@ -13,7 +13,7 @@ struct Opts {
 fn main() {
     let opts = Opts::from_args();
     match wasminspect_cli::run_loop(opts.filepath, opts.source) {
-        Err(err) => eprintln!("{}", err),
+        Err(err) => println!("{:?}", err),
         _ => {}
     }
 }

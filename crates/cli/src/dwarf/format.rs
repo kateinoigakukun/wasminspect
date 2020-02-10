@@ -1,9 +1,13 @@
 use super::types::*;
+use super::Reader;
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 
-fn type_name(ty_offset: Option<usize>, type_hash: &HashMap<usize, TypeInfo<usize>>) -> Result<String> {
+fn type_name<'input>(
+    ty_offset: Option<usize>,
+    type_hash: &HashMap<usize, TypeInfo<Reader<'input>>>,
+) -> Result<String> {
     let ty_offset = match ty_offset {
         Some(o) => o,
         None => return Ok("none".to_string()),
@@ -13,6 +17,7 @@ fn type_name(ty_offset: Option<usize>, type_hash: &HashMap<usize, TypeInfo<usize
         .ok_or(anyhow!("Failed to get type from offset '{}'", ty_offset))?;
     let result = match ty {
         TypeInfo::BaseType(base_type) => base_type.name.clone(),
+        TypeInfo::StructType(struct_type) => struct_type.name.clone().unwrap_or("none".to_string()),
         TypeInfo::ModifiedType(mod_type) => {
             match mod_type.kind {
                 ModifierKind::Atomic => format!(
@@ -59,10 +64,10 @@ fn type_name(ty_offset: Option<usize>, type_hash: &HashMap<usize, TypeInfo<usize
     Ok(result)
 }
 
-pub fn format_object(
+pub fn format_object<'input>(
     ty_offset: usize,
     memory: &[u8],
-    type_hash: &HashMap<usize, TypeInfo<usize>>,
+    type_hash: &HashMap<usize, TypeInfo<Reader<'input>>>,
 ) -> Result<String> {
     let ty = type_hash
         .get(&ty_offset)
@@ -79,6 +84,9 @@ pub fn format_object(
                 _ => unimplemented!(),
             }
         }
+        TypeInfo::StructType(struct_type) => {
+            unimplemented!();
+        }
         TypeInfo::ModifiedType(mod_type) => match mod_type.kind {
             ModifierKind::Pointer | ModifierKind::Reference => {
                 let modifier = match mod_type.kind {
@@ -94,7 +102,7 @@ pub fn format_object(
                     modifier,
                     i32::from_le_bytes(bytes)
                 ))
-            },
+            }
             _ => {
                 if let Some(offset) = mod_type.content_ty_offset {
                     return Ok(format!(
