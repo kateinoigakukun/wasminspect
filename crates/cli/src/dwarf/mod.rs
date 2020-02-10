@@ -393,7 +393,7 @@ pub struct DwarfSubroutineMap<'input> {
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
-    fn variable_name_list(&self, code_offset: usize) -> Result<Vec<String>> {
+    fn variable_name_list(&self, code_offset: usize) -> Result<Vec<subroutine::Variable>> {
         let offset = &(code_offset as u64);
         let subroutine = match self
             .subroutines
@@ -407,7 +407,20 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
         Ok(subroutine
             .variables
             .iter()
-            .filter_map(|var| var.name.clone())
+            .map(|var| {
+                let mut v = subroutine::Variable {
+                    name: "<<not parsed yet>>".to_string(),
+                    type_name: "<<not parsed yet>>".to_string(),
+                };
+                if let Some(name) = var.name.clone() {
+                    v.name = name;
+                }
+                use format::type_name;
+                if let Ok(ty_name) = type_name(var.ty_offset, &self.type_hash) {
+                    v.type_name = ty_name;
+                }
+                v
+            })
             .collect())
     }
     fn display_variable(

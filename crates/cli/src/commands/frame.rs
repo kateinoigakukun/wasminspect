@@ -35,8 +35,8 @@ impl<D: Debugger> Command<D> for FrameCommand {
                 let current_index = if next_index == 0 { 0 } else { next_index - 1 };
                 let current_inst = insts[current_index].clone();
                 let variable_names = context.subroutine.variable_name_list(current_inst.offset)?;
-                for name in variable_names {
-                    println!("{}", name);
+                for variable in variable_names {
+                    println!("{}: {}", variable.name, variable.type_name);
                 }
                 Ok(())
             }

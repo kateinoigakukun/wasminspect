@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 
-fn type_name<'input>(
+pub fn type_name<'input>(
     ty_offset: Option<usize>,
     type_hash: &HashMap<usize, TypeInfo<Reader<'input>>>,
 ) -> Result<String> {
