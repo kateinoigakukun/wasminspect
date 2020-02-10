@@ -10,14 +10,15 @@ pub fn type_name<'input>(
 ) -> Result<String> {
     let ty_offset = match ty_offset {
         Some(o) => o,
-        None => return Ok("none".to_string()),
+        None => return Ok("<<not parsed yet>>".to_string()),
     };
     let ty = type_hash
         .get(&ty_offset)
         .ok_or(anyhow!("Failed to get type from offset '{}'", ty_offset))?;
     let result = match ty {
         TypeInfo::BaseType(base_type) => base_type.name.clone(),
-        TypeInfo::StructType(struct_type) => struct_type.name.clone().unwrap_or("none".to_string()),
+        TypeInfo::StructType(struct_type) => struct_type.name.clone().unwrap_or("struct <<not parsed yet>>".to_string()),
+        TypeInfo::TypeDef(type_def) => type_def.name.clone().unwrap_or("typedef <<not parsed yet>>".to_string()),
         TypeInfo::ModifiedType(mod_type) => {
             match mod_type.kind {
                 ModifierKind::Atomic => format!(
@@ -83,7 +84,10 @@ pub fn format_object<'input>(
                 _ => unimplemented!(),
             }
         }
-        TypeInfo::StructType(struct_type) => {
+        TypeInfo::StructType(..) => {
+            unimplemented!();
+        }
+        TypeInfo::TypeDef(..) => {
             unimplemented!();
         }
         TypeInfo::ModifiedType(mod_type) => match mod_type.kind {

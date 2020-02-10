@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use gimli;
-use std::collections::HashMap;
 use log::debug;
+use std::collections::HashMap;
 
 use super::utils::*;
 
@@ -52,10 +52,17 @@ pub struct StructTypeInfo<R: gimli::Reader> {
 }
 
 #[derive(Debug)]
+pub struct TypeDef<R: gimli::Reader> {
+    pub name: Option<String>,
+    pub ty: Option<R::Offset>,
+}
+
+#[derive(Debug)]
 pub enum TypeInfo<R: gimli::Reader> {
     BaseType(BaseTypeInfo),
     ModifiedType(ModifiedTypeInfo<R::Offset>),
     StructType(StructTypeInfo<R>),
+    TypeDef(TypeDef<R>),
 }
 
 pub fn get_types<R: gimli::Reader>(
@@ -82,6 +89,7 @@ pub fn parse_types_rec<R: gimli::Reader>(
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => Some(TypeInfo::<R>::StructType(
             parse_partial_struct_type(&node, dwarf, unit)?,
         )),
+        gimli::DW_TAG_typedef => Some(TypeInfo::<R>::TypeDef(parse_typedef(&node, dwarf, unit)?)),
         gimli::DW_TAG_atomic_type
         | gimli::DW_TAG_const_type
         | gimli::DW_TAG_immutable_type
@@ -123,7 +131,6 @@ pub fn parse_types_rec<R: gimli::Reader>(
     if let Some(TypeInfo::StructType(ty)) = ty.as_mut() {
         ty.members.append(&mut members);
     }
-    
     if let Some(ty) = ty {
         out_type_hash.insert(offset.0, ty);
     }
@@ -163,6 +170,10 @@ fn parse_modified_type<R: gimli::Reader>(
                 x,
                 kind
             );
+            let mut attrs = node.entry().attrs();
+            while let Some(attr) = attrs.next()? {
+                debug!("The entry has '{}'", attr.name());
+            }
             None
         }
     };
@@ -233,4 +244,20 @@ fn parse_member<R: gimli::Reader>(
         location: member_location,
         ty,
     })
+}
+
+fn parse_typedef<R: gimli::Reader>(
+    node: &gimli::EntriesTreeNode<R>,
+    dwarf: &gimli::Dwarf<R>,
+    unit: &gimli::Unit<R, R::Offset>,
+) -> Result<TypeDef<R>> {
+    let name = match node.entry().attr_value(gimli::DW_AT_name)? {
+        Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
+        None => None,
+    };
+    let ty = match node.entry().attr_value(gimli::DW_AT_type)? {
+        Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
+        _ => None,
+    };
+    Ok(TypeDef { name, ty })
 }
