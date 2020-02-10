@@ -11,7 +11,7 @@ pub fn type_name<'input>(
 ) -> Result<String> {
     let ty_offset = match ty_offset {
         Some(o) => o,
-        None => return Ok("<<not parsed yet>>".to_string()),
+        None => return Ok("void".to_string()),
     };
     let ty = type_hash
         .get(&ty_offset)
