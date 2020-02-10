@@ -40,7 +40,6 @@ pub struct Member<R: gimli::Reader> {
 pub enum MemberLocation<R: gimli::Reader> {
     LocationDescription(gimli::Expression<R>),
     ConstOffset(u64),
-    Unknown { debug_info: String },
 }
 
 #[derive(Debug)]
@@ -48,6 +47,7 @@ pub struct StructTypeInfo<R: gimli::Reader> {
     pub name: Option<String>,
     pub members: Vec<Member<R>>,
     pub byte_size: u64,
+    pub declaration: bool,
 }
 
 #[derive(Debug)]
@@ -103,9 +103,7 @@ pub fn parse_types_rec<R: gimli::Reader>(
                 gimli::DW_TAG_volatile_type => ModifierKind::Volatile,
                 _ => unreachable!(),
             };
-            Some(TypeInfo::ModifiedType(parse_modified_type(
-                kind, &node, dwarf, unit,
-            )?))
+            Some(TypeInfo::ModifiedType(parse_modified_type(kind, &node)?))
         }
         gimli::DW_TAG_member => unreachable!(),
         _ => None,
@@ -149,8 +147,6 @@ fn parse_base_type<R: gimli::Reader>(
 fn parse_modified_type<R: gimli::Reader>(
     kind: ModifierKind,
     node: &gimli::EntriesTreeNode<R>,
-    dwarf: &gimli::Dwarf<R>,
-    unit: &gimli::Unit<R, R::Offset>,
 ) -> Result<ModifiedTypeInfo<R::Offset>> {
     let ty = match node.entry().attr_value(gimli::DW_AT_type)? {
         Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
@@ -175,24 +171,29 @@ fn parse_partial_struct_type<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,
 ) -> Result<StructTypeInfo<R>> {
-    let name = match node.entry().attr_value(gimli::DW_AT_name)? {
-        Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
-        None => None,
+    let mut ty = StructTypeInfo {
+        name: None,
+        members: vec![],
+        byte_size: 0,
+        declaration: false,
     };
-    let byte_size = match node
+    if let Some(attr) = node.entry().attr_value(gimli::DW_AT_name)? {
+        ty.name = Some(clone_string_attribute(dwarf, unit, attr)?);
+    }
+
+    if let Some(byte_size) = node
         .entry()
         .attr_value(gimli::DW_AT_byte_size)?
         .and_then(|attr| attr.udata_value())
     {
-        Some(s) => s,
-        None => return Err(anyhow!("Failed to get byte_size")),
+        ty.byte_size = byte_size;
     };
-    let members = vec![];
-    Ok(StructTypeInfo {
-        name,
-        byte_size,
-        members,
-    })
+    if let Some(declaration) = node.entry().attr_value(gimli::DW_AT_declaration)? {
+        if let gimli::AttributeValue::Flag(flag) = declaration {
+            ty.declaration = flag;
+        }
+    }
+    Ok(ty)
 }
 
 fn parse_member<R: gimli::Reader>(

@@ -128,12 +128,6 @@ pub struct Subroutine<R: gimli::Reader> {
     pub encoding: gimli::Encoding,
 }
 
-struct Namespace<R: gimli::Reader> {
-    pub name: Option<String>,
-    pub variables: Vec<SymbolVariable<R>>,
-    pub encoding: gimli::Encoding,
-}
-
 pub fn transform_subprogram<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
