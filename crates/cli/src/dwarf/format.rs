@@ -125,8 +125,25 @@ pub fn format_object<'input>(
                 members_str.join(",\n"),
             ))
         }
-        TypeInfo::TypeDef(..) => {
-            unimplemented!();
+        TypeInfo::TypeDef(type_def) => {
+            if let Some(ty_offset) = type_def.ty {
+                Ok(format!(
+                    "typedef {} {}",
+                    type_def
+                        .name
+                        .clone()
+                        .unwrap_or("<<not parsed yet>>".to_string()),
+                    format_object(ty_offset, &memory, encoding, type_hash)?
+                ))
+            } else {
+                Ok(format!(
+                    "typedef {} <<not parsed yet>>",
+                    type_def
+                        .name
+                        .clone()
+                        .unwrap_or("<<not parsed yet>>".to_string())
+                ))
+            }
         }
         TypeInfo::ModifiedType(mod_type) => match mod_type.kind {
             ModifierKind::Pointer | ModifierKind::Reference => {
