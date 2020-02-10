@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use gimli;
 use std::collections::HashMap;
+use log::debug;
 
 use super::utils::*;
 
@@ -73,6 +74,7 @@ pub fn parse_types_rec<R: gimli::Reader>(
     unit: &gimli::Unit<R, R::Offset>,
     out_type_hash: &mut HashMap<R::Offset, TypeInfo<R>>,
 ) -> Result<()> {
+    let offset = node.entry().offset();
     let mut ty = match node.entry().tag() {
         gimli::DW_TAG_base_type => Some(TypeInfo::<R>::BaseType(parse_base_type(
             &node, dwarf, unit,
@@ -121,6 +123,10 @@ pub fn parse_types_rec<R: gimli::Reader>(
     if let Some(TypeInfo::StructType(ty)) = ty.as_mut() {
         ty.members.append(&mut members);
     }
+    
+    if let Some(ty) = ty {
+        out_type_hash.insert(offset.0, ty);
+    }
     Ok(())
 }
 
@@ -151,7 +157,7 @@ fn parse_modified_type<R: gimli::Reader>(
     let ty = match node.entry().attr_value(gimli::DW_AT_type)? {
         Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
         x => {
-            println!(
+            debug!(
                 "Failed to get pointee type: {:?} {:?} {:?}",
                 node.entry().offset(),
                 x,

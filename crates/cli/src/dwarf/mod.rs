@@ -6,6 +6,7 @@ use gimli::{
 };
 use std::collections::{BTreeMap, HashMap};
 use wasmparser::{ModuleReader, SectionCode};
+use log::trace;
 
 mod format;
 mod types;
@@ -153,9 +154,9 @@ pub fn transform_subprogram_rec<R: gimli::Reader>(
         };
 
         let low_pc_attr = node.entry().attr_value(gimli::DW_AT_low_pc)?;
-        // println!("low_pc_attr: {:?}", low_pc_attr);
+        trace!("low_pc_attr: {:?}", low_pc_attr);
         let high_pc_attr = node.entry().attr_value(gimli::DW_AT_high_pc)?;
-        // println!("high_pc_attr: {:?}", high_pc_attr);
+        trace!("high_pc_attr: {:?}", high_pc_attr);
         if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
             let high_pc = match high_pc_attr {
                 Some(AttributeValue::Udata(size)) => Some(low_pc + size),
