@@ -250,7 +250,7 @@ impl Interceptor for MainDebugger {
         let key = self
             .function_breakpoints
             .keys()
-            .filter(|k| k.contains(name))
+            .filter(|k| name.contains(k.clone()))
             .next();
         if let Some(_) = key {
             Ok(Signal::Breakpoint)
