@@ -87,6 +87,8 @@ pub fn format_object<'input>(
                     bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
                     Ok(format!("{}({})", base_type.name, i32::from_le_bytes(bytes)))
                 }
+                "char" => Ok(String::from_utf8(vec![memory[0]])
+                    .unwrap_or("<<invalid utf8 char>>".to_string())),
                 _ => unimplemented!(),
             }
         }
