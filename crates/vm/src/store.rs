@@ -265,6 +265,7 @@ impl Store {
         let mut code_section_base_offset = None;
 
         while !reader.eof() {
+            let offset = reader.current_position();
             let section = reader.read()?;
             match section.code {
                 SectionCode::Type => {
@@ -311,8 +312,7 @@ impl Store {
                 }
                 SectionCode::Code => {
                     let section = section.get_code_section_reader()?;
-                    // -1 means section code size
-                    code_section_base_offset = Some(section.original_position() - 1);
+                    code_section_base_offset = Some(offset);
                     bodies.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         bodies.push(entry?);
