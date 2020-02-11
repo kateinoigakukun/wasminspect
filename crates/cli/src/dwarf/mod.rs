@@ -147,32 +147,35 @@ pub fn transform_subprogram_rec<R: gimli::Reader>(
     out_subroutines: &mut Vec<Subroutine<R>>,
 ) -> Result<()> {
     let mut subroutine = None;
-    if node.entry().tag() == gimli::DW_TAG_subprogram {
-        let name = match node.entry().attr_value(gimli::DW_AT_name)? {
-            Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
-            None => None,
-        };
-
-        let low_pc_attr = node.entry().attr_value(gimli::DW_AT_low_pc)?;
-        trace!("low_pc_attr: {:?}", low_pc_attr);
-        let high_pc_attr = node.entry().attr_value(gimli::DW_AT_high_pc)?;
-        trace!("high_pc_attr: {:?}", high_pc_attr);
-        if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
-            let high_pc = match high_pc_attr {
-                Some(AttributeValue::Udata(size)) => Some(low_pc + size),
-                Some(AttributeValue::Addr(high_pc)) => Some(high_pc),
-                Some(x) => unreachable!("high_pc can't be {:?}", x),
+    match node.entry().tag() {
+        gimli::DW_TAG_subprogram | gimli::DW_TAG_lexical_block => {
+            let name = match node.entry().attr_value(gimli::DW_AT_name)? {
+                Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
                 None => None,
             };
-            if let Some(high_pc) = high_pc {
-                subroutine = Some(Subroutine {
-                    pc: low_pc..high_pc,
-                    name,
-                    encoding: unit.encoding(),
-                    variables: vec![],
-                });
+
+            let low_pc_attr = node.entry().attr_value(gimli::DW_AT_low_pc)?;
+            trace!("low_pc_attr: {:?}", low_pc_attr);
+            let high_pc_attr = node.entry().attr_value(gimli::DW_AT_high_pc)?;
+            trace!("high_pc_attr: {:?}", high_pc_attr);
+            if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
+                let high_pc = match high_pc_attr {
+                    Some(AttributeValue::Udata(size)) => Some(low_pc + size),
+                    Some(AttributeValue::Addr(high_pc)) => Some(high_pc),
+                    Some(x) => unreachable!("high_pc can't be {:?}", x),
+                    None => None,
+                };
+                if let Some(high_pc) = high_pc {
+                    subroutine = Some(Subroutine {
+                        pc: low_pc..high_pc,
+                        name,
+                        encoding: unit.encoding(),
+                        variables: vec![],
+                    });
+                }
             }
         }
+        _ => (),
     }
 
     let mut children = node.children();
