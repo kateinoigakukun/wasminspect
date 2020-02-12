@@ -1,20 +1,22 @@
-### :warning: WIP :warning:
-# wasminspect
-An interactive debugger for WebAssembly 
+# Wasminspect: An Interactive Debugger for WebAssembly
 
-```sh
-$ cat foo.wat
-```
-```wasm
-(module
-  (func (export "foo") (result i32)
-    (i32.const 123)
-  )
-)
-```
-```sh
-$ wat2wasm foo.wat -o foo.wasm
-$ wasminspect foo.wasm
-(wasminspect) run foo
-[I32(123)]
-```
+Wasminspect is an interactive debugger for WebAssembly like lldb. It can be used for WebAssembly code and WASI applications also.
+
+![Check](https://github.com/kateinoigakukun/wasminspect/workflows/Check/badge.svg)
+
+![demo](./assets/demo.gif)
+
+## [Tutorial](./docs/tutorial.md)
+
+Let's try to debug your WebAssembly binary!
+
+## Features
+
+- Full WASI supports
+- Breakpoints
+- Process control
+  - step-in, step-over and step-out
+- Dump memory space
+- Parse and evaluate DWARF debug information
+- [more detail](./docs/tutorial.md)
+
