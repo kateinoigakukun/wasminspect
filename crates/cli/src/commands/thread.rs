@@ -30,8 +30,8 @@ enum Opts {
     StepInstOver,
 }
 
-use super::list::{next_line_info, display_source};
 use super::disassemble::display_asm;
+use super::list::{display_source, next_line_info};
 impl<D: Debugger> Command<D> for ThreadCommand {
     fn name(&self) -> &'static str {
         "thread"

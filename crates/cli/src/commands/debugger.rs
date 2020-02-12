@@ -1,5 +1,5 @@
 use anyhow::Result;
-use wasminspect_vm::{Store, ModuleIndex, Instruction, Signal, WasmValue};
+use wasminspect_vm::{Instruction, ModuleIndex, Signal, Store, WasmValue};
 
 pub enum Breakpoint {
     Function { name: String },

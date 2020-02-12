@@ -31,15 +31,13 @@ impl<D: Debugger> Command<D> for ProcessCommand {
     fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
-            Opts::Continue => {
-                match debugger.process()? {
-                    Signal::Next => unreachable!(),
-                    Signal::End => {}
-                    Signal::Breakpoint => {
-                        println!("Hit breakpoit");
-                    }
+            Opts::Continue => match debugger.process()? {
+                Signal::Next => unreachable!(),
+                Signal::End => {}
+                Signal::Breakpoint => {
+                    println!("Hit breakpoit");
                 }
-            }
+            },
         }
         Ok(())
     }

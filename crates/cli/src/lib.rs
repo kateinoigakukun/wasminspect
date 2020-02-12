@@ -3,7 +3,7 @@ mod debugger;
 mod dwarf;
 mod process;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::env;
 use std::io::Read;
 

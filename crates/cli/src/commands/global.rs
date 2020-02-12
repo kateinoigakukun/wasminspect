@@ -1,6 +1,6 @@
 use super::command::{Command, CommandContext};
 use super::debugger::Debugger;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 use structopt::StructOpt;
 

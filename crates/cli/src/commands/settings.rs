@@ -34,16 +34,16 @@ impl<D: Debugger> Command<D> for SettingsCommand {
     fn run(&self, _debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
-            Opts::Set { key, operand1, operand2 } => {
-                match key.as_str() {
-                    "directory.map" => {
-                        context.sourcemap.set_directory_map(operand1, operand2);
-                    }
-                    _ => {
-                        println!("'{}' is not valid key", key)
-                    }
+            Opts::Set {
+                key,
+                operand1,
+                operand2,
+            } => match key.as_str() {
+                "directory.map" => {
+                    context.sourcemap.set_directory_map(operand1, operand2);
                 }
-            }
+                _ => println!("'{}' is not valid key", key),
+            },
         }
         Ok(())
     }
