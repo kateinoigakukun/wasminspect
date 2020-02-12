@@ -13,6 +13,7 @@ impl BreakpointCommand {
 
 #[derive(StructOpt)]
 enum Opts {
+    /// Sets a breakpoint for the given symbol in executable
     #[structopt(name = "set")]
     Set {
         #[structopt(name = "SYMBOL NAME")]

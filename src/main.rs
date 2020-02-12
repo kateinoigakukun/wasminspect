@@ -7,6 +7,7 @@ struct Opts {
     /// The wasm binary file
     #[structopt(name = "FILE")]
     filepath: Option<String>,
+    /// Tells the debugger to read in and execute the debugger commands in given file, after wasm file has been loaded
     #[structopt(short, long)]
     source: Option<String>,
 }
