@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
 edition = "2018"
 description = "An Interactive Debugger for WebAssembly"
-license = "MIT"
 license-file = "LICENSE"
 repository = "https://github.com/kateinoigakukun/wasminspect"
 documentation = "https://github.com/kateinoigakukun/wasminspect/blob/master/docs/tutorial.md"
