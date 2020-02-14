@@ -297,8 +297,7 @@ fn parse_partial_enum_type<R: gimli::Reader>(
         Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
         _ => None,
     };
-    let mut enumerators = vec![];
-    Ok(EnumerationTypeInfo { name, ty, enumerators })
+    Ok(EnumerationTypeInfo { name, ty, enumerators: vec![] })
 }
 
 fn parse_enumerator<R: gimli::Reader>(
@@ -307,7 +306,7 @@ fn parse_enumerator<R: gimli::Reader>(
     unit: &gimli::Unit<R, R::Offset>,
 ) -> Result<Enumerator> {
     let mut enumerator = Enumerator { name: None, value: None };
-    let name = match node.entry().attr_value(gimli::DW_AT_name)? {
+    enumerator.name = match node.entry().attr_value(gimli::DW_AT_name)? {
         Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
         None => None,
     };
