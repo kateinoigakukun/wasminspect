@@ -58,11 +58,25 @@ pub struct TypeDef<R: gimli::Reader> {
 }
 
 #[derive(Debug)]
+pub struct EnumerationTypeInfo<R: gimli::Reader> {
+    pub name: Option<String>,
+    pub ty: Option<R::Offset>,
+    pub enumerators: Vec<Enumerator>,
+}
+
+#[derive(Debug)]
+pub struct Enumerator {
+    pub name: Option<String>,
+    pub value: Option<i64>,
+}
+
+#[derive(Debug)]
 pub enum TypeInfo<R: gimli::Reader> {
     BaseType(BaseTypeInfo),
     ModifiedType(ModifiedTypeInfo<R::Offset>),
     StructType(StructTypeInfo<R>),
     TypeDef(TypeDef<R>),
+    EnumerationType(EnumerationTypeInfo<R>),
 }
 
 pub fn get_types<R: gimli::Reader>(
@@ -88,6 +102,9 @@ pub fn parse_types_rec<R: gimli::Reader>(
         )?)),
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => Some(TypeInfo::<R>::StructType(
             parse_partial_struct_type(&node, dwarf, unit)?,
+        )),
+        gimli::DW_TAG_enumeration_type => Some(TypeInfo::<R>::EnumerationType(
+            parse_partial_enum_type(&node, dwarf, unit)?
         )),
         gimli::DW_TAG_typedef => Some(TypeInfo::<R>::TypeDef(parse_typedef(&node, dwarf, unit)?)),
         gimli::DW_TAG_atomic_type
@@ -121,15 +138,20 @@ pub fn parse_types_rec<R: gimli::Reader>(
 
     let mut children = node.children();
     let mut members = vec![];
+    let mut enumerators = vec![];
     while let Some(child) = children.next()? {
         match child.entry().tag() {
             gimli::DW_TAG_member => members.push(parse_member(&child, dwarf, unit)?),
+            gimli::DW_TAG_enumerator => enumerators.push(parse_enumerator(&child, dwarf, unit)?),
             _ => parse_types_rec(child, dwarf, unit, out_type_hash)?,
         }
     }
 
     if let Some(TypeInfo::StructType(ty)) = ty.as_mut() {
         ty.members.append(&mut members);
+    }
+    if let Some(TypeInfo::EnumerationType(ty)) = ty.as_mut() {
+        ty.enumerators.append(&mut enumerators);
     }
     if let Some(ty) = ty {
         out_type_hash.insert(offset.0, ty);
@@ -260,4 +282,37 @@ fn parse_typedef<R: gimli::Reader>(
         _ => None,
     };
     Ok(TypeDef { name, ty })
+}
+
+fn parse_partial_enum_type<R: gimli::Reader>(
+    node: &gimli::EntriesTreeNode<R>,
+    dwarf: &gimli::Dwarf<R>,
+    unit: &gimli::Unit<R, R::Offset>,
+) -> Result<EnumerationTypeInfo<R>> {
+    let name = match node.entry().attr_value(gimli::DW_AT_name)? {
+        Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
+        None => None,
+    };
+    let ty = match node.entry().attr_value(gimli::DW_AT_type)? {
+        Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
+        _ => None,
+    };
+    Ok(EnumerationTypeInfo { name, ty, enumerators: vec![] })
+}
+
+fn parse_enumerator<R: gimli::Reader>(
+    node: &gimli::EntriesTreeNode<R>,
+    dwarf: &gimli::Dwarf<R>,
+    unit: &gimli::Unit<R, R::Offset>,
+) -> Result<Enumerator> {
+    let mut enumerator = Enumerator { name: None, value: None };
+    enumerator.name = match node.entry().attr_value(gimli::DW_AT_name)? {
+        Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
+        None => None,
+    };
+    enumerator.value = node
+        .entry()
+        .attr_value(gimli::DW_AT_const_value)?
+        .and_then(|attr| attr.sdata_value());
+    Ok(enumerator)
 }

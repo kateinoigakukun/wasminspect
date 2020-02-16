@@ -22,6 +22,10 @@ pub fn type_name<'input>(
             .name
             .clone()
             .unwrap_or("struct <<not parsed yet>>".to_string()),
+        TypeInfo::EnumerationType(enum_type) => enum_type
+            .name
+            .clone()
+            .unwrap_or("enum <<not parsed yet>>".to_string()),
         TypeInfo::TypeDef(type_def) => type_def
             .name
             .clone()
@@ -131,6 +135,48 @@ pub fn format_object<'input>(
                     .unwrap_or("<<not parsed yet>>".to_string()),
                 members_str.join(",\n"),
             ))
+        }
+        TypeInfo::EnumerationType(enum_type) => {
+            if let Some(offset) = enum_type.ty {
+                match type_hash.get(&offset) {
+                    Some(TypeInfo::BaseType(base_ty)) => {
+                        if base_ty.name != "int" {
+                            return Err(anyhow!(
+                                "{} is not supported as enum content type",
+                                base_ty.name
+                            ));
+                        }
+                    }
+                    Some(_) => {
+                        return Err(anyhow!(
+                            "enum content type '{}' should be base type",
+                            type_name(Some(offset), type_hash)?
+                        ))
+                    }
+                    None => return Err(anyhow!("failed to get enum content type")),
+                }
+            }
+            let mut bytes: [u8; 4] = Default::default();
+            bytes.copy_from_slice(&memory[0..4]);
+            let value = i32::from_le_bytes(bytes);
+            for enumerator in &enum_type.enumerators {
+                if let Some(const_value) = enumerator.value {
+                    if (const_value as i32) == value {
+                        return Ok(format!(
+                            "{} ({})",
+                            enum_type
+                                .name
+                                .clone()
+                                .unwrap_or("<<not parsed yet>>".to_string()),
+                            enumerator
+                                .name
+                                .clone()
+                                .unwrap_or("<<not parsed yet>>".to_string())
+                        ));
+                    }
+                }
+            }
+            Err(anyhow!("Failed to find enumerator case for '{}'"))
         }
         TypeInfo::TypeDef(type_def) => {
             if let Some(ty_offset) = type_def.ty {
