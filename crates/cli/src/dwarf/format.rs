@@ -96,6 +96,11 @@ pub fn format_object<'input>(
                     bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
                     Ok(format!("{}({})", base_type.name, u32::from_le_bytes(bytes)))
                 }
+                "unsigned __int128" => {
+                    let mut bytes: [u8; 16] = Default::default();
+                    bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
+                    Ok(format!("{}({})", base_type.name, u128::from_le_bytes(bytes)))
+                }
                 "char" => Ok(String::from_utf8(vec![memory[0]])
                     .unwrap_or("<<invalid utf8 char>>".to_string())),
                 _ => unimplemented!(),
