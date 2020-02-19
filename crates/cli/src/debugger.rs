@@ -25,20 +25,22 @@ impl MainDebugger {
         Ok(())
     }
     pub fn new() -> Result<Self> {
-        let (ctx, wasi_snapshot_preview) = instantiate_wasi();
-        let (_, wasi_unstable) = instantiate_wasi();
-
-        let mut store = Store::new();
-        store.add_embed_context(Box::new(ctx));
-        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
-
         Ok(Self {
-            store,
+            store: Self::instantiate_store(),
             executor: None,
             module_index: None,
             function_breakpoints: HashMap::new(),
         })
+    }
+
+    fn instantiate_store() -> Store {
+        let (ctx, wasi_snapshot_preview) = instantiate_wasi();
+        let (_, wasi_unstable) = instantiate_wasi();
+        let mut store = Store::new();
+        store.add_embed_context(Box::new(ctx));
+        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+        store
     }
 }
 
@@ -182,6 +184,9 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn run(&mut self, name: Option<String>) -> Result<debugger::RunResult> {
+        if self.is_running() {
+            self.store = Self::instantiate_store();
+        }
         if let Some(module_index) = self.module_index {
             let module = self.store.module(module_index).defined().unwrap();
             let func_addr = if let Some(func_name) = name {
