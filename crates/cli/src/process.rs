@@ -49,11 +49,15 @@ impl<D: Debugger> Process<D> {
     }
 
     pub fn run_loop(&mut self, context: command::CommandContext) -> Result<()> {
+        let mut last_line: Option<String> = None;
         while let ReadResult::Input(line) = self.interface.read_line()? {
             if !line.trim().is_empty() {
                 self.interface.add_history_unique(line.clone());
+                last_line = Some(line.clone());
+                self.dispatch_command(line, &context)?;
+            } else if let Some(last_line) = last_line.as_ref() {
+                self.dispatch_command(last_line.clone(), &context)?;
             }
-            self.dispatch_command(line, &context)?;
         }
         Ok(())
     }
