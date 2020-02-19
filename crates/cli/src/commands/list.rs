@@ -42,7 +42,7 @@ pub fn display_source(line_info: LineInfo) -> Result<()> {
     use std::io::{BufRead, BufReader};
     let source = BufReader::new(File::open(line_info.filepath)?);
     // In case compiler can't determine source code location. Page 151.
-    if line_info.line == Some(0) {
+    if line_info.line == Some(0) || line_info.line == None {
         return Ok(());
     }
     let range = line_info.line.map(|l| {
