@@ -48,6 +48,8 @@ pub struct DefinedFunctionInstance {
     module_index: ModuleIndex,
     locals: Vec<Type>,
     instructions: Vec<Instruction>,
+    // cache
+    pub local_tys: Vec<Type>,
 }
 
 impl DefinedFunctionInstance {
@@ -71,12 +73,15 @@ impl DefinedFunctionInstance {
             let inst = transform_inst(&mut reader, base_offset)?;
             instructions.push(inst);
         }
+        let mut local_tys = ty.params.to_vec();
+        local_tys.append(&mut locals.to_vec());
         Ok(Self {
             name,
             ty,
             module_index,
             locals,
             instructions,
+            local_tys
         })
     }
 

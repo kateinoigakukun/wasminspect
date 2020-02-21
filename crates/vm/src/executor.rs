@@ -105,7 +105,7 @@ impl Executor {
     ) -> ExecResult<Signal> {
         let func = store.func_global(self.pc.exec_addr()).defined().unwrap();
         let module_index = func.module_index().clone();
-        let inst = func.inst(self.pc.inst_index()).clone();
+        let inst = func.inst(self.pc.inst_index());
         return self.execute_inst(&inst, module_index, store, interceptor);
     }
 
