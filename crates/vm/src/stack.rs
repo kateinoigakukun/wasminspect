@@ -118,22 +118,11 @@ impl CallFrame {
     fn new(
         module_index: ModuleIndex,
         exec_addr: ExecutableFuncAddr,
-        local_tys: &[Type],
+        local_inits: &Vec<Value>,
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        let mut locals = Vec::new();
-        for ty in local_tys {
-            let v = match ty {
-                Type::I32 => Value::I32(0),
-                Type::I64 => Value::I64(0),
-                Type::F32 => Value::F32(0.0),
-                Type::F64 => Value::F64(0.0),
-                _ => unimplemented!(),
-            };
-            locals.push(v);
-        }
-
+        let mut locals = local_inits.clone();
         for (i, arg) in args.into_iter().enumerate() {
             locals[i] = arg;
         }
@@ -151,7 +140,7 @@ impl CallFrame {
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        Self::new(func.module_index(), exec_addr, &func.local_tys, args, pc)
+        Self::new(func.module_index(), exec_addr, &func.cached_local_inits, args, pc)
     }
 
     pub fn set_local(&mut self, index: usize, value: Value) {

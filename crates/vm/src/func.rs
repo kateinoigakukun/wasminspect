@@ -1,6 +1,7 @@
 use super::host::HostFuncBody;
 use super::inst::*;
 use super::module::*;
+use super::value::Value;
 use anyhow::Result;
 use std::iter;
 use wasmparser::{FuncType, FunctionBody, Type};
@@ -49,7 +50,7 @@ pub struct DefinedFunctionInstance {
     locals: Vec<Type>,
     instructions: Vec<Instruction>,
     // cache
-    pub local_tys: Vec<Type>,
+    pub cached_local_inits: Vec<Value>,
 }
 
 impl DefinedFunctionInstance {
@@ -73,15 +74,28 @@ impl DefinedFunctionInstance {
             let inst = transform_inst(&mut reader, base_offset)?;
             instructions.push(inst);
         }
+
         let mut local_tys = ty.params.to_vec();
         local_tys.append(&mut locals.to_vec());
+        let mut cached_local_inits = Vec::new();
+        for ty in local_tys {
+            let v = match ty {
+                Type::I32 => Value::I32(0),
+                Type::I64 => Value::I64(0),
+                Type::F32 => Value::F32(0.0),
+                Type::F64 => Value::F64(0.0),
+                _ => unimplemented!(),
+            };
+            cached_local_inits.push(v);
+        }
+
         Ok(Self {
             name,
             ty,
             module_index,
             locals,
             instructions,
-            local_tys
+            cached_local_inits
         })
     }
 

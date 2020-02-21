@@ -184,7 +184,7 @@ impl Executor {
             InstructionKind::End => {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
-                    let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
+                    let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
                     let func = store.func_global(self.pc.exec_addr());
                     let arity = func.ty().returns.len();
                     let mut result = vec![];
@@ -196,7 +196,7 @@ impl Executor {
                     for v in result {
                         self.stack.push_value(v);
                     }
-                    if let Some(ret_pc) = frame.ret_pc {
+                    if let Some(ret_pc) = ret_pc {
                         self.pc = ret_pc;
                         Ok(Signal::Next)
                     } else {
@@ -244,13 +244,10 @@ impl Executor {
                 index,
                 table_index: _,
             } => {
-                let (ty, addr) = {
-                    let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                    let addr = TableAddr::new_unsafe(frame.module_index(), 0);
-                    let module = store.module(frame.module_index()).defined().unwrap();
-                    let ty = module.get_type(index as usize);
-                    (ty.clone(), addr)
-                };
+                let frame = self.stack.current_frame().map_err(Trap::Stack)?;
+                let addr = TableAddr::new_unsafe(frame.module_index(), 0);
+                let module = store.module(frame.module_index()).defined().unwrap();
+                let ty = module.get_type(index as usize);
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
@@ -261,7 +258,7 @@ impl Executor {
                 if eq_func_type(func.ty(), &ty) {
                     self.invoke(func_addr, store, interceptor)
                 } else {
-                    Err(Trap::IndirectCallTypeMismatch(ty, func.ty().clone()))
+                    Err(Trap::IndirectCallTypeMismatch(ty.clone(), func.ty().clone()))
                 }
             }
             InstructionKind::Drop => {
@@ -724,7 +721,7 @@ impl Executor {
         }
     }
     fn do_return(&mut self, store: &Store) -> ExecResult<Signal> {
-        let frame = self.stack.current_frame().map_err(Trap::Stack)?.clone();
+        let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
         let func = store.func_global(self.pc.exec_addr());
         let arity = func.ty().returns.len();
         let mut result = vec![];
@@ -740,7 +737,7 @@ impl Executor {
             self.stack.push_value(v);
         }
 
-        if let Some(ret_pc) = frame.ret_pc {
+        if let Some(ret_pc) = ret_pc {
             self.pc = ret_pc;
         }
         Ok(Signal::Next)
