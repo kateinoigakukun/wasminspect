@@ -96,10 +96,19 @@ pub fn format_object<'input>(
                     bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
                     Ok(format!("{}({})", base_type.name, u32::from_le_bytes(bytes)))
                 }
+                "long long unsigned int" => {
+                    let mut bytes: [u8; 8] = Default::default();
+                    bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
+                    Ok(format!("{}({})", base_type.name, u64::from_le_bytes(bytes)))
+                }
                 "unsigned __int128" => {
                     let mut bytes: [u8; 16] = Default::default();
                     bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
-                    Ok(format!("{}({})", base_type.name, u128::from_le_bytes(bytes)))
+                    Ok(format!(
+                        "{}({})",
+                        base_type.name,
+                        u128::from_le_bytes(bytes)
+                    ))
                 }
                 "char" => Ok(String::from_utf8(vec![memory[0]])
                     .unwrap_or("<<invalid utf8 char>>".to_string())),
@@ -107,6 +116,23 @@ pub fn format_object<'input>(
             }
         }
         TypeInfo::StructType(struct_type) => {
+            if let Some(type_name) = struct_type.name.clone() {
+                let type_name: &str = &type_name;
+                // For Swift Support
+                match type_name {
+                    "UnsafeRawPointer" | "UnsafeMutableRawPointer" => {
+                    let mut bytes: [u8; 4] = Default::default();
+                    bytes.copy_from_slice(&memory[0..4]);
+                    return Ok(format!(
+                        "{} (0x{:x})",
+                        type_name,
+                        u32::from_le_bytes(bytes)
+                    ));
+                    }
+                    _ => (),
+                }
+            }
+
             let mut members_str = vec![];
             for member in &struct_type.members {
                 let offset: usize = match member.location {
@@ -216,7 +242,7 @@ pub fn format_object<'input>(
                     "{}{} (0x{:x})",
                     type_name(mod_type.content_ty_offset, type_hash)?,
                     modifier,
-                    i32::from_le_bytes(bytes)
+                    u32::from_le_bytes(bytes)
                 ))
             }
             _ => {
