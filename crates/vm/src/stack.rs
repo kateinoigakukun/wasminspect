@@ -2,7 +2,6 @@ use super::address::*;
 use super::func::{DefinedFunctionInstance, InstIndex};
 use super::module::ModuleIndex;
 use super::value::Value;
-use wasmparser::Type;
 
 #[derive(Debug)]
 pub enum StackValueType {
