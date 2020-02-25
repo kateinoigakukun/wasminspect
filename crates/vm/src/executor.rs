@@ -25,7 +25,7 @@ pub enum Trap {
     Stack(stack::Error),
     Table(table::Error),
     Value(value::Error),
-    IndirectCallTypeMismatch(/* expected: */ FuncType, /* actual: */ FuncType),
+    IndirectCallTypeMismatch(String, /* expected: */ FuncType, /* actual: */ FuncType),
     UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
     UndefinedFunc(usize),
 }
@@ -39,10 +39,10 @@ impl std::fmt::Display for Trap {
             Self::Value(e) => write!(f, "{}", e),
             Self::Table(e) => write!(f, "{}", e),
             Self::Stack(e) => write!(f, "{}", e),
-            Self::IndirectCallTypeMismatch(expected, actual) => write!(
+            Self::IndirectCallTypeMismatch(name, expected, actual) => write!(
                 f,
-                "indirect call type mismatch, expected {:?} but got {:?}",
-                expected, actual
+                "indirect call type mismatch, expected {:?} but got {:?} '{}'",
+                expected, actual, name
             ),
             Self::UndefinedFunc(addr) => write!(f, "uninitialized func at {:?}", addr),
             Self::Unreachable => write!(f, "unreachable"),
@@ -258,7 +258,7 @@ impl Executor {
                 if eq_func_type(func.ty(), &ty) {
                     self.invoke(func_addr, store, interceptor)
                 } else {
-                    Err(Trap::IndirectCallTypeMismatch(ty.clone(), func.ty().clone()))
+                    Err(Trap::IndirectCallTypeMismatch(func.name().clone(), ty.clone(), func.ty().clone()))
                 }
             }
             InstructionKind::Drop => {
