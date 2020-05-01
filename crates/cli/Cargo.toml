@@ -8,6 +8,7 @@ edition = "2018"
 wasminspect-vm = { path = "../vm" }
 wasminspect-wasi = { path = "../wasi" }
 wasmi-validation = "0.3.0"
+parity-wasm = "0.41"
 linefeed = "0.6.0"
 clap = "2.33.0"
 structopt = "0.3"

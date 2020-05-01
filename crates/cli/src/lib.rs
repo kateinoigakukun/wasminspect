@@ -6,6 +6,8 @@ mod process;
 use anyhow::{anyhow, Result};
 use std::env;
 use std::io::Read;
+use wasmi_validation::{validate_module, PlainValidator};
+use parity_wasm::elements::Module;
 
 fn history_file_path() -> String {
     format!(
@@ -25,6 +27,8 @@ pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()>
     if let Some(file) = file {
         let mut f = ::std::fs::File::open(file)?;
         f.read_to_end(&mut buffer)?;
+        let module = Module::from_bytes(&buffer).unwrap();
+        validate_module::<PlainValidator>(&module).unwrap();
         debugger.load_module(&buffer)?;
         use dwarf::{parse_dwarf, transform_dwarf};
         let dwarf = parse_dwarf(&buffer)?;
