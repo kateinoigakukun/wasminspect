@@ -8,7 +8,7 @@ pub use spectest::instantiate_spectest;
 use wasminspect_vm::{
     simple_invoke_func, FuncAddr, ModuleIndex, WasmError, WasmInstance, WasmValue,
 };
-use wasmparser::{ModuleReader, validate};
+use wasmparser::{validate, ModuleReader};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -45,18 +45,12 @@ impl WastContext {
         }
         return Ok(None);
     }
-    pub fn instantiate<'a>(
-        &self,
-        bytes: &'a [u8],
-    ) -> Result<ModuleReader<'a>> {
+    pub fn instantiate<'a>(&self, bytes: &'a [u8]) -> Result<ModuleReader<'a>> {
         validate(bytes, None)?;
         Ok(ModuleReader::new(bytes)?)
     }
-    fn module(
-        &mut self,
-        module_name: Option<&str>,
-        bytes: &[u8],
-    ) -> Result<()> {
+    fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
+        println!("Register module");
         let module = self.instantiate(&bytes)?;
         let start_section = Self::extract_start_section(bytes)?;
         let module_index = self
@@ -70,6 +64,7 @@ impl WastContext {
         }
         self.current = Some(module_index);
         if let Some(module_name) = module_name {
+            println!("Register module name {}", module_name);
             self.module_index_by_name
                 .insert(module_name.to_string(), module_index);
         }
@@ -97,8 +92,9 @@ impl WastContext {
         for directive in wast.directives {
             match directive {
                 Module(mut module) => {
+                    println!("dump module: {:?}", module.name);
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name), &bytes)
+                    self.module(module.name.map(|s| s.name()), &bytes)
                         .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
                 }
                 Register {
@@ -106,7 +102,7 @@ impl WastContext {
                     name,
                     module,
                 } => {
-                    let module_index = self.get_instance(module.map(|s| s.name()));
+                    let module_index = self.get_instance(module.map(|s| s.name()))?;
                     self.instance.register_name(name.to_string(), module_index);
                 }
                 Invoke(i) => {
@@ -235,11 +231,15 @@ impl WastContext {
         Ok(())
     }
 
-    fn get_instance(&self, name: Option<&str>) -> ModuleIndex {
+    fn get_instance(&self, name: Option<&str>) -> Result<ModuleIndex> {
         match name {
-            Some(name) => self.module_index_by_name.get(name).unwrap().clone(),
+            Some(name) => self
+                .module_index_by_name
+                .get(name)
+                .map(|i| i.clone())
+                .ok_or(anyhow!("module not found with name {}", name)),
             None => match self.current.clone() {
-                Some(current) => current,
+                Some(current) => Ok(current),
                 None => panic!(),
             },
         }
@@ -247,7 +247,7 @@ impl WastContext {
 
     /// Get the value of an exported global from an instance.
     fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Result<Vec<WasmValue>>> {
-        let module_index = self.get_instance(instance_name.as_ref().map(|x| &**x));
+        let module_index = self.get_instance(instance_name.as_ref().map(|x| &**x))?;
         match self
             .instance
             .get_global(module_index, field)
@@ -263,19 +263,21 @@ impl WastContext {
         module_name: Option<&str>,
         func_name: &str,
         args: &[wast::Expression],
-    ) -> Result<Vec<WasmValue>, WasmError> {
-        let module_index = self.get_instance(module_name).clone();
+    ) -> Result<Vec<WasmValue>> {
+        let module_index = self.get_instance(module_name)?;
         let args = args.iter().map(const_expr).collect();
-        return self
+        let result = self
             .instance
-            .run(module_index, Some(func_name.to_string()), args);
+            .run(module_index, Some(func_name.to_string()), args)
+            .map_err(|e| anyhow!("{}", e))?;
+        Ok(result)
     }
 
     fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Result<Vec<WasmValue>>> {
         match exec {
-            wast::WastExecute::Invoke(i) => Ok(self
-                .invoke(i.module.map(|s| s.name()), i.name, &i.args)
-                .map_err(|e| anyhow!("{}", e))),
+            wast::WastExecute::Invoke(i) => {
+                Ok(self.invoke(i.module.map(|s| s.name()), i.name, &i.args))
+            }
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
                 let module = self.instantiate(&binary)?;
@@ -302,19 +304,15 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
     Ok(match (actual, expected) {
         (WasmValue::I32(a), wast::AssertExpression::I32(x)) => a == x,
         (WasmValue::I64(a), wast::AssertExpression::I64(x)) => a == x,
-        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => { 
-            match x {
-                wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
-                wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
-                wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
-            }
+        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => match x {
+            wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
+            wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
+            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
         },
-        (WasmValue::F64(a), wast::AssertExpression::F64(x)) => {
-            match x {
-                wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
-                wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
-                wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
-            }
+        (WasmValue::F64(a), wast::AssertExpression::F64(x)) => match x {
+            wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
+            wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
+            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
         },
         (_, wast::AssertExpression::V128(_)) => bail!("V128 is not supported yet"),
         _ => bail!("unexpected comparing for {:?} and {:?}", actual, expected),

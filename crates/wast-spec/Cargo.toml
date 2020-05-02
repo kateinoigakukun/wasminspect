@@ -6,6 +6,6 @@ edition = "2018"
 
 [dependencies]
 wasminspect-vm = { path = "../vm" }
-wast = "14.0.0"
+wast = "7.0.0"
 anyhow = "1.0.26"
 wasmparser = "0.51.4"
