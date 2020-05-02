@@ -106,7 +106,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert(
         "global_f32".to_string(),
         HostValue::Global(create_glbal(
-            WasmValue::F32(f32::from_bits(0x44268000)),
+            WasmValue::F32(0x44268000),
             GlobalType {
                 content_type: Type::F32,
                 mutable: false,
@@ -116,7 +116,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert(
         "global_f64".to_string(),
         HostValue::Global(create_glbal(
-            WasmValue::F64(f64::from_bits(0x4084d00000000000)),
+            WasmValue::F64(0x4084d00000000000),
             GlobalType {
                 content_type: Type::F64,
                 mutable: false,

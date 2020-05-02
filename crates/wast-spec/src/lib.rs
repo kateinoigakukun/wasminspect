@@ -222,7 +222,6 @@ impl WastContext {
                         )
                     }
                 }
-                _ => panic!("unsupported"),
             }
         }
         Ok(())
@@ -305,13 +304,13 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
             match x {
             wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
-            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
+            wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
             }
         },
         (WasmValue::F64(a), wast::AssertExpression::F64(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
-            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
+            wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
         },
         (_, wast::AssertExpression::V128(_)) => bail!("V128 is not supported yet"),
         _ => bail!("unexpected comparing for {:?} and {:?}", actual, expected),
@@ -322,25 +321,27 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
     match &expr.instrs[0] {
         wast::Instruction::I32Const(x) => WasmValue::I32(*x),
         wast::Instruction::I64Const(x) => WasmValue::I64(*x),
-        wast::Instruction::F32Const(x) => WasmValue::F32(f32::from_bits(x.bits)),
-        wast::Instruction::F64Const(x) => WasmValue::F64(f64::from_bits(x.bits)),
+        wast::Instruction::F32Const(x) => {
+            WasmValue::F32(x.bits)
+        },
+        wast::Instruction::F64Const(x) => WasmValue::F64(x.bits),
         wast::Instruction::V128Const(_) => panic!(),
         _ => panic!(),
     }
 }
 
-fn is_canonical_f32_nan(f: &f32) -> bool {
-    return (f.to_bits() & 0x7fffffff) == 0x7fc00000;
+fn is_canonical_f32_nan(f: &u32) -> bool {
+    return (f & 0x7fffffff) == 0x7fc00000;
 }
 
-fn is_canonical_f64_nan(f: &f64) -> bool {
-    return (f.to_bits() & 0x7fffffffffffffff) == 0x7ff8000000000000;
+fn is_canonical_f64_nan(f: &u64) -> bool {
+    return (f & 0x7fffffffffffffff) == 0x7ff8000000000000;
 }
 
-fn is_arithmetic_f32_nan(f: &f32) -> bool {
-    return (f.to_bits() & 0x00400000) == 0x00400000;
+fn is_arithmetic_f32_nan(f: &u32) -> bool {
+    return (f & 0x00400000) == 0x00400000;
 }
 
-fn is_arithmetic_f64_nan(f: &f64) -> bool {
-    return (f.to_bits() & 0x0008000000000000) == 0x0008000000000000;
+fn is_arithmetic_f64_nan(f: &u64) -> bool {
+    return (f & 0x0008000000000000) == 0x0008000000000000;
 }
