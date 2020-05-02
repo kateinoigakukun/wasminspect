@@ -9,6 +9,7 @@ use wasminspect_vm::{
 };
 use wasminspect_wasi::instantiate_wasi;
 use wasmparser::ModuleReader;
+use log::warn;
 
 pub struct MainDebugger {
     store: Store,
@@ -21,6 +22,9 @@ pub struct MainDebugger {
 impl MainDebugger {
     pub fn load_module(&mut self, module: &[u8]) -> Result<()> {
         let mut reader = ModuleReader::new(module)?;
+        if let Err(err) = wasmparser::validate(module, None) {
+            warn!("{}", err);
+        }
         self.module_index = Some(self.store.load_module(None, &mut reader)?);
         Ok(())
     }

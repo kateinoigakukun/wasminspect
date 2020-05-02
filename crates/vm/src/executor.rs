@@ -30,6 +30,11 @@ pub enum Trap {
         /* expected: */ FuncType,
         /* actual: */ FuncType,
     ),
+    DirectCallTypeMismatch {
+        func_name: String,
+        expected: Vec<Type>,
+        actual: Vec<Type>,
+    },
     UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
     UndefinedFunc(usize),
 }
@@ -695,8 +700,20 @@ impl Executor {
         let (func, exec_addr) = store.func(addr).ok_or(Trap::UndefinedFunc(addr.1))?;
 
         let mut args = Vec::new();
+        let mut found_mismatch = false;
         for _ in func.ty().params.iter() {
-            args.push(self.stack.pop_value().map_err(Trap::Stack)?);
+            match self.stack.pop_value() {
+                Ok(val) => args.push(val),
+                Err(_) => found_mismatch = true,
+            }
+        }
+
+        if found_mismatch {
+            return Err(Trap::DirectCallTypeMismatch {
+                func_name: func.name().to_string(),
+                actual: args.iter().map(|v| v.value_type()).collect(),
+                expected: func.ty().params.to_vec(),
+            })
         }
         args.reverse();
 
