@@ -242,7 +242,7 @@ fn read_name_section(reader: wasmparser::NameSectionReader) -> Result<HashMap<u3
 }
 
 impl Store {
-    fn load_parity_module_internal(
+    fn load_module_internal(
         &mut self,
         name: Option<String>,
         reader: &mut ModuleReader,
@@ -377,7 +377,7 @@ impl Store {
         let types = types.iter().map(|ty| ty.clone()).collect();
 
         let instance =
-            DefinedModuleInstance::new_from_parity_module(module_index, types, exports, start_func);
+            DefinedModuleInstance::new_from_module(module_index, types, exports, start_func);
         self.modules.push(ModuleInstance::Defined(instance));
         if let Some(name) = name {
             self.module_index_by_name.insert(name, module_index);
@@ -385,7 +385,7 @@ impl Store {
 
         Ok(module_index)
     }
-    pub fn load_parity_module(
+    pub fn load_module(
         &mut self,
         name: Option<String>,
         reader: &mut ModuleReader,
@@ -393,7 +393,7 @@ impl Store {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
         let result: Result<ModuleIndex> =
-            self.load_parity_module_internal(name.clone(), reader, module_index);
+            self.load_module_internal(name.clone(), reader, module_index);
         match result {
             Ok(ok) => Ok(ok),
             Err(err) => {

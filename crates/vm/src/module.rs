@@ -47,7 +47,7 @@ impl std::fmt::Display for DefinedModuleError {
 type DefinedModuleResult<T> = std::result::Result<T, DefinedModuleError>;
 
 impl DefinedModuleInstance {
-    pub fn new_from_parity_module(
+    pub fn new_from_module(
         module_index: ModuleIndex,
         types: Vec<wasmparser::FuncType>,
         exports: Vec<wasmparser::Export>,
@@ -57,7 +57,7 @@ impl DefinedModuleInstance {
             types,
             exports: exports
                 .iter()
-                .map(|e| ExportInstance::new_from_parity_entry(e.clone(), module_index))
+                .map(|e| ExportInstance::new_from_entry(e.clone(), module_index))
                 .collect(),
             start_func: start_func,
         }

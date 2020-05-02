@@ -22,16 +22,16 @@ impl WasmInstance {
         let mut buffer = Vec::new();
         f.read_to_end(&mut buffer)?;
         let reader = wasmparser::ModuleReader::new(&buffer)?;
-        self.load_module_from_parity_module(name, reader)
+        self.load_module_from_module(name, reader)
     }
 
-    pub fn load_module_from_parity_module(
+    pub fn load_module_from_module(
         &mut self,
         name: Option<String>,
         reader: wasmparser::ModuleReader,
     ) -> Result<ModuleIndex> {
         let mut reader = reader;
-        self.store.load_parity_module(name, &mut reader)
+        self.store.load_module(name, &mut reader)
     }
 
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {

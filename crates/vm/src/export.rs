@@ -15,7 +15,7 @@ impl ExportInstance {
         &self.value
     }
 
-    pub fn new_from_parity_entry(entry: wasmparser::Export, module_index: ModuleIndex) -> Self {
+    pub fn new_from_entry(entry: wasmparser::Export, module_index: ModuleIndex) -> Self {
         use wasmparser::ExternalKind;
         Self {
             name: entry.field.to_string(),

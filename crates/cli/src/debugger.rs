@@ -21,7 +21,7 @@ pub struct MainDebugger {
 impl MainDebugger {
     pub fn load_module(&mut self, module: &[u8]) -> Result<()> {
         let mut reader = ModuleReader::new(module)?;
-        self.module_index = Some(self.store.load_parity_module(None, &mut reader)?);
+        self.module_index = Some(self.store.load_module(None, &mut reader)?);
         Ok(())
     }
     pub fn new() -> Result<Self> {

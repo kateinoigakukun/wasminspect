@@ -52,7 +52,7 @@ impl WastContext {
         let start_section = Self::extract_start_section(bytes)?;
         let module_index = self
             .instance
-            .load_module_from_parity_module(module_name.map(|n| n.to_string()), module)
+            .load_module_from_module(module_name.map(|n| n.to_string()), module)
             .map_err(|e| anyhow!("Failed to instantiate: {}", e))?;
         if let Some(start_section) = start_section {
             let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
@@ -278,7 +278,7 @@ impl WastContext {
                 let start_section = Self::extract_start_section(&binary)?;
                 let module_index = self
                     .instance
-                    .load_module_from_parity_module(None, module)
+                    .load_module_from_module(None, module)
                     .map_err(|e| anyhow!("{}", e))?;
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
