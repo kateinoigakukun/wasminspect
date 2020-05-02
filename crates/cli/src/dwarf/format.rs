@@ -121,13 +121,9 @@ pub fn format_object<'input>(
                 // For Swift Support
                 match type_name {
                     "UnsafeRawPointer" | "UnsafeMutableRawPointer" => {
-                    let mut bytes: [u8; 4] = Default::default();
-                    bytes.copy_from_slice(&memory[0..4]);
-                    return Ok(format!(
-                        "{} (0x{:x})",
-                        type_name,
-                        u32::from_le_bytes(bytes)
-                    ));
+                        let mut bytes: [u8; 4] = Default::default();
+                        bytes.copy_from_slice(&memory[0..4]);
+                        return Ok(format!("{} (0x{:x})", type_name, u32::from_le_bytes(bytes)));
                     }
                     _ => (),
                 }

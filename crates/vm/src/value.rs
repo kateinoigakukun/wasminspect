@@ -4,8 +4,8 @@ use wasmparser::Type;
 pub enum Value {
     I32(i32),
     I64(i64),
-    F32(f32),
-    F64(f64),
+    F32(u32),
+    F64(u64),
 }
 
 impl Value {
@@ -34,14 +34,14 @@ impl Value {
 
     pub fn as_f32(self) -> Option<f32> {
         match self {
-            Value::F32(v) => Some(v),
+            Value::F32(v) => Some(f32::from_bits(v)),
             _ => None,
         }
     }
 
     pub fn as_f64(self) -> Option<f64> {
         match self {
-            Value::F64(v) => Some(v),
+            Value::F64(v) => Some(f64::from_bits(v)),
             _ => None,
         }
     }
@@ -73,13 +73,13 @@ impl From<u64> for Value {
 
 impl From<f32> for Value {
     fn from(val: f32) -> Self {
-        Self::F32(val)
+        Self::F32(val.to_bits())
     }
 }
 
 impl From<f64> for Value {
     fn from(val: f64) -> Self {
-        Self::F64(val)
+        Self::F64(val.to_bits())
     }
 }
 
@@ -109,8 +109,32 @@ impl_native_value!(i32, I32);
 impl_native_value!(i64, I64);
 impl_native_value!(u32, I32);
 impl_native_value!(u64, I64);
-impl_native_value!(f32, F32);
-impl_native_value!(f64, F64);
+
+impl NativeValue for f32 {
+    fn from_value(val: Value) -> Option<Self> {
+        match val {
+            Value::F32(val) => Some(f32::from_bits(val)),
+            _ => None,
+        }
+    }
+
+    fn value_type() -> Type {
+        Type::F32
+    }
+}
+
+impl NativeValue for f64 {
+    fn from_value(val: Value) -> Option<Self> {
+        match val {
+            Value::F64(val) => Some(f64::from_bits(val)),
+            _ => None,
+        }
+    }
+
+    fn value_type() -> Type {
+        Type::F64
+    }
+}
 
 pub trait IntoLittleEndian {
     fn into_le(self, buf: &mut [u8]);
@@ -368,25 +392,58 @@ impl_try_wrapping!(I64, i64);
 impl_try_wrapping!(U32, u32);
 impl_try_wrapping!(U64, u64);
 
+impl F32 {
+    fn arithmetic_bits() -> u32 {
+        0x00400000
+    }
+}
+
+impl F64 {
+    fn arithmetic_bits() -> u64 {
+        0x0008000000000000
+    }
+}
+
 macro_rules! impl_min_max {
     ($type:ty, $orig:ty) => {
         impl $type {
             pub fn min(this: $orig, another: $orig) -> $orig {
                 if this.is_nan() {
-                    return this;
+                    let bits = this.to_bits() | <$type>::arithmetic_bits();
+                    return <$orig>::from_bits(bits);
+                }
+
+                if another.is_nan() {
+                    let bits = another.to_bits() | <$type>::arithmetic_bits();
+                    return <$orig>::from_bits(bits);
                 }
                 if another.is_nan() {
                     return another;
+                }
+                // min(0.0, -0.0) returns 0.0 in rust, but wasm expects
+                // to return -0.0
+                // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmin
+                if this == another {
+                    return <$orig>::from_bits(this.to_bits() | another.to_bits());
                 }
                 return this.min(another);
             }
 
             pub fn max(this: $orig, another: $orig) -> $orig {
                 if this.is_nan() {
-                    return this;
+                    let bits = this.to_bits() | <$type>::arithmetic_bits();
+                    return <$orig>::from_bits(bits);
                 }
+
                 if another.is_nan() {
-                    return another;
+                    let bits = another.to_bits() | <$type>::arithmetic_bits();
+                    return <$orig>::from_bits(bits);
+                }
+                // max(-0.0, 0.0) returns -0.0 in rust, but wasm expects
+                // to return 0.0
+                // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmax
+                if this == another {
+                    return <$orig>::from_bits(this.to_bits() & another.to_bits());
                 }
                 return this.max(another);
             }

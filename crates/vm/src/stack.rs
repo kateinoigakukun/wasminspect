@@ -139,7 +139,13 @@ impl CallFrame {
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        Self::new(func.module_index(), exec_addr, &func.cached_local_inits, args, pc)
+        Self::new(
+            func.module_index(),
+            exec_addr,
+            &func.cached_local_inits,
+            args,
+            pc,
+        )
     }
 
     pub fn set_local(&mut self, index: usize, value: Value) {

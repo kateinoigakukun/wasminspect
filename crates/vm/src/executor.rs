@@ -25,7 +25,11 @@ pub enum Trap {
     Stack(stack::Error),
     Table(table::Error),
     Value(value::Error),
-    IndirectCallTypeMismatch(String, /* expected: */ FuncType, /* actual: */ FuncType),
+    IndirectCallTypeMismatch(
+        String,
+        /* expected: */ FuncType,
+        /* actual: */ FuncType,
+    ),
     UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
     UndefinedFunc(usize),
 }
@@ -258,7 +262,11 @@ impl Executor {
                 if eq_func_type(func.ty(), &ty) {
                     self.invoke(func_addr, store, interceptor)
                 } else {
-                    Err(Trap::IndirectCallTypeMismatch(func.name().clone(), ty.clone(), func.ty().clone()))
+                    Err(Trap::IndirectCallTypeMismatch(
+                        func.name().clone(),
+                        ty.clone(),
+                        func.ty().clone(),
+                    ))
                 }
             }
             InstructionKind::Drop => {
@@ -402,13 +410,11 @@ impl Executor {
                 Ok(Signal::Next)
             }
             InstructionKind::F32Const { value } => {
-                self.stack
-                    .push_value(Value::F32(f32::from_bits(value.bits())));
+                self.stack.push_value(Value::F32(value.bits()));
                 Ok(Signal::Next)
             }
             InstructionKind::F64Const { value } => {
-                self.stack
-                    .push_value(Value::F64(f64::from_bits(value.bits())));
+                self.stack.push_value(Value::F64(value.bits()));
                 Ok(Signal::Next)
             }
 
@@ -510,33 +516,29 @@ impl Executor {
             InstructionKind::F32Floor => self.unop(|v: f32| v.floor()),
             InstructionKind::F32Trunc => self.unop(|v: f32| v.trunc()),
             InstructionKind::F32Nearest => self.unop(|v: f32| F32::nearest(v)),
-            InstructionKind::F32Sqrt => self.unop(|v: f32| Value::F32(v.sqrt())),
-            InstructionKind::F32Add => self.binop(|a: f32, b: f32| Value::F32(a + b)),
-            InstructionKind::F32Sub => self.binop(|a: f32, b: f32| Value::F32(a - b)),
-            InstructionKind::F32Mul => self.binop(|a: f32, b: f32| Value::F32(a * b)),
-            InstructionKind::F32Div => self.binop(|a: f32, b: f32| Value::F32(a / b)),
+            InstructionKind::F32Sqrt => self.unop(|v: f32| v.sqrt()),
+            InstructionKind::F32Add => self.binop(|a: f32, b: f32| a + b),
+            InstructionKind::F32Sub => self.binop(|a: f32, b: f32| a - b),
+            InstructionKind::F32Mul => self.binop(|a: f32, b: f32| a * b),
+            InstructionKind::F32Div => self.binop(|a: f32, b: f32| a / b),
             InstructionKind::F32Min => self.binop(|a: f32, b: f32| F32::min(a, b)),
             InstructionKind::F32Max => self.binop(|a: f32, b: f32| F32::max(a, b)),
-            InstructionKind::F32Copysign => {
-                self.binop(|a: f32, b: f32| Value::F32(F32::copysign(a, b)))
-            }
+            InstructionKind::F32Copysign => self.binop(|a: f32, b: f32| F32::copysign(a, b)),
 
-            InstructionKind::F64Abs => self.unop(|v: f64| Value::F64(v.abs())),
-            InstructionKind::F64Neg => self.unop(|v: f64| Value::F64(-v)),
-            InstructionKind::F64Ceil => self.unop(|v: f64| Value::F64(v.ceil())),
-            InstructionKind::F64Floor => self.unop(|v: f64| Value::F64(v.floor())),
-            InstructionKind::F64Trunc => self.unop(|v: f64| Value::F64(v.trunc())),
+            InstructionKind::F64Abs => self.unop(|v: f64| v.abs()),
+            InstructionKind::F64Neg => self.unop(|v: f64| -v),
+            InstructionKind::F64Ceil => self.unop(|v: f64| v.ceil()),
+            InstructionKind::F64Floor => self.unop(|v: f64| v.floor()),
+            InstructionKind::F64Trunc => self.unop(|v: f64| v.trunc()),
             InstructionKind::F64Nearest => self.unop(|v: f64| F64::nearest(v)),
-            InstructionKind::F64Sqrt => self.unop(|v: f64| Value::F64(v.sqrt())),
-            InstructionKind::F64Add => self.binop(|a: f64, b: f64| Value::F64(a + b)),
-            InstructionKind::F64Sub => self.binop(|a: f64, b: f64| Value::F64(a - b)),
-            InstructionKind::F64Mul => self.binop(|a: f64, b: f64| Value::F64(a * b)),
-            InstructionKind::F64Div => self.binop(|a: f64, b: f64| Value::F64(a / b)),
+            InstructionKind::F64Sqrt => self.unop(|v: f64| v.sqrt()),
+            InstructionKind::F64Add => self.binop(|a: f64, b: f64| a + b),
+            InstructionKind::F64Sub => self.binop(|a: f64, b: f64| a - b),
+            InstructionKind::F64Mul => self.binop(|a: f64, b: f64| a * b),
+            InstructionKind::F64Div => self.binop(|a: f64, b: f64| a / b),
             InstructionKind::F64Min => self.binop(|a: f64, b: f64| F64::min(a, b)),
             InstructionKind::F64Max => self.binop(|a: f64, b: f64| F64::max(a, b)),
-            InstructionKind::F64Copysign => {
-                self.binop(|a: f64, b: f64| Value::F64(F64::copysign(a, b)))
-            }
+            InstructionKind::F64Copysign => self.binop(|a: f64, b: f64| F64::copysign(a, b)),
 
             InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
             InstructionKind::I32TruncF32S => self.try_unop(|v: f32| F32::trunc_to_i32(v)),
@@ -850,8 +852,8 @@ pub fn eval_const_expr(
     let val = match inst.kind {
         InstructionKind::I32Const { value } => Value::I32(value),
         InstructionKind::I64Const { value } => Value::I64(value),
-        InstructionKind::F32Const { value } => Value::F32(f32::from_bits(value.bits())),
-        InstructionKind::F64Const { value } => Value::F64(f64::from_bits(value.bits())),
+        InstructionKind::F32Const { value } => Value::F32(value.bits()),
+        InstructionKind::F64Const { value } => Value::F64(value.bits()),
         InstructionKind::GlobalGet { global_index } => {
             let addr = GlobalAddr::new_unsafe(module_index, global_index as usize);
             store.global(addr).borrow().value()

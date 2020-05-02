@@ -82,8 +82,8 @@ impl DefinedFunctionInstance {
             let v = match ty {
                 Type::I32 => Value::I32(0),
                 Type::I64 => Value::I64(0),
-                Type::F32 => Value::F32(0.0),
-                Type::F64 => Value::F64(0.0),
+                Type::F32 => Value::F32(0),
+                Type::F64 => Value::F64(0),
                 _ => unimplemented!(),
             };
             cached_local_inits.push(v);
@@ -95,7 +95,7 @@ impl DefinedFunctionInstance {
             module_index,
             locals,
             instructions,
-            cached_local_inits
+            cached_local_inits,
         })
     }
 
