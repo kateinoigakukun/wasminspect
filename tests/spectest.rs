@@ -25,11 +25,12 @@ run_wast!("align.wast", test_wast_align);
 run_wast!("binary-leb128.wast", test_wast_binary_leb128);
 run_wast!("binary.wast", test_wast_binary);
 run_wast!("block.wast", test_wast_block);
-run_wast!("br_if.wast", test_wast_br_if);
 run_wast!("br.wast", test_wast_br);
+run_wast!("br_if.wast", test_wast_br_if);
+run_wast!("br_table.wast", test_wast_br_table);
 run_wast!("break-drop.wast", test_wast_break_drop);
-run_wast!("call_indirect.wast", test_wast_call_indirect);
 run_wast!("call.wast", test_wast_call);
+run_wast!("call_indirect.wast", test_wast_call_indirect);
 run_wast!("comments.wast", test_wast_comments);
 run_wast!("const.wast", test_wast_const);
 run_wast!("conversions.wast", test_wast_conversions);
@@ -52,6 +53,7 @@ run_wast!("float_misc.wast", test_wast_float_misc);
 run_wast!("forward.wast", test_wast_forward);
 run_wast!("func.wast", test_wast_func);
 run_wast!("func_ptrs.wast", test_wast_func_ptrs);
+run_wast!("global.wast", test_wast_global);
 run_wast!("globals.wast", test_wast_globals);
 run_wast!("i32.wast", test_wast_i32);
 run_wast!("i64.wast", test_wast_i64);
@@ -77,14 +79,12 @@ run_wast!("names.wast", test_wast_names);
 run_wast!("nop.wast", test_wast_nop);
 run_wast!("return.wast", test_wast_return);
 run_wast!("select.wast", test_wast_select);
-run_wast!(
-    "skip-stack-guard-page.wast",
-    test_wast_skip_stack_guard_page
-);
+run_wast!("skip-stack-guard-page.wast", test_wast_skip_stack_guard_page);
 run_wast!("stack.wast", test_wast_stack);
 run_wast!("start.wast", test_wast_start);
 run_wast!("store.wast", test_wast_store);
 run_wast!("switch.wast", test_wast_switch);
+run_wast!("table.wast", test_wast_table);
 run_wast!("token.wast", test_wast_token);
 run_wast!("traps.wast", test_wast_traps);
 run_wast!("type.wast", test_wast_type);
@@ -92,13 +92,7 @@ run_wast!("typecheck.wast", test_wast_typecheck);
 run_wast!("unreachable.wast", test_wast_unreachable);
 run_wast!("unreached-invalid.wast", test_wast_unreached_invalid);
 run_wast!("unwind.wast", test_wast_unwind);
-run_wast!(
-    "utf8-custom-section-id.wast",
-    test_wast_utf8_custom_section_id
-);
+run_wast!("utf8-custom-section-id.wast", test_wast_utf8_custom_section_id);
 run_wast!("utf8-import-field.wast", test_wast_utf8_import_field);
 run_wast!("utf8-import-module.wast", test_wast_utf8_import_module);
-run_wast!(
-    "utf8-invalid-encoding.wast",
-    test_wast_utf8_invalid_encoding
-);
+run_wast!("utf8-invalid-encoding.wast", test_wast_utf8_invalid_encoding);
