@@ -95,7 +95,7 @@ impl DefinedFunctionInstance {
             module_index,
             locals,
             instructions,
-            cached_local_inits
+            cached_local_inits,
         })
     }
 

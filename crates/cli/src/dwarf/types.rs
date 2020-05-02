@@ -104,7 +104,7 @@ pub fn parse_types_rec<R: gimli::Reader>(
             parse_partial_struct_type(&node, dwarf, unit)?,
         )),
         gimli::DW_TAG_enumeration_type => Some(TypeInfo::<R>::EnumerationType(
-            parse_partial_enum_type(&node, dwarf, unit)?
+            parse_partial_enum_type(&node, dwarf, unit)?,
         )),
         gimli::DW_TAG_typedef => Some(TypeInfo::<R>::TypeDef(parse_typedef(&node, dwarf, unit)?)),
         gimli::DW_TAG_atomic_type
@@ -297,7 +297,11 @@ fn parse_partial_enum_type<R: gimli::Reader>(
         Some(gimli::AttributeValue::UnitRef(ref offset)) => Some(offset.0),
         _ => None,
     };
-    Ok(EnumerationTypeInfo { name, ty, enumerators: vec![] })
+    Ok(EnumerationTypeInfo {
+        name,
+        ty,
+        enumerators: vec![],
+    })
 }
 
 fn parse_enumerator<R: gimli::Reader>(
@@ -305,7 +309,10 @@ fn parse_enumerator<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,
 ) -> Result<Enumerator> {
-    let mut enumerator = Enumerator { name: None, value: None };
+    let mut enumerator = Enumerator {
+        name: None,
+        value: None,
+    };
     enumerator.name = match node.entry().attr_value(gimli::DW_AT_name)? {
         Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
         None => None,

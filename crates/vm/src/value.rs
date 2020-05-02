@@ -113,9 +113,7 @@ impl_native_value!(u64, I64);
 impl NativeValue for f32 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::F32(val) => {
-                Some(f32::from_bits(val))
-            },
+            Value::F32(val) => Some(f32::from_bits(val)),
             _ => None,
         }
     }
@@ -414,7 +412,7 @@ macro_rules! impl_min_max {
                     let bits = this.to_bits() | <$type>::arithmetic_bits();
                     return <$orig>::from_bits(bits);
                 }
-                
+
                 if another.is_nan() {
                     let bits = another.to_bits() | <$type>::arithmetic_bits();
                     return <$orig>::from_bits(bits);

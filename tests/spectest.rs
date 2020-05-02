@@ -78,7 +78,10 @@ run_wast!("names.wast", test_wast_names);
 run_wast!("nop.wast", test_wast_nop);
 run_wast!("return.wast", test_wast_return);
 run_wast!("select.wast", test_wast_select);
-run_wast!("skip-stack-guard-page.wast", test_wast_skip_stack_guard_page);
+run_wast!(
+    "skip-stack-guard-page.wast",
+    test_wast_skip_stack_guard_page
+);
 run_wast!("stack.wast", test_wast_stack);
 run_wast!("start.wast", test_wast_start);
 run_wast!("store.wast", test_wast_store);
@@ -90,7 +93,13 @@ run_wast!("typecheck.wast", test_wast_typecheck);
 run_wast!("unreachable.wast", test_wast_unreachable);
 run_wast!("unreached-invalid.wast", test_wast_unreached_invalid);
 run_wast!("unwind.wast", test_wast_unwind);
-run_wast!("utf8-custom-section-id.wast", test_wast_utf8_custom_section_id);
+run_wast!(
+    "utf8-custom-section-id.wast",
+    test_wast_utf8_custom_section_id
+);
 run_wast!("utf8-import-field.wast", test_wast_utf8_import_field);
 run_wast!("utf8-import-module.wast", test_wast_utf8_import_module);
-run_wast!("utf8-invalid-encoding.wast", test_wast_utf8_invalid_encoding);
+run_wast!(
+    "utf8-invalid-encoding.wast",
+    test_wast_utf8_invalid_encoding
+);

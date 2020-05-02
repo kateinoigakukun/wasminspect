@@ -5,9 +5,7 @@ use std::path::Path;
 use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
-use wasminspect_vm::{
-    simple_invoke_func, FuncAddr, ModuleIndex, WasmInstance, WasmValue,
-};
+use wasminspect_vm::{simple_invoke_func, FuncAddr, ModuleIndex, WasmInstance, WasmValue};
 use wasmparser::{validate, ModuleReader};
 
 pub struct WastContext {
@@ -300,12 +298,10 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
     Ok(match (actual, expected) {
         (WasmValue::I32(a), wast::AssertExpression::I32(x)) => a == x,
         (WasmValue::I64(a), wast::AssertExpression::I64(x)) => a == x,
-        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => {
-            match x {
+        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
             wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
-            }
         },
         (WasmValue::F64(a), wast::AssertExpression::F64(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
@@ -321,9 +317,7 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
     match &expr.instrs[0] {
         wast::Instruction::I32Const(x) => WasmValue::I32(*x),
         wast::Instruction::I64Const(x) => WasmValue::I64(*x),
-        wast::Instruction::F32Const(x) => {
-            WasmValue::F32(x.bits)
-        },
+        wast::Instruction::F32Const(x) => WasmValue::F32(x.bits),
         wast::Instruction::F64Const(x) => WasmValue::F64(x.bits),
         wast::Instruction::V128Const(_) => panic!(),
         _ => panic!(),

@@ -25,7 +25,11 @@ pub enum Trap {
     Stack(stack::Error),
     Table(table::Error),
     Value(value::Error),
-    IndirectCallTypeMismatch(String, /* expected: */ FuncType, /* actual: */ FuncType),
+    IndirectCallTypeMismatch(
+        String,
+        /* expected: */ FuncType,
+        /* actual: */ FuncType,
+    ),
     UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
     UndefinedFunc(usize),
 }
@@ -258,7 +262,11 @@ impl Executor {
                 if eq_func_type(func.ty(), &ty) {
                     self.invoke(func_addr, store, interceptor)
                 } else {
-                    Err(Trap::IndirectCallTypeMismatch(func.name().clone(), ty.clone(), func.ty().clone()))
+                    Err(Trap::IndirectCallTypeMismatch(
+                        func.name().clone(),
+                        ty.clone(),
+                        func.ty().clone(),
+                    ))
                 }
             }
             InstructionKind::Drop => {
@@ -402,13 +410,11 @@ impl Executor {
                 Ok(Signal::Next)
             }
             InstructionKind::F32Const { value } => {
-                self.stack
-                    .push_value(Value::F32(value.bits()));
+                self.stack.push_value(Value::F32(value.bits()));
                 Ok(Signal::Next)
             }
             InstructionKind::F64Const { value } => {
-                self.stack
-                    .push_value(Value::F64(value.bits()));
+                self.stack.push_value(Value::F64(value.bits()));
                 Ok(Signal::Next)
             }
 
@@ -517,9 +523,7 @@ impl Executor {
             InstructionKind::F32Div => self.binop(|a: f32, b: f32| a / b),
             InstructionKind::F32Min => self.binop(|a: f32, b: f32| F32::min(a, b)),
             InstructionKind::F32Max => self.binop(|a: f32, b: f32| F32::max(a, b)),
-            InstructionKind::F32Copysign => {
-                self.binop(|a: f32, b: f32| F32::copysign(a, b))
-            }
+            InstructionKind::F32Copysign => self.binop(|a: f32, b: f32| F32::copysign(a, b)),
 
             InstructionKind::F64Abs => self.unop(|v: f64| v.abs()),
             InstructionKind::F64Neg => self.unop(|v: f64| -v),
@@ -534,9 +538,7 @@ impl Executor {
             InstructionKind::F64Div => self.binop(|a: f64, b: f64| a / b),
             InstructionKind::F64Min => self.binop(|a: f64, b: f64| F64::min(a, b)),
             InstructionKind::F64Max => self.binop(|a: f64, b: f64| F64::max(a, b)),
-            InstructionKind::F64Copysign => {
-                self.binop(|a: f64, b: f64| F64::copysign(a, b))
-            }
+            InstructionKind::F64Copysign => self.binop(|a: f64, b: f64| F64::copysign(a, b)),
 
             InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
             InstructionKind::I32TruncF32S => self.try_unop(|v: f32| F32::trunc_to_i32(v)),
