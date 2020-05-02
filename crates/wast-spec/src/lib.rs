@@ -5,11 +5,10 @@ use std::path::Path;
 use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
-use wasmi_validation::{validate_module, PlainValidator};
 use wasminspect_vm::{
     simple_invoke_func, FuncAddr, ModuleIndex, WasmError, WasmInstance, WasmValue,
 };
-use wasmparser::ModuleReader;
+use wasmparser::{ModuleReader, validate};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -32,44 +31,34 @@ impl WastContext {
         self.run_buffer(path.to_str().unwrap(), &bytes)
     }
 
-    pub fn extract_start_section(bytes: &[u8]) -> Option<u32> {
-        let module =
-            parity_wasm::deserialize_buffer::<parity_wasm::elements::Module>(&bytes).unwrap();
-        return module.start_section();
+    pub fn extract_start_section(bytes: &[u8]) -> Result<Option<u32>> {
+        let mut reader = ModuleReader::new(bytes)?;
+        while !reader.eof() {
+            let section = reader.read()?;
+            if section.code != wasmparser::SectionCode::Start {
+                continue;
+            }
+            match section.get_start_section_content() {
+                Ok(offset) => return Ok(Some(offset)),
+                Err(_) => continue,
+            }
+        }
+        return Ok(None);
     }
     pub fn instantiate<'a>(
         &self,
         bytes: &'a [u8],
-        ignore_validation: bool,
     ) -> Result<ModuleReader<'a>> {
-        let module = parity_wasm::deserialize_buffer(&bytes)
-            .with_context(|| anyhow!("Failed to parse wasm"))?;
-        let reader = ModuleReader::new(bytes)?;
-        match validate_module::<PlainValidator>(&module)
-            .map_err(|e| anyhow!("validation error: {}", e))
-        {
-            Err(err) => {
-                if ignore_validation {
-                    Ok(reader)
-                } else {
-                    if format!("{}", err).contains("trying to import mutable global glob") {
-                        Ok(reader)
-                    } else {
-                        Err(err)
-                    }
-                }
-            }
-            Ok(_) => Ok(reader),
-        }
+        validate(bytes, None)?;
+        Ok(ModuleReader::new(bytes)?)
     }
     fn module(
         &mut self,
         module_name: Option<&str>,
         bytes: &[u8],
-        ignore_validation: bool,
     ) -> Result<()> {
-        let module = self.instantiate(&bytes, ignore_validation)?;
-        let start_section = Self::extract_start_section(bytes);
+        let module = self.instantiate(&bytes)?;
+        let start_section = Self::extract_start_section(bytes)?;
         let module_index = self
             .instance
             .load_module_from_parity_module(module_name.map(|n| n.to_string()), module)
@@ -109,7 +98,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name), &bytes, true)
+                    self.module(module.name.map(|s| s.name), &bytes)
                         .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
                 }
                 Register {
@@ -168,7 +157,7 @@ impl WastContext {
                         wast::QuoteModule::Quote(_) => return Ok(()),
                     };
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes, false) {
+                    let err = match self.module(None, &bytes) {
                         Ok(()) => {
                             panic!("{}\nexpected module to fail to instantiate", context(span))
                         }
@@ -191,7 +180,7 @@ impl WastContext {
                     message,
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes, false) {
+                    let err = match self.module(None, &bytes) {
                         Ok(()) => panic!("{}\nexpected module to fail to link", context(span)),
                         Err(e) => e,
                     };
@@ -225,7 +214,7 @@ impl WastContext {
                     message,
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes, false) {
+                    let err = match self.module(None, &bytes) {
                         Ok(()) => panic!("{}\nexpected module to fail to build", context(span)),
                         Err(e) => e,
                     };
@@ -289,8 +278,8 @@ impl WastContext {
                 .map_err(|e| anyhow!("{}", e))),
             wast::WastExecute::Module(mut module) => {
                 let binary = module.encode()?;
-                let module = self.instantiate(&binary, false)?;
-                let start_section = Self::extract_start_section(&binary);
+                let module = self.instantiate(&binary)?;
+                let start_section = Self::extract_start_section(&binary)?;
                 let module_index = self
                     .instance
                     .load_module_from_parity_module(None, module)
