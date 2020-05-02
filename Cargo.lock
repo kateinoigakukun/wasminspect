@@ -495,15 +495,6 @@ version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "pretty_env_logger"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "proc-macro-error"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -887,7 +878,7 @@ name = "wasminspect"
 version = "0.1.0"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "pretty_env_logger 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasminspect-cli 0.1.0",
  "wasminspect-vm 0.1.0",
@@ -1077,7 +1068,6 @@ dependencies = [
 "checksum phf_generator 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "17367f0cc86f2d25802b2c26ee58a7b23faeccf78a396094c13dced0d0182526"
 "checksum phf_shared 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c00cf8b9eafe68dde5e9eaa2cef8ee84a9336a47d566ec55ca16589633b65af7"
 "checksum ppv-lite86 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)" = "74490b50b9fbe561ac330df47c08f3f33073d2d00c150f719147d7c54522fa1b"
-"checksum pretty_env_logger 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "926d36b9553851b8b0005f1275891b392ee4d2d833852c417ed025477350fb9d"
 "checksum proc-macro-error 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "98e9e4b82e0ef281812565ea4751049f1bdcdfccda7d3f459f2e138a40c08678"
 "checksum proc-macro-error-attr 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "4f5444ead4e9935abd7f27dc51f7e852a0569ac888096d5ec2499470794e2e53"
 "checksum proc-macro2 1.0.12 (registry+https://github.com/rust-lang/crates.io-index)" = "8872cf6f48eee44265156c111456a700ab3483686b3f96df4cf5481c89157319"

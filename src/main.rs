@@ -1,4 +1,4 @@
-use pretty_env_logger;
+use env_logger;
 use structopt::StructOpt;
 use wasminspect_cli;
 
@@ -13,7 +13,8 @@ struct Opts {
 }
 
 fn main() {
-    pretty_env_logger::init();
+    env_logger::init_from_env(env_logger::Env::default().default_filter_or("warn"));
+
     let opts = Opts::from_args();
     match wasminspect_cli::run_loop(opts.filepath, opts.source) {
         Err(err) => println!("{:?}", err),

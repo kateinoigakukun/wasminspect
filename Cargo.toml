@@ -18,7 +18,7 @@ wasminspect-vm = { path = "crates/vm" }
 wast-spec = { path = "crates/wast-spec" }
 clap = "2.33.0"
 structopt = "0.3"
-pretty_env_logger = "0.4.0"
+env_logger = "0.7.1"
 
 [workspace]
 members = [
