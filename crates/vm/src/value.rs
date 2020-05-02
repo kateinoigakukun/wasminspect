@@ -378,6 +378,12 @@ macro_rules! impl_min_max {
                 if another.is_nan() {
                     return another;
                 }
+                // min(0.0, -0.0) returns 0.0 in rust, but wasm expects
+                // to return -0.0
+                // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmin
+                if this == another {
+                    return <$orig>::from_bits(this.to_bits() | another.to_bits());
+                }
                 return this.min(another);
             }
 
@@ -387,6 +393,12 @@ macro_rules! impl_min_max {
                 }
                 if another.is_nan() {
                     return another;
+                }
+                // max(-0.0, 0.0) returns -0.0 in rust, but wasm expects
+                // to return 0.0
+                // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmax
+                if this == another {
+                    return <$orig>::from_bits(this.to_bits() & another.to_bits());
                 }
                 return this.max(another);
             }

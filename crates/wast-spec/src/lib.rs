@@ -6,7 +6,7 @@ use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{
-    simple_invoke_func, FuncAddr, ModuleIndex, WasmError, WasmInstance, WasmValue,
+    simple_invoke_func, FuncAddr, ModuleIndex, WasmInstance, WasmValue,
 };
 use wasmparser::{validate, ModuleReader};
 
@@ -50,7 +50,6 @@ impl WastContext {
         Ok(ModuleReader::new(bytes)?)
     }
     fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
-        println!("Register module");
         let module = self.instantiate(&bytes)?;
         let start_section = Self::extract_start_section(bytes)?;
         let module_index = self
@@ -64,7 +63,6 @@ impl WastContext {
         }
         self.current = Some(module_index);
         if let Some(module_name) = module_name {
-            println!("Register module name {}", module_name);
             self.module_index_by_name
                 .insert(module_name.to_string(), module_index);
         }
@@ -92,7 +90,6 @@ impl WastContext {
         for directive in wast.directives {
             match directive {
                 Module(mut module) => {
-                    println!("dump module: {:?}", module.name);
                     let bytes = module.encode().map_err(adjust_wast)?;
                     self.module(module.name.map(|s| s.name()), &bytes)
                         .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
@@ -304,10 +301,12 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
     Ok(match (actual, expected) {
         (WasmValue::I32(a), wast::AssertExpression::I32(x)) => a == x,
         (WasmValue::I64(a), wast::AssertExpression::I64(x)) => a == x,
-        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => match x {
+        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => {
+            match x {
             wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
             wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
+            }
         },
         (WasmValue::F64(a), wast::AssertExpression::F64(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),

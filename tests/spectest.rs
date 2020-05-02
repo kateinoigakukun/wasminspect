@@ -39,7 +39,7 @@ run_wast!("data.wast", test_wast_data);
 run_wast!("elem.wast", test_wast_elem);
 run_wast!("endianness.wast", test_wast_endianness);
 run_wast!("exports.wast", test_wast_exports);
-run_wast!("f32.wast", test_wast_f32);
+run_wast!("f32.wast", test_wast_f32_orig);
 run_wast!("f32_bitwise.wast", test_wast_f32_bitwise);
 run_wast!("f32_cmp.wast", test_wast_f32_cmp);
 run_wast!("f64.wast", test_wast_f64);
