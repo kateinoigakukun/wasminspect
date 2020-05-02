@@ -111,7 +111,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                 let result = clock_time_get(
                     ctx.mem,
                     args[0].as_i32().unwrap() as u32,
-                    args[1].as_i32().unwrap() as u64,
+                    args[1].as_i64().unwrap() as u64,
                     args[2].as_i32().unwrap() as u32,
                 );
                 ret.push(WasmValue::I32(result as i32));
