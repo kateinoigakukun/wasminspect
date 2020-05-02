@@ -109,7 +109,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name()), &bytes, true)
+                    self.module(module.name.map(|s| s.name), &bytes, true)
                         .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
                 }
                 Register {
@@ -131,9 +131,8 @@ impl WastContext {
                     results,
                 } => match self.perform_execute(exec).with_context(|| context(span)) {
                     Ok(Ok(values)) => {
-                        for (v, e) in values.iter().zip(results.iter().map(const_expr)) {
-                            let e = e;
-                            if is_equal_value(*v, e) {
+                        for (v, e) in values.iter().zip(results) {
+                            if val_matches(v, &e)? {
                                 continue;
                             }
                             bail!("expected {:?}, got {:?} {}", e, v, context(span))
@@ -241,50 +240,6 @@ impl WastContext {
                         )
                     }
                 }
-                AssertReturnCanonicalNan { span, invoke } => {
-                    match self.invoke(invoke.module.map(|s| s.name()), invoke.name, &invoke.args) {
-                        Ok(values) => {
-                            for v in values.iter() {
-                                match v {
-                                    WasmValue::F32(x) => {
-                                        if !is_canonical_f32_nan(x) {
-                                            println!("{}\nexpected canonical NaN", context(span))
-                                        }
-                                    }
-                                    WasmValue::F64(x) => {
-                                        if !is_canonical_f64_nan(x) {
-                                            println!("{}\nexpected canonical NaN", context(span))
-                                        }
-                                    }
-                                    other => bail!("expected float, got {:?}", other),
-                                };
-                            }
-                        }
-                        Err(t) => bail!("{}\nunexpected trap: {}", context(span), t),
-                    }
-                }
-                AssertReturnArithmeticNan { span, invoke } => {
-                    match self.invoke(invoke.module.map(|s| s.name()), invoke.name, &invoke.args) {
-                        Ok(values) => {
-                            for v in values.iter() {
-                                match v {
-                                    WasmValue::F32(x) => {
-                                        if !is_arithmetic_f32_nan(x) {
-                                            println!("{}\nexpected arithmetic NaN", context(span))
-                                        }
-                                    }
-                                    WasmValue::F64(x) => {
-                                        if !is_arithmetic_f64_nan(x) {
-                                            println!("{}\nexpected arithmetic NaN", context(span))
-                                        }
-                                    }
-                                    other => bail!("expected float, got {:?}", other),
-                                };
-                            }
-                        }
-                        Err(t) => bail!("{}\nunexpected trap: {}", context(span), t),
-                    }
-                }
                 _ => panic!("unsupported"),
             }
         }
@@ -354,6 +309,29 @@ impl WastContext {
     }
 }
 
+fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<bool> {
+    Ok(match (actual, expected) {
+        (WasmValue::I32(a), wast::AssertExpression::I32(x)) => a == x,
+        (WasmValue::I64(a), wast::AssertExpression::I64(x)) => a == x,
+        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => { 
+            match x {
+                wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
+                wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
+                wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
+            }
+        },
+        (WasmValue::F64(a), wast::AssertExpression::F64(x)) => {
+            match x {
+                wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
+                wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
+                wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
+            }
+        },
+        (_, wast::AssertExpression::V128(_)) => bail!("V128 is not supported yet"),
+        _ => bail!("unexpected comparing for {:?} and {:?}", actual, expected),
+    })
+}
+
 fn const_expr(expr: &wast::Expression) -> WasmValue {
     match &expr.instrs[0] {
         wast::Instruction::I32Const(x) => WasmValue::I32(*x),
@@ -362,20 +340,6 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
         wast::Instruction::F64Const(x) => WasmValue::F64(f64::from_bits(x.bits)),
         wast::Instruction::V128Const(_) => panic!(),
         _ => panic!(),
-    }
-}
-
-fn is_equal_value(lhs: WasmValue, rhs: WasmValue) -> bool {
-    match (lhs, rhs) {
-        (WasmValue::I32(lhs), WasmValue::I32(rhs)) => (lhs == rhs),
-        (WasmValue::I64(lhs), WasmValue::I64(rhs)) => (lhs == rhs),
-        (WasmValue::F32(lhs), WasmValue::F32(rhs)) => {
-            (lhs == rhs) || (lhs.is_nan() && rhs.is_nan())
-        }
-        (WasmValue::F64(lhs), WasmValue::F64(rhs)) => {
-            (lhs == rhs) || (lhs.is_nan() && rhs.is_nan())
-        }
-        (_, _) => false,
     }
 }
 
