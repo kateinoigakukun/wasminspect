@@ -67,6 +67,20 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug swift-runtime tests",
+            "cargo": {
+                "args": [
+                    "test",
+                    "-p", "wasminspect-swift-runtime",
+                    "--no-run",
+                ],
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "sourceLanguages": [
                 "rust"
             ],

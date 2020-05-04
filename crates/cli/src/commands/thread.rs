@@ -1,5 +1,6 @@
 use super::command::{Command, CommandContext};
 use super::debugger::{Debugger, StepStyle};
+use super::symbol::demangle_symbol;
 
 pub struct ThreadCommand {}
 
@@ -69,7 +70,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
             }
             Opts::Backtrace => {
                 for (index, frame) in debugger.frame().iter().rev().enumerate() {
-                    println!("{}: {}", index, frame);
+                    println!("{}: {}", index, demangle_symbol(frame));
                 }
             }
             Opts::StepIn | Opts::StepOver => {

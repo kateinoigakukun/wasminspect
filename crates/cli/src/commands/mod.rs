@@ -2,6 +2,7 @@ pub mod command;
 pub mod debugger;
 pub mod sourcemap;
 pub mod subroutine;
+pub mod symbol;
 
 // commands
 pub mod backtrace;

@@ -1,0 +1,6 @@
+[package]
+name = "wasminspect-swift-runtime"
+version = "0.2.0"
+authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
+edition = "2018"
+links = "swiftCore"
