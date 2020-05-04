@@ -1,5 +1,6 @@
 use super::commands::debugger;
 use anyhow::{anyhow, Result};
+use log::warn;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -9,7 +10,6 @@ use wasminspect_vm::{
 };
 use wasminspect_wasi::instantiate_wasi;
 use wasmparser::ModuleReader;
-use log::warn;
 
 pub struct MainDebugger {
     store: Store,

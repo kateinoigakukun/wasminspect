@@ -26,4 +26,8 @@ members = [
   "crates/vm",
   "crates/wast-spec",
   "crates/wasi",
+  "crates/swift-runtime",
 ]
+[features]
+default = []
+swift-extension = ["wasminspect-cli/swift-extension"]
