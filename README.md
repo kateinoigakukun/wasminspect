@@ -27,12 +27,12 @@ wasminspect support some Swift specific features. To enable these features, plea
 On macOS:
 
 ```sh
-$ cargo build --features swift-extension
+$ cargo +nightly build --features swift-extension
 ```
 
 On Linux:
 
 ```sh
 $ export SWIFT_RUNTIME_LIB_DIR=/path/to/lib/swift/linux # e.g. $HOME/.swiftenv/versions/5.2-RELEASE/usr/lib/swift/linux
-$ RUSTFLAGS="-C link-args=-Wl,-rpath,$SWIFT_RUNTIME_LIB_DIR" cargo build --features swift-extension
+$ RUSTFLAGS="-C link-args=-Wl,-rpath,$SWIFT_RUNTIME_LIB_DIR" cargo +nightly build --features swift-extension
 ```
