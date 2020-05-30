@@ -44,7 +44,7 @@ impl<D: Debugger> Command<D> for RunCommand {
                 println!("{:?}", values);
             }
             Ok(RunResult::Breakpoint) => {
-                println!("Hit breakpoit");
+                println!("Hit breakpoint");
             }
             Err(msg) => {
                 eprintln!("{}", msg);
