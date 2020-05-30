@@ -35,7 +35,7 @@ impl<D: Debugger> Command<D> for ProcessCommand {
                 Signal::Next => unreachable!(),
                 Signal::End => {}
                 Signal::Breakpoint => {
-                    println!("Hit breakpoit");
+                    println!("Hit breakpoint");
                 }
             },
         }
