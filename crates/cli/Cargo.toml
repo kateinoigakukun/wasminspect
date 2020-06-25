@@ -14,7 +14,7 @@ structopt = "0.3"
 thiserror = "1.0.9"
 anyhow = "1.0.26"
 wasmparser = "0.51.4"
-gimli = "0.20.0"
+gimli = "0.21.0"
 log = "0.4.8"
 
 [features]
