@@ -38,7 +38,10 @@ pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
     let debug_info = DebugInfo::new(sections.get(".debug_info").unwrap(), endian);
     let debug_line = DebugLine::new(sections.get(".debug_line").unwrap(), endian);
     let debug_addr = DebugAddr::from(EndianSlice::new(EMPTY_SECTION, endian));
-    let debug_line_str = DebugLineStr::from(EndianSlice::new(EMPTY_SECTION, endian));
+    let debug_line_str = match sections.get(".debug_line_str") {
+        Some(section) => DebugLineStr::from(EndianSlice::new(section, endian)),
+        None => DebugLineStr::from(EndianSlice::new(EMPTY_SECTION, endian)),
+    };
     let debug_str_sup = DebugStr::from(EndianSlice::new(EMPTY_SECTION, endian));
     let debug_ranges = match sections.get(".debug_ranges") {
         Some(section) => DebugRanges::new(section, endian),
@@ -291,8 +294,9 @@ pub fn transform_debug_line<R: gimli::Reader>(
     } else {
         sequence_base_index = 0;
     }
+
     for dir in header.include_directories() {
-        dirs.push(clone_string_attribute(dwarf, unit, dir.clone())?);
+        dirs.push(clone_string_attribute(dwarf, unit, dir.clone()).expect("parsable dir string"));
     }
     let mut files = Vec::new();
     for file_entry in header.file_names() {
