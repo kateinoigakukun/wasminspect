@@ -46,7 +46,7 @@ There is a running process, kill it and restart?: [Y/n] Y
 
 ### Setting breakpoints
 
-wasminspect stops process when called function contains symbols set by breakpoints.
+wasminspect stops the process when called function contains symbols set by breakpoints.
 
 ```sh
 (wasminspect) breakpoint set __original_main
@@ -166,7 +166,7 @@ I32(138)
 ### Source Directory mapping for the binary built by other machine
 
 If the binary is built in remote machine, DWARF records remote source directory path.
-If you have same structure soruce directory in debugging machine, you can map the source directory.
+If you have same structure source directory in debugging machine, you can map the source directory.
 
 This is similar feature to [LLDB's source-map.](https://lldb.llvm.org/use/map.html#miscellaneous)
 
