@@ -126,19 +126,7 @@ impl Executor {
         interceptor: &I,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
-        // println!("{:?}", self.stack);
-        // {
-        //     let mut indent = String::new();
-        //     for _ in 0..self
-        //         .stack
-        //         .current_frame_labels()
-        //         .map_err(Trap::Stack)?
-        //         .len()
-        //     {
-        //         indent.push_str("  ");
-        //     }
-        //     println!("{}{}", indent, inst.clone());
-        // }
+        interceptor.execute_inst(inst);
         let result = match inst.kind.clone() {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),

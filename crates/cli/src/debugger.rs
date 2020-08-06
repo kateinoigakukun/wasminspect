@@ -1,6 +1,6 @@
 use super::commands::debugger;
 use anyhow::{anyhow, Result};
-use log::warn;
+use log::{warn, debug};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -256,6 +256,7 @@ impl debugger::Debugger for MainDebugger {
 
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
+        debug!("Invoke function '{}'", name);
         let key = self
             .function_breakpoints
             .keys()
@@ -266,5 +267,9 @@ impl Interceptor for MainDebugger {
         } else {
             Ok(Signal::Next)
         }
+    }
+
+    fn execute_inst(&self, inst: &Instruction) {
+        debug!("Execute {:?}", inst);
     }
 }
