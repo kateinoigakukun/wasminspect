@@ -701,7 +701,7 @@ impl Executor {
                 func_name: func.name().to_string(),
                 actual: args.iter().map(|v| v.value_type()).collect(),
                 expected: func.ty().params.to_vec(),
-            })
+            });
         }
         args.reverse();
 

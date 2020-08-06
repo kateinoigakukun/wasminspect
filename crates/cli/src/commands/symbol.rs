@@ -18,4 +18,6 @@ fn demangle_swift_symbol(symbol: &str) -> &str {
     demangle(symbol).unwrap_or(symbol)
 }
 #[cfg(not(feature = "swift-extension"))]
-fn demangle_swift_symbol(symbol: &str) -> &str { symbol }
+fn demangle_swift_symbol(symbol: &str) -> &str {
+    symbol
+}

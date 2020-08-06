@@ -1,12 +1,12 @@
-use super::commands::debugger;
+use crate::commands::debugger::{self, Debugger};
 use anyhow::{anyhow, Result};
-use log::{warn, debug};
+use log::{debug, warn};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
     CallFrame, Executor, FunctionInstance, InstIndex, Instruction, Interceptor, MemoryAddr,
-    ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
+    ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue, FuncAddr,
 };
 use wasminspect_wasi::instantiate_wasi;
 use wasmparser::ModuleReader;
@@ -45,6 +45,47 @@ impl MainDebugger {
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
         store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
         store
+    }
+
+    fn execute_func(&mut self, func_addr: FuncAddr) -> Result<debugger::RunResult> {
+        let func = self
+            .store
+            .func(func_addr)
+            .ok_or(anyhow!("Function not found"))?;
+        match func {
+            (FunctionInstance::Host(host), _) => {
+                let mut results = Vec::new();
+                match host
+                    .code()
+                    .call(&vec![], &mut results, &self.store, func_addr.module_index())
+                {
+                    Ok(_) => return Ok(debugger::RunResult::Finish(results)),
+                    Err(_) => return Err(anyhow!("Failed to execute host func")),
+                }
+            }
+            (FunctionInstance::Defined(func), exec_addr) => {
+                let ret_types = &func.ty().returns;
+                let frame = CallFrame::new_from_func(exec_addr, func, vec![], None);
+                let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
+                let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
+                self.executor = Some(executor.clone());
+                let result = self.process()?;
+                match result {
+                    Signal::Next => unreachable!(),
+                    Signal::Breakpoint => return Ok(debugger::RunResult::Breakpoint),
+                    Signal::End => match executor.borrow_mut().pop_result(ret_types.to_vec()) {
+                        Ok(values) => {
+                            self.executor = None;
+                            return Ok(debugger::RunResult::Finish(values));
+                        }
+                        Err(err) => {
+                            self.executor = None;
+                            return Err(anyhow!("Return value failure {:?}", err));
+                        }
+                    },
+                }
+            }
+        }
     }
 }
 
@@ -172,10 +213,9 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn process(&self) -> Result<Signal> {
-        let executor = if let Some(ref executor) = self.executor {
-            executor
-        } else {
-            return Err(anyhow!("No execution context"));
+        let executor = match &self.executor {
+            Some(executor) => executor,
+            None => return Err(anyhow!("No execution context"))
         };
         loop {
             let result = executor.borrow_mut().execute_step(&self.store, self);
@@ -191,66 +231,32 @@ impl debugger::Debugger for MainDebugger {
         if self.is_running() {
             self.store = Self::instantiate_store();
         }
-        if let Some(module_index) = self.module_index {
+        let module_index = match self.module_index {
+            Some(idx) => idx,
+            None => return Err(anyhow!("No module loaded")),
+        };
+        {
             let module = self.store.module(module_index).defined().unwrap();
-            let func_addr = if let Some(func_name) = name {
-                if let Some(Some(func_addr)) = module.exported_func(func_name.clone()).ok() {
-                    func_addr
-                } else {
-                    return Err(anyhow!("Entry function {} not found", func_name));
-                }
-            } else if let Some(start_func_addr) = module.start_func_addr() {
-                *start_func_addr
+            if let Some(start_func_addr) = *module.start_func_addr() {
+                self.execute_func(start_func_addr)?;
+            }
+        }
+
+        let module = self.store.module(module_index).defined().unwrap();
+        let func_addr = if let Some(func_name) = name {
+            if let Some(Some(func_addr)) = module.exported_func(func_name.clone()).ok() {
+                func_addr
             } else {
-                if let Some(Some(func_addr)) = module.exported_func("_start".to_string()).ok() {
-                    func_addr
-                } else {
-                    return Err(anyhow!("Entry function _start not found"));
-                }
-            };
-            let func = self
-                .store
-                .func(func_addr)
-                .ok_or(anyhow!("Function not found"))?;
-            match func {
-                (FunctionInstance::Host(host), _) => {
-                    let mut results = Vec::new();
-                    match host.code().call(
-                        &vec![],
-                        &mut results,
-                        &self.store,
-                        func_addr.module_index(),
-                    ) {
-                        Ok(_) => return Ok(debugger::RunResult::Finish(results)),
-                        Err(_) => return Err(anyhow!("Failed to execute host func")),
-                    }
-                }
-                (FunctionInstance::Defined(func), exec_addr) => {
-                    let ret_types = &func.ty().returns;
-                    let frame = CallFrame::new_from_func(exec_addr, func, vec![], None);
-                    let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
-                    let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
-                    self.executor = Some(executor.clone());
-                    let result = self.process()?;
-                    match result {
-                        Signal::Next => unreachable!(),
-                        Signal::Breakpoint => return Ok(debugger::RunResult::Breakpoint),
-                        Signal::End => match executor.borrow_mut().pop_result(ret_types.to_vec()) {
-                            Ok(values) => {
-                                self.executor = None;
-                                return Ok(debugger::RunResult::Finish(values));
-                            }
-                            Err(err) => {
-                                self.executor = None;
-                                return Err(anyhow!("Return value failure {:?}", err));
-                            }
-                        },
-                    }
-                }
+                return Err(anyhow!("Entry function {} not found", func_name));
             }
         } else {
-            Err(anyhow!("No module loaded"))
-        }
+            if let Some(Some(func_addr)) = module.exported_func("_start".to_string()).ok() {
+                func_addr
+            } else {
+                return Err(anyhow!("Entry function _start not found"));
+            }
+        };
+        self.execute_func(func_addr)
     }
 }
 

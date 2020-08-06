@@ -16,6 +16,5 @@ impl Interceptor for NopInterceptor {
     fn invoke_func(&self, _name: &String) -> ExecResult<Signal> {
         Ok(Signal::Next)
     }
-    fn execute_inst(&self, _inst: &Instruction) {
-    }
+    fn execute_inst(&self, _inst: &Instruction) {}
 }

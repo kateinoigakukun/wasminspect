@@ -44,8 +44,8 @@ pub fn demangle(symbol: &str) -> Result<&str, DemangleError> {
             Err(DemangleError::Null)
         } else {
             ffi::CStr::from_ptr(demangled)
-               .to_str()
-               .map_err(|e| DemangleError::Utf8Error(e))
+                .to_str()
+                .map_err(|e| DemangleError::Utf8Error(e))
         }
     }
 }

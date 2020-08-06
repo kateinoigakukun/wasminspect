@@ -166,7 +166,7 @@ fn parse_base_type<R: gimli::Reader>(
 ) -> Result<BaseTypeInfo> {
     let name = match node.entry().attr_value(gimli::DW_AT_name)? {
         Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-        None => "<null>".to_string() // return Err(anyhow!("Failed to get name")),
+        None => "<null>".to_string(), // return Err(anyhow!("Failed to get name")),
     };
     let byte_size = match node
         .entry()
