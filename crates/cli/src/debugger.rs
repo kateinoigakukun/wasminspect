@@ -1,6 +1,6 @@
 use crate::commands::debugger::{self, Debugger};
 use anyhow::{anyhow, Result};
-use log::{debug, warn};
+use log::{debug, warn, trace};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -276,6 +276,6 @@ impl Interceptor for MainDebugger {
     }
 
     fn execute_inst(&self, inst: &Instruction) {
-        debug!("Execute {:?}", inst);
+        trace!("Execute {:?}", inst);
     }
 }
