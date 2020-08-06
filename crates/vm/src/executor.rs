@@ -37,6 +37,7 @@ pub enum Trap {
     },
     UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
     UndefinedFunc(usize),
+    NoMoreInstruction,
 }
 
 impl std::error::Error for Trap {}
@@ -114,7 +115,10 @@ impl Executor {
     ) -> ExecResult<Signal> {
         let func = store.func_global(self.pc.exec_addr()).defined().unwrap();
         let module_index = func.module_index().clone();
-        let inst = func.inst(self.pc.inst_index());
+        let inst = match func.inst(self.pc.inst_index()) {
+            Some(inst) => inst,
+            None => return Err(Trap::NoMoreInstruction)
+        };
         return self.execute_inst(&inst, module_index, store, interceptor);
     }
 

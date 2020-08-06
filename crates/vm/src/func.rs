@@ -119,8 +119,8 @@ impl DefinedFunctionInstance {
         &self.locals
     }
 
-    pub fn inst(&self, index: InstIndex) -> &Instruction {
-        &self.instructions[index.0 as usize]
+    pub fn inst(&self, index: InstIndex) -> Option<&Instruction> {
+        self.instructions.get(index.0 as usize)
     }
 }
 
