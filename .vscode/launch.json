@@ -20,7 +20,7 @@
                 }
             },
             "args": [
-                "/Users/kateinoigakukun/Downloads/fib-wasm.mo.wasm"
+                "${workspaceFolder}/tests/simple-example/c-dwarf/main.wasm"
             ],
             "cwd": "${workspaceFolder}"
         },
