@@ -238,7 +238,7 @@ impl debugger::Debugger for MainDebugger {
         {
             let module = self.store.module(module_index).defined().unwrap();
             if let Some(start_func_addr) = *module.start_func_addr() {
-                self.execute_func(start_func_addr)?;
+                return self.execute_func(start_func_addr);
             }
         }
 
