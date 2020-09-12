@@ -4,6 +4,7 @@ mod dwarf;
 mod process;
 
 use anyhow::{anyhow, Result};
+use log::warn;
 use std::env;
 use std::io::Read;
 
@@ -12,6 +13,18 @@ fn history_file_path() -> String {
         "{}/.wasminspect-history",
         env::var_os("HOME").unwrap().to_str().unwrap()
     )
+}
+
+fn try_load_dwarf<'buffer>(
+    buffer: &'buffer Vec<u8>,
+    context: &mut commands::command::CommandContext<'buffer>,
+) -> Result<()> {
+    use dwarf::{parse_dwarf, transform_dwarf};
+    let dwarf = parse_dwarf(buffer)?;
+    let debug_info = transform_dwarf(dwarf)?;
+    context.sourcemap = Box::new(debug_info.sourcemap);
+    context.subroutine = Box::new(debug_info.subroutine);
+    Ok(())
 }
 
 pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()> {
@@ -26,11 +39,12 @@ pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()>
         let mut f = ::std::fs::File::open(file)?;
         f.read_to_end(&mut buffer)?;
         debugger.load_module(&buffer)?;
-        use dwarf::{parse_dwarf, transform_dwarf};
-        let dwarf = parse_dwarf(&buffer)?;
-        let debug_info = transform_dwarf(dwarf)?;
-        context.sourcemap = Box::new(debug_info.sourcemap);
-        context.subroutine = Box::new(debug_info.subroutine);
+        match try_load_dwarf(&buffer, &mut context) {
+            Ok(_) => (),
+            Err(err) => {
+                warn!("Failed to load dwarf info: {}", err);
+            }
+        }
     }
     let mut process = process::Process::new(
         debugger,
