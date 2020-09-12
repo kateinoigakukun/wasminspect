@@ -25,17 +25,20 @@ pub enum Trap {
     Stack(stack::Error),
     Table(table::Error),
     Value(value::Error),
-    IndirectCallTypeMismatch(
-        String,
-        /* expected: */ FuncType,
-        /* actual: */ FuncType,
-    ),
+    IndirectCallTypeMismatch {
+        callee_name: String,
+        expected: FuncType,
+        actual: FuncType,
+    },
     DirectCallTypeMismatch {
-        func_name: String,
+        callee_name: String,
         expected: Vec<Type>,
         actual: Vec<Type>,
     },
-    UnexpectedStackValueType(/* expected: */ Type, /* actual: */ Type),
+    UnexpectedStackValueType {
+        expected: Type,
+        actual: Type,
+    },
     UndefinedFunc(usize),
     NoMoreInstruction,
 }
@@ -49,10 +52,16 @@ impl std::fmt::Display for Trap {
             Self::Value(e) => write!(f, "{}", e),
             Self::Table(e) => write!(f, "{}", e),
             Self::Stack(e) => write!(f, "{}", e),
-            Self::IndirectCallTypeMismatch(name, expected, actual) => write!(
+            Self::IndirectCallTypeMismatch {
+                callee_name,
+                expected,
+                actual,
+            } => write!(
                 f,
-                "indirect call type mismatch, expected {:?} but got {:?} '{}'",
-                expected, actual, name
+                "indirect call type mismatch for '{}':
+ >> call_indirect instruction expected {:?}
+ >> but actual implementation has      {:?}",
+                callee_name, expected, actual
             ),
             Self::UndefinedFunc(addr) => write!(f, "uninitialized func at {:?}", addr),
             Self::Unreachable => write!(f, "unreachable"),
@@ -117,7 +126,7 @@ impl Executor {
         let module_index = func.module_index().clone();
         let inst = match func.inst(self.pc.inst_index()) {
             Some(inst) => inst,
-            None => return Err(Trap::NoMoreInstruction)
+            None => return Err(Trap::NoMoreInstruction),
         };
         return self.execute_inst(&inst, module_index, store, interceptor);
     }
@@ -259,11 +268,11 @@ impl Executor {
                 if eq_func_type(func.ty(), &ty) {
                     self.invoke(func_addr, store, interceptor)
                 } else {
-                    Err(Trap::IndirectCallTypeMismatch(
-                        func.name().clone(),
-                        ty.clone(),
-                        func.ty().clone(),
-                    ))
+                    Err(Trap::IndirectCallTypeMismatch {
+                        callee_name: func.name().clone(),
+                        expected: ty.clone(),
+                        actual: func.ty().clone(),
+                    })
                 }
             }
             InstructionKind::Drop => {
@@ -574,10 +583,10 @@ impl Executor {
 
     fn pop_as<T: NativeValue>(&mut self) -> ExecResult<T> {
         let value = self.stack.pop_value().map_err(Trap::Stack)?;
-        T::from_value(value).ok_or(Trap::UnexpectedStackValueType(
-            /* expected: */ T::value_type(),
-            /* actual:   */ value.value_type(),
-        ))
+        T::from_value(value).ok_or(Trap::UnexpectedStackValueType {
+            expected: T::value_type(),
+            actual: value.value_type(),
+        })
     }
 
     fn branch(&mut self, depth: u32, store: &Store) -> ExecResult<Signal> {
@@ -702,7 +711,7 @@ impl Executor {
 
         if found_mismatch {
             return Err(Trap::DirectCallTypeMismatch {
-                func_name: func.name().to_string(),
+                callee_name: func.name().to_string(),
                 actual: args.iter().map(|v| v.value_type()).collect(),
                 expected: func.ty().params.to_vec(),
             });

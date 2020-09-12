@@ -222,7 +222,7 @@ impl debugger::Debugger for MainDebugger {
             match result {
                 Ok(Signal::Next) => continue,
                 Ok(Signal::Breakpoint) | Ok(Signal::End) => return Ok(result.ok().unwrap()),
-                Err(err) => return Err(anyhow!("Function exec failure {:?}", err)),
+                Err(err) => return Err(anyhow!("Function exec failure {}", err)),
             }
         }
     }
