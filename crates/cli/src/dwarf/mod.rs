@@ -32,11 +32,14 @@ pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
             _ => (),
         }
     }
+    let try_get = |key: &str| {
+        sections.get(key).ok_or(anyhow!("no {}", key))
+    };
     let endian = LittleEndian;
-    let debug_str = DebugStr::new(sections.get(".debug_str").unwrap(), endian);
-    let debug_abbrev = DebugAbbrev::new(sections.get(".debug_abbrev").unwrap(), endian);
-    let debug_info = DebugInfo::new(sections.get(".debug_info").unwrap(), endian);
-    let debug_line = DebugLine::new(sections.get(".debug_line").unwrap(), endian);
+    let debug_str = DebugStr::new(try_get(".debug_str")?, endian);
+    let debug_abbrev = DebugAbbrev::new(try_get(".debug_abbrev")?, endian);
+    let debug_info = DebugInfo::new(try_get(".debug_info")?, endian);
+    let debug_line = DebugLine::new(try_get(".debug_line")?, endian);
     let debug_addr = DebugAddr::from(EndianSlice::new(EMPTY_SECTION, endian));
     let debug_line_str = match sections.get(".debug_line_str") {
         Some(section) => DebugLineStr::from(EndianSlice::new(section, endian)),
