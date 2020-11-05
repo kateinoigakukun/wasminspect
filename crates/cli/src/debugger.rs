@@ -1,12 +1,12 @@
 use crate::commands::debugger::{self, Debugger};
 use anyhow::{anyhow, Result};
-use log::{debug, warn, trace};
+use log::{debug, trace, warn};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
-    CallFrame, Executor, FunctionInstance, InstIndex, Instruction, Interceptor, MemoryAddr,
-    ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue, FuncAddr,
+    CallFrame, Executor, FuncAddr, FunctionInstance, InstIndex, Instruction, Interceptor,
+    MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 use wasmparser::ModuleReader;
@@ -215,7 +215,7 @@ impl debugger::Debugger for MainDebugger {
     fn process(&self) -> Result<Signal> {
         let executor = match &self.executor {
             Some(executor) => executor,
-            None => return Err(anyhow!("No execution context"))
+            None => return Err(anyhow!("No execution context")),
         };
         loop {
             let result = executor.borrow_mut().execute_step(&self.store, self);

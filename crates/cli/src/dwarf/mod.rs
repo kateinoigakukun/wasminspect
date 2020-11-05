@@ -32,9 +32,7 @@ pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
             _ => (),
         }
     }
-    let try_get = |key: &str| {
-        sections.get(key).ok_or(anyhow!("no {}", key))
-    };
+    let try_get = |key: &str| sections.get(key).ok_or(anyhow!("no {}", key));
     let endian = LittleEndian;
     let debug_str = DebugStr::new(try_get(".debug_str")?, endian);
     let debug_abbrev = DebugAbbrev::new(try_get(".debug_abbrev")?, endian);
@@ -146,44 +144,52 @@ pub fn transform_subprogram<R: gimli::Reader>(
     Ok(subroutines)
 }
 
+fn read_subprogram_header<R: gimli::Reader>(
+    node: &gimli::EntriesTreeNode<R>,
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R, R::Offset>,
+) -> Result<Option<Subroutine<R>>> {
+    match node.entry().tag() {
+        gimli::DW_TAG_subprogram | gimli::DW_TAG_lexical_block => (),
+        _ => return Ok(None),
+    };
+
+    let name = match node.entry().attr_value(gimli::DW_AT_name)? {
+        Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
+        None => None,
+    };
+
+    let low_pc_attr = node.entry().attr_value(gimli::DW_AT_low_pc)?;
+    trace!("low_pc_attr: {:?}", low_pc_attr);
+    let high_pc_attr = node.entry().attr_value(gimli::DW_AT_high_pc)?;
+    trace!("high_pc_attr: {:?}", high_pc_attr);
+
+    let subroutine = if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
+        let high_pc = match high_pc_attr {
+            Some(AttributeValue::Udata(size)) => low_pc + size,
+            Some(AttributeValue::Addr(high_pc)) => high_pc,
+            Some(x) => unreachable!("high_pc can't be {:?}", x),
+            None => return Ok(None),
+        };
+        Subroutine {
+            pc: low_pc..high_pc,
+            name,
+            encoding: unit.encoding(),
+            variables: vec![],
+        }
+    } else {
+        return Ok(None);
+    };
+    Ok(Some(subroutine))
+}
+
 pub fn transform_subprogram_rec<R: gimli::Reader>(
     node: gimli::EntriesTreeNode<R>,
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
     out_subroutines: &mut Vec<Subroutine<R>>,
 ) -> Result<()> {
-    let mut subroutine = None;
-    match node.entry().tag() {
-        gimli::DW_TAG_subprogram | gimli::DW_TAG_lexical_block => {
-            let name = match node.entry().attr_value(gimli::DW_AT_name)? {
-                Some(attr) => Some(clone_string_attribute(dwarf, unit, attr)?),
-                None => None,
-            };
-
-            let low_pc_attr = node.entry().attr_value(gimli::DW_AT_low_pc)?;
-            trace!("low_pc_attr: {:?}", low_pc_attr);
-            let high_pc_attr = node.entry().attr_value(gimli::DW_AT_high_pc)?;
-            trace!("high_pc_attr: {:?}", high_pc_attr);
-            if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
-                let high_pc = match high_pc_attr {
-                    Some(AttributeValue::Udata(size)) => Some(low_pc + size),
-                    Some(AttributeValue::Addr(high_pc)) => Some(high_pc),
-                    Some(x) => unreachable!("high_pc can't be {:?}", x),
-                    None => None,
-                };
-                if let Some(high_pc) = high_pc {
-                    subroutine = Some(Subroutine {
-                        pc: low_pc..high_pc,
-                        name,
-                        encoding: unit.encoding(),
-                        variables: vec![],
-                    });
-                }
-            }
-        }
-        _ => (),
-    }
-
+    let mut subroutine = read_subprogram_header(&node, dwarf, unit)?;
     let mut children = node.children();
     while let Some(child) = children.next()? {
         match child.entry().tag() {

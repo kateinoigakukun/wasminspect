@@ -20,7 +20,7 @@
                 }
             },
             "args": [
-                "${workspaceFolder}/tests/simple-example/c-dwarf/main.wasm"
+                "/Users/kateinoigakukun/projects/swiftwasm-source/build/Ninja-DebugAssert/swift-macosx-x86_64/test-wasi-wasm32/stdlib/Output/AllocRounding.swift.tmp/a.out"
             ],
             "cwd": "${workspaceFolder}"
         },
