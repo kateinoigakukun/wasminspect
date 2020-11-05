@@ -29,7 +29,7 @@ impl SubroutineMap for EmptySubroutineMap {
     fn variable_name_list(&self, _code_offset: usize) -> Result<Vec<Variable>> {
         Ok(vec![])
     }
-    fn get_frame_base(&self, code_offset: usize) -> Result<WasmLoc> {
+    fn get_frame_base(&self, _: usize) -> Result<WasmLoc> {
         Ok(WasmLoc::Global(0))
     }
     fn display_variable(&self, _: usize, _: u64, _: &[u8], _: String) -> Result<()> {
