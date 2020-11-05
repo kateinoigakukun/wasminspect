@@ -21,7 +21,7 @@ impl<D: Debugger> Command<D> for StackCommand {
 
     fn run(&self, debugger: &mut D, _context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         for (index, value) in debugger.stack_values().iter().enumerate() {
-            println!("{}: {}", index, value)
+            println!("{}: {:?}", index, value)
         }
         Ok(())
     }

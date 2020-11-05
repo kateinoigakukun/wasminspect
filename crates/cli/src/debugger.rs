@@ -108,11 +108,15 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
-    fn stack_values(&self) -> Vec<String> {
+    fn stack_values(&self) -> Vec<WasmValue> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
             let values = executor.stack.peek_values();
-            values.iter().map(|v| format!("{:?}", v)).collect()
+            let mut new_values = Vec::<WasmValue>::new();
+            for v in values {
+                new_values.push(*v);
+            }
+            new_values
         } else {
             Vec::new()
         }

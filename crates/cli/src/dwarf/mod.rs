@@ -131,6 +131,7 @@ pub struct Subroutine<R: gimli::Reader> {
     pub pc: std::ops::Range<u64>,
     pub variables: Vec<SymbolVariable<R>>,
     pub encoding: gimli::Encoding,
+    pub frame_base: Option<WasmLoc>,
 }
 
 pub fn transform_subprogram<R: gimli::Reader>(
@@ -142,6 +143,43 @@ pub fn transform_subprogram<R: gimli::Reader>(
     let mut subroutines = vec![];
     transform_subprogram_rec(root, dwarf, unit, &mut subroutines)?;
     Ok(subroutines)
+}
+
+#[allow(non_camel_case_types)]
+enum DwAtWasm {
+    DW_OP_WASM_location = 0xed,
+}
+
+#[derive(Clone, Copy)]
+pub enum WasmLoc {
+    Local(u64),
+    Global(u64),
+    Stack(u64),
+}
+
+// See also https://yurydelendik.github.io/webassembly-dwarf/#DWARF-expressions-and-location-descriptions
+fn read_wasm_location<R: gimli::Reader>(attr_value: AttributeValue<R>) -> Result<WasmLoc> {
+    let mut bytes_reader = match attr_value {
+        AttributeValue::Exprloc(ref expr) => expr.0.clone(),
+        _ => Err(anyhow!("unexpected attribute kind: {:?}", attr_value))?,
+    };
+
+    if bytes_reader.is_empty() {
+        Err(anyhow!("byte sequence should not be empty"))?
+    }
+    let magic = bytes_reader.read_u8()?;
+    if magic != DwAtWasm::DW_OP_WASM_location as u8 {
+        Err(anyhow!("invalid wasm location magic: {:?}", magic))?
+    }
+    let wasm_op = bytes_reader.read_u8()?;
+    let loc = match wasm_op {
+        0x00 => WasmLoc::Local(bytes_reader.read_uleb128()?),
+        0x01 => WasmLoc::Global(bytes_reader.read_uleb128()?),
+        0x02 => WasmLoc::Stack(bytes_reader.read_uleb128()?),
+        0x03 => WasmLoc::Global(bytes_reader.read_u32()? as u64),
+        _ => Err(anyhow!("invalid wasm location operation: {:?}", wasm_op))?,
+    };
+    Ok(loc)
 }
 
 fn read_subprogram_header<R: gimli::Reader>(
@@ -163,6 +201,7 @@ fn read_subprogram_header<R: gimli::Reader>(
     trace!("low_pc_attr: {:?}", low_pc_attr);
     let high_pc_attr = node.entry().attr_value(gimli::DW_AT_high_pc)?;
     trace!("high_pc_attr: {:?}", high_pc_attr);
+    let frame_base_attr = node.entry().attr_value(gimli::DW_AT_frame_base)?;
 
     let subroutine = if let Some(AttributeValue::Addr(low_pc)) = low_pc_attr {
         let high_pc = match high_pc_attr {
@@ -171,11 +210,17 @@ fn read_subprogram_header<R: gimli::Reader>(
             Some(x) => unreachable!("high_pc can't be {:?}", x),
             None => return Ok(None),
         };
+        let frame_base = if let Some(attr) = frame_base_attr {
+            Some(read_wasm_location(attr)?)
+        } else {
+            None
+        };
         Subroutine {
             pc: low_pc..high_pc,
             name,
             encoding: unit.encoding(),
             variables: vec![],
+            frame_base: frame_base,
         }
     } else {
         return Ok(None);
@@ -261,16 +306,22 @@ fn transform_variable<R: gimli::Reader>(
 use gimli::Expression;
 fn evaluate_variable_location<R: gimli::Reader>(
     encoding: gimli::Encoding,
-    rbp: u32,
+    frame_base: u64,
     expr: Expression<R>,
 ) -> Result<Vec<gimli::Piece<R>>> {
     let mut evaluation = expr.evaluation(encoding);
-    evaluation.set_initial_value(rbp.into());
-    let result = evaluation.evaluate()?;
+    let mut result = evaluation.evaluate()?;
     use gimli::EvaluationResult;
-    match result {
-        EvaluationResult::Complete => Ok(evaluation.result()),
-        x => unimplemented!("{:?}", x),
+    loop {
+        if let EvaluationResult::Complete = result {
+            return Ok(evaluation.result());
+        }
+        match result {
+            EvaluationResult::RequiresFrameBase => {
+                result = evaluation.resume_with_frame_base(frame_base)?;
+            }
+            ref x => Err(anyhow!("{:?}", x))?,
+        }
     }
 }
 
@@ -440,10 +491,24 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             })
             .collect())
     }
+
+    fn get_frame_base(&self, code_offset: usize) -> Result<WasmLoc> {
+        let offset = &(code_offset as u64);
+        let subroutine = match self
+            .subroutines
+            .iter()
+            .filter(|s| s.pc.contains(offset))
+            .next()
+        {
+            Some(s) => s,
+            None => return Err(anyhow!("failed to determine subroutine")),
+        };
+        return Ok(subroutine.frame_base.clone().unwrap());
+    }
     fn display_variable(
         &self,
         code_offset: usize,
-        rbp: u32,
+        frame_base: u64,
         memory: &[u8],
         name: String,
     ) -> Result<()> {
@@ -477,7 +542,7 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
         let piece = match var.content {
             VariableContent::Location(location) => match location {
                 AttributeValue::Exprloc(expr) => {
-                    evaluate_variable_location(subroutine.encoding, rbp, expr)?
+                    evaluate_variable_location(subroutine.encoding, frame_base, expr)?
                 }
                 AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
                 _ => panic!(),

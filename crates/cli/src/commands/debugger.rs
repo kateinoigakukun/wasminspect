@@ -31,7 +31,7 @@ pub trait Debugger {
     fn memory(&self) -> Result<Vec<u8>>;
     fn store(&self) -> &Store;
     fn set_breakpoint(&mut self, breakpoint: Breakpoint);
-    fn stack_values(&self) -> Vec<String>;
+    fn stack_values(&self) -> Vec<WasmValue>;
     fn instructions(&self) -> Result<(&[Instruction], usize)>;
     fn step(&self, style: StepStyle) -> Result<Signal>;
     fn process(&self) -> Result<Signal>;
