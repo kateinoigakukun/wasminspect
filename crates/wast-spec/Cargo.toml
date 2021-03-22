@@ -8,4 +8,4 @@ edition = "2018"
 wasminspect-vm = { path = "../vm" }
 wast = "7.0.0"
 anyhow = "1.0.26"
-wasmparser = "0.57.0"
+wasmparser = "0.58.0"

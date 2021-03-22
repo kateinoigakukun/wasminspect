@@ -10,13 +10,13 @@ use super::module::{
 };
 use super::table::{self, TableInstance};
 use super::value::Value;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, ModuleReader, SectionCode, TableType, Type,
+    Import, MemoryType, ModuleReader, SectionCode, TableType, Type, TypeDef,
 };
 
 /// Store
@@ -146,10 +146,22 @@ pub enum StoreError {
     InvalidHostImport(module::HostModuleError),
     InvalidImport(module::DefinedModuleError),
     UnknownType(/* type index: */ u32),
-    UndefinedFunction(/* module: */ String, /* name: */ String),
-    UndefinedMemory(String, String),
-    UndefinedTable(String, String),
-    UndefinedGlobal(String, String),
+    UndefinedFunction {
+        module: String,
+        field: Option<String>
+    },
+    UndefinedMemory {
+        module: String,
+        field: Option<String>,
+    },
+    UndefinedTable {
+        module: String,
+        field: Option<String>,
+    },
+    UndefinedGlobal {
+        module: String,
+        field: Option<String>,
+    },
     IncompatibleImportFuncType(String, FuncType, FuncType),
     IncompatibleImportGlobalType(Type, Type),
     IncompatibleImportGlobalMutability,
@@ -168,25 +180,25 @@ impl std::fmt::Display for StoreError {
             Self::InvalidHostImport(err) => write!(f, "invalid host import: {}", err),
             Self::InvalidImport(err) => write!(f, "invalid import: {}", err),
             Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
-            Self::UndefinedFunction(module, name) => write!(
+            Self::UndefinedFunction {module, field} => write!(
                 f,
-                "unknown import: Undefined function \"{}\" in \"{}\"",
-                name, module
+                "unknown import: Undefined function \"{:?}\" in \"{}\"",
+                field, module
             ),
-            Self::UndefinedMemory(module, name) => write!(
+            Self::UndefinedMemory{ module, field } => write!(
                 f,
-                "unknown import: Undefined memory \"{}\" in \"{}\"",
-                name, module
+                "unknown import: Undefined memory \"{:?}\" in \"{}\"",
+                field, module
             ),
-            Self::UndefinedTable(module, name) => write!(
+            Self::UndefinedTable {module, field} => write!(
                 f,
-                "unknown import: Undefined table \"{}\" in \"{}\"",
-                name, module
+                "unknown import: Undefined table \"{:?}\" in \"{}\"",
+                field, module
             ),
-            Self::UndefinedGlobal(module, name) => write!(
+            Self::UndefinedGlobal {module, field} => write!(
                 f,
-                "unknown import: Undefined global \"{}\" in \"{}\"",
-                name, module
+                "unknown import: Undefined global \"{:?}\" in \"{}\"",
+                field, module
             ),
             Self::IncompatibleImportFuncType(name, expected, actual) => write!(
                 f,
@@ -272,7 +284,10 @@ impl Store {
                     let section = section.get_type_section_reader()?;
                     types.reserve_exact(section.get_count() as usize);
                     for entry in section {
-                        types.push(entry?);
+                        match entry? {
+                            TypeDef::Func(fn_ty) => types.push(fn_ty),
+                            _ => panic!("module type is not supported yet"),
+                        }
                     }
                 }
                 SectionCode::Element => {
@@ -435,6 +450,9 @@ impl Store {
                 Global(global_ty) => {
                     self.load_import_global(module_index, import, global_ty)?;
                 }
+                Module(_) | Instance(_) => {
+                    panic!("module type is not supported yet");
+                }
             }
         }
         Ok(())
@@ -451,24 +469,26 @@ impl Store {
             .get(type_index)
             .ok_or(StoreError::UnknownType(type_index as u32))?
             .clone();
-        let name = import.field.to_string();
+        let name = import.field
+        .with_context(|| "expect non-nil field name in function import")?
+        .to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || {
-            StoreError::UndefinedFunction(
-                import.module.clone().to_string(),
-                import.field.clone().to_string(),
-            )
+            StoreError::UndefinedFunction {
+                module: import.module.clone().to_string(),
+                field: import.field.map(String::from),
+            }
         };
         let exec_addr = match module {
             ModuleInstance::Defined(defined) => {
                 let func_addr = defined
-                    .exported_func(name)
+                    .exported_func(name.clone())
                     .map_err(StoreError::InvalidImport)?
                     .ok_or_else(err)?;
                 self.funcs.resolve(func_addr).ok_or_else(err)?.clone()
             }
             ModuleInstance::Host(host) => *host
-                .func_by_name(import.field.to_string())
+                .func_by_name(name.clone())
                 .map_err(StoreError::InvalidHostImport)?
                 .ok_or_else(err)?,
         };
@@ -476,7 +496,7 @@ impl Store {
         // Validation
         if actual_func_ty != &func_ty {
             Err(StoreError::IncompatibleImportFuncType(
-                import.field.to_string(),
+                name,
                 func_ty,
                 actual_func_ty.clone(),
             ))?;
@@ -492,12 +512,14 @@ impl Store {
         memory_ty: MemoryType,
     ) -> Result<()> {
         let err = || {
-            StoreError::UndefinedMemory(
-                import.module.clone().to_string(),
-                import.field.clone().to_string(),
-            )
+            StoreError::UndefinedMemory {
+                module: import.module.clone().to_string(),
+                field: import.field.map(String::from),
+            }
         };
-        let name = import.field.to_string();
+        let name = import.field
+        .with_context(|| "expect non-nil field name in memory import")?
+        .to_string();
         let module = self.module_by_name(import.module.to_string());
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -540,13 +562,15 @@ impl Store {
         import: Import,
         table_ty: TableType,
     ) -> Result<()> {
-        let name = import.field.to_string();
+        let name = import.field
+        .with_context(|| "expect non-nil field name in table import")?
+        .to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || {
-            StoreError::UndefinedTable(
-                import.module.clone().to_string(),
-                import.field.clone().to_string(),
-            )
+            StoreError::UndefinedTable {
+                module: import.module.clone().to_string(),
+                field: import.field.map(String::from),
+            }
         };
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -589,13 +613,14 @@ impl Store {
         import: Import,
         global_ty: GlobalType,
     ) -> Result<()> {
-        let name = import.field.to_string();
+        let name = import
+            .field
+            .with_context(|| "expect non-nil field name in global import")?
+            .to_string();
         let module = self.module_by_name(import.module.to_string());
-        let err = || {
-            StoreError::UndefinedGlobal(
-                import.module.clone().to_string(),
-                import.field.clone().to_string(),
-            )
+        let err = || StoreError::UndefinedGlobal {
+            module: import.module.clone().to_string(),
+            field: import.field.map(String::from),
         };
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {

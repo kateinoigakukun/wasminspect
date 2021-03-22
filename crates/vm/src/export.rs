@@ -36,6 +36,9 @@ impl ExportInstance {
                     let addr = TableAddr::new_unsafe(module_index, entry.index as usize);
                     ExternalValue::Table(addr)
                 }
+                ExternalKind::Type | ExternalKind::Module | ExternalKind::Instance => {
+                    panic!("module type is not supported yet")
+                }
             },
         }
     }
