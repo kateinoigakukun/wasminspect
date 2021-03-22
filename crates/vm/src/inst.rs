@@ -546,8 +546,8 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I64Store8 { memarg } => InstructionKind::I64Store8 { memarg },
         I64Store16 { memarg } => InstructionKind::I64Store16 { memarg },
         I64Store32 { memarg } => InstructionKind::I64Store32 { memarg },
-        MemorySize { reserved } => InstructionKind::MemorySize { reserved },
-        MemoryGrow { reserved } => InstructionKind::MemoryGrow { reserved },
+        MemorySize { mem, mem_byte } => InstructionKind::MemorySize { reserved: mem_byte as u32 },
+        MemoryGrow { mem, mem_byte } => InstructionKind::MemoryGrow { reserved: mem_byte as u32 },
         I32Const { value } => InstructionKind::I32Const { value },
         I64Const { value } => InstructionKind::I64Const { value },
         F32Const { value } => InstructionKind::F32Const { value },
@@ -697,10 +697,10 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
 
         // 0xFC operators
         // bulk memory https://github.com/WebAssembly/bulk-memory-operations/blob/master/proposals/bulk-memory-operations/Overview.md
-        MemoryInit { segment } => InstructionKind::MemoryInit { segment },
+        MemoryInit { segment , mem } => InstructionKind::MemoryInit { segment },
         DataDrop { segment } => InstructionKind::DataDrop { segment },
-        MemoryCopy => InstructionKind::MemoryCopy,
-        MemoryFill => InstructionKind::MemoryFill,
+        MemoryCopy { .. } => InstructionKind::MemoryCopy,
+        MemoryFill { .. } => InstructionKind::MemoryFill,
         TableInit {
             segment,
             table: u32,
