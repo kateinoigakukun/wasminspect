@@ -14,7 +14,10 @@ use anyhow::{Context, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use wasmparser::{Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType, Import, MemoryType, NameSectionReader, Parser, SectionCode, TableType, Type, TypeDef};
+use wasmparser::{
+    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
+    Import, MemoryType, NameSectionReader, Parser, SectionCode, TableType, Type, TypeDef,
+};
 
 /// Store
 pub struct Store {
@@ -346,16 +349,16 @@ impl Store {
                 Payload::StartSection { func, .. } => {
                     start_func = Some(FuncAddr::new_unsafe(module_index, func as usize));
                 }
-                Payload::CustomSection { name, data,  .. } => {
-                    match name {
-                        "name" => {
-                            let section = NameSectionReader::new(data, 0)?;
-                            func_names = read_name_section(section)?;
-                        }
-                        _ => (),
+                Payload::CustomSection { name, data, .. } => match name {
+                    "name" => {
+                        let section = NameSectionReader::new(data, 0)?;
+                        func_names = read_name_section(section)?;
                     }
-                }
-                Payload::ModuleCodeSectionEntry { parser: subparser, .. } => {
+                    _ => (),
+                },
+                Payload::ModuleCodeSectionEntry {
+                    parser: subparser, ..
+                } => {
                     panic!("nested module is not supported yet");
                 }
                 Payload::End => {
@@ -392,11 +395,7 @@ impl Store {
 
         Ok(module_index)
     }
-    pub fn load_module(
-        &mut self,
-        name: Option<String>,
-        reader: &mut [u8],
-    ) -> Result<ModuleIndex> {
+    pub fn load_module(&mut self, name: Option<String>, reader: &mut [u8]) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
         let result: Result<ModuleIndex> =

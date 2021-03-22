@@ -503,7 +503,9 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         Call { function_index } => InstructionKind::Call { function_index },
         CallIndirect { index, table_index } => InstructionKind::CallIndirect { index, table_index },
         ReturnCall { function_index } => InstructionKind::ReturnCall { function_index },
-        ReturnCallIndirect { index, table_index } => InstructionKind::ReturnCallIndirect { index, table_index },
+        ReturnCallIndirect { index, table_index } => {
+            InstructionKind::ReturnCallIndirect { index, table_index }
+        }
         Drop => InstructionKind::Drop,
         Select => InstructionKind::Select,
         TypedSelect { ty } => InstructionKind::TypedSelect { ty },
@@ -541,7 +543,7 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I64Const { value } => InstructionKind::I64Const { value },
         F32Const { value } => InstructionKind::F32Const { value },
         F64Const { value } => InstructionKind::F64Const { value },
-        RefNull { ty} => InstructionKind::RefNull { ty },
+        RefNull { ty } => InstructionKind::RefNull { ty },
         RefIsNull => InstructionKind::RefIsNull,
         RefFunc { function_index } => InstructionKind::RefFunc { function_index },
         I32Eqz => InstructionKind::I32Eqz,
