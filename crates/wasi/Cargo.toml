@@ -7,4 +7,4 @@ edition = "2018"
 [dependencies]
 wasi-common = "0.8.0"
 wasminspect-vm = { path = "../vm" }
-wasmparser = "0.70.0"
+wasmparser = "0.71.0"
