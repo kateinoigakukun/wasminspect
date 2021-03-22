@@ -356,7 +356,7 @@ impl Store {
                     }
                     _ => (),
                 },
-                Payload::ModuleCodeSectionEntry { .. } => {
+                Payload::ModuleSectionEntry { .. } => {
                     panic!("nested module is not supported yet");
                 }
                 Payload::End => {
