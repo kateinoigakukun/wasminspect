@@ -683,7 +683,7 @@ impl Store {
         }
         for entry in tables.iter() {
             match entry.element_type {
-                Type::AnyFunc => {
+                Type::FuncRef => {
                     let instance = TableInstance::new(
                         entry.limits.initial as usize,
                         entry.limits.maximum.map(|mx| mx as usize),
@@ -719,7 +719,7 @@ impl Store {
                             ElementItem::Func(index) => {
                                 Ok(Some(FuncAddr::new_unsafe(module_index, index as usize)))
                             }
-                            ElementItem::Null => Ok(None),
+                            ElementItem::Null { .. } => Ok(None),
                         })
                         .collect::<Result<Vec<Option<FuncAddr>>>>()?;
                     let table = self.tables.get_global(*table_addr);
