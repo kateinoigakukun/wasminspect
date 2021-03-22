@@ -1,6 +1,6 @@
 use super::address::*;
 use super::executor::eval_const_expr;
-use super::func::{eq_func_type, DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
+use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
 use super::global::GlobalInstance;
 use super::host::HostValue;
 use super::linker::LinkableCollection;
@@ -474,7 +474,7 @@ impl Store {
         };
         let actual_func_ty = self.funcs.get_global(exec_addr).ty();
         // Validation
-        if !eq_func_type(actual_func_ty, &func_ty) {
+        if actual_func_ty != &func_ty {
             Err(StoreError::IncompatibleImportFuncType(
                 import.field.to_string(),
                 func_ty,

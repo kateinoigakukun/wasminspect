@@ -265,7 +265,7 @@ impl Executor {
                 let (func, _) = store
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr.1))?;
-                if eq_func_type(func.ty(), &ty) {
+                if func.ty() == ty {
                     self.invoke(func_addr, store, interceptor)
                 } else {
                     Err(Trap::IndirectCallTypeMismatch {

@@ -28,7 +28,6 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         f: F,
     ) -> HostValue {
         let ty = FuncType {
-            form: Type::Func,
             params: args_ty.into_boxed_slice(),
             returns: ret_ty
                 .map(|t| vec![t])

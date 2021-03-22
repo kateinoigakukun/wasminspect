@@ -7,7 +7,6 @@ use wasmparser::{FuncType, GlobalType, Type};
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();
     let ty = FuncType {
-        form: Type::Func,
         params: vec![].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
@@ -15,7 +14,6 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print".to_string(), func);
 
     let ty = FuncType {
-        form: Type::Func,
         params: vec![Type::I32].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
@@ -26,7 +24,6 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_i32".to_string(), func);
 
     let ty = FuncType {
-        form: Type::Func,
         params: vec![Type::I64].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
@@ -37,7 +34,6 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_i64".to_string(), func);
 
     let ty = FuncType {
-        form: Type::Func,
         params: vec![Type::F32].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
@@ -48,7 +44,6 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_f32".to_string(), func);
 
     let ty = FuncType {
-        form: Type::Func,
         params: vec![Type::F64].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
@@ -59,7 +54,6 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_f64".to_string(), func);
 
     let ty = FuncType {
-        form: Type::Func,
         params: vec![Type::I32, Type::F32].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
@@ -71,7 +65,6 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_i32_f32".to_string(), func);
 
     let ty = FuncType {
-        form: Type::Func,
         params: vec![Type::F64, Type::F64].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
