@@ -528,11 +528,11 @@ impl Store {
             let memory = self.mems.get_global(resolved_addr);
             let limit_initial = match memory_ty {
                 MemoryType::M32 { limits, .. } => limits.initial as u64,
-                MemoryType::M64 { limits } => limits.initial,
+                MemoryType::M64 { limits, .. } => limits.initial,
             };
             let limit_max = match memory_ty {
                 MemoryType::M32 { limits, .. } => limits.maximum.map(u64::from),
-                MemoryType::M64 { limits } => limits.maximum,
+                MemoryType::M64 { limits, .. } => limits.maximum,
             };
             if memory.borrow().initial < limit_initial as usize {
                 Err(StoreError::IncompatibleImportMemoryType)?;
@@ -766,11 +766,11 @@ impl Store {
         for entry in mems.iter() {
             let limit_initial = match entry {
                 MemoryType::M32 { limits, .. } => limits.initial as u64,
-                MemoryType::M64 { limits } => limits.initial,
+                MemoryType::M64 { limits, .. } => limits.initial,
             };
             let limit_max = match entry {
                 MemoryType::M32 { limits, .. } => limits.maximum.map(u64::from),
-                MemoryType::M64 { limits } => limits.maximum,
+                MemoryType::M64 { limits, .. } => limits.maximum,
             };
             let instance =
                 MemoryInstance::new(limit_initial as usize, limit_max.map(|mx| mx as usize));
