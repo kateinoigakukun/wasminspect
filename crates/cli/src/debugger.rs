@@ -1,7 +1,7 @@
-use crate::commands::debugger::{self, Debugger};
+use crate::commands::debugger::{self, Debugger, DebuggerOpts};
 use anyhow::{anyhow, Result};
 use log::{debug, trace, warn};
-use std::cell::RefCell;
+use std::{cell::RefCell, usize};
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::{
@@ -16,6 +16,7 @@ pub struct MainDebugger {
     executor: Option<Rc<RefCell<Executor>>>,
     module_index: Option<ModuleIndex>,
 
+    opts: DebuggerOpts,
     function_breakpoints: HashMap<String, debugger::Breakpoint>,
 }
 
@@ -34,6 +35,7 @@ impl MainDebugger {
             executor: None,
             module_index: None,
             function_breakpoints: HashMap::new(),
+            opts: DebuggerOpts::default(),
         })
     }
 
@@ -90,6 +92,12 @@ impl MainDebugger {
 }
 
 impl debugger::Debugger for MainDebugger {
+    fn get_opts(&self) -> DebuggerOpts {
+        self.opts.clone()
+    }
+    fn set_opts(&mut self, opts: DebuggerOpts) {
+        self.opts = opts
+    }
     fn instructions(&self) -> Result<(&[Instruction], usize)> {
         if let Some(ref executor) = self.executor {
             let executor = executor.borrow();
@@ -281,5 +289,9 @@ impl Interceptor for MainDebugger {
 
     fn execute_inst(&self, inst: &Instruction) {
         trace!("Execute {:?}", inst);
+    }
+
+    fn after_store(&self, addr: usize, bytes: &[u8]) -> Result<Signal, Trap> {
+        Ok(Signal::Next)
     }
 }

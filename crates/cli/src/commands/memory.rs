@@ -21,6 +21,8 @@ enum Opts {
         #[structopt(short, long, default_value = "32")]
         count: u32,
     },
+    #[structopt(name = "enable-watch")]
+    EnableWatch
 }
 
 impl<D: Debugger> Command<D> for MemoryCommand {
@@ -58,6 +60,12 @@ impl<D: Debugger> Command<D> for MemoryCommand {
                     print!("{}", bytes_str.join(" "));
                     println!(" {}", dump_memory_as_str(bytes));
                 }
+                Ok(())
+            }
+            Opts::EnableWatch => {
+                let mut opts = debugger.get_opts();
+                opts.watch_memory = true;
+                debugger.set_opts(opts);
                 Ok(())
             }
         }

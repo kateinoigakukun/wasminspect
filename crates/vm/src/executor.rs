@@ -358,32 +358,32 @@ impl Executor {
             }
 
             InstructionKind::I32Store { memarg } => {
-                self.store::<i32>(memarg.offset as usize, store)
+                self.store::<i32, _>(memarg.offset as usize, store, interceptor)
             }
             InstructionKind::I64Store { memarg } => {
-                self.store::<i64>(memarg.offset as usize, store)
+                self.store::<i64, _>(memarg.offset as usize, store, interceptor)
             }
             InstructionKind::F32Store { memarg } => {
-                self.store::<f32>(memarg.offset as usize, store)
+                self.store::<f32, _>(memarg.offset as usize, store, interceptor)
             }
             InstructionKind::F64Store { memarg } => {
-                self.store::<f64>(memarg.offset as usize, store)
+                self.store::<f64, _>(memarg.offset as usize, store, interceptor)
             }
 
             InstructionKind::I32Store8 { memarg } => {
-                self.store_with_width::<i32>(memarg.offset as usize, 1, store)
+                self.store_with_width::<i32, _>(memarg.offset as usize, 1, store, interceptor)
             }
             InstructionKind::I32Store16 { memarg } => {
-                self.store_with_width::<i32>(memarg.offset as usize, 2, store)
+                self.store_with_width::<i32, _>(memarg.offset as usize, 2, store, interceptor)
             }
             InstructionKind::I64Store8 { memarg } => {
-                self.store_with_width::<i64>(memarg.offset as usize, 1, store)
+                self.store_with_width::<i64, _>(memarg.offset as usize, 1, store, interceptor)
             }
             InstructionKind::I64Store16 { memarg } => {
-                self.store_with_width::<i64>(memarg.offset as usize, 2, store)
+                self.store_with_width::<i64, _>(memarg.offset as usize, 2, store, interceptor)
             }
             InstructionKind::I64Store32 { memarg } => {
-                self.store_with_width::<i64>(memarg.offset as usize, 4, store)
+                self.store_with_width::<i64, _>(memarg.offset as usize, 4, store, interceptor)
             }
 
             InstructionKind::MemorySize { reserved: _ } => {
@@ -776,10 +776,11 @@ impl Executor {
         Ok(store.memory(mem_addr))
     }
 
-    fn store<T: NativeValue + IntoLittleEndian>(
+    fn store<T: NativeValue + IntoLittleEndian, I: Interceptor>(
         &mut self,
         offset: usize,
         store: &Store,
+        interceptor: &I,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
@@ -793,14 +794,15 @@ impl Executor {
             .borrow_mut()
             .store(addr, &buf)
             .map_err(Trap::Memory)?;
-        Ok(Signal::Next)
+        interceptor.after_store(addr, &buf)
     }
 
-    fn store_with_width<T: NativeValue + IntoLittleEndian>(
+    fn store_with_width<T: NativeValue + IntoLittleEndian, I: Interceptor>(
         &mut self,
         offset: usize,
         width: usize,
         store: &Store,
+        interceptor: &I,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
@@ -815,7 +817,7 @@ impl Executor {
             .borrow_mut()
             .store(addr, &buf)
             .map_err(Trap::Memory)?;
-        Ok(Signal::Next)
+        interceptor.after_store(addr, &buf)
     }
 
     fn load<T>(&mut self, offset: usize, store: &Store) -> ExecResult<Signal>

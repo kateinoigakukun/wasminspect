@@ -1,6 +1,11 @@
 use anyhow::Result;
 use wasminspect_vm::{Instruction, ModuleIndex, Signal, Store, WasmValue};
 
+#[derive(Default, Clone)]
+pub struct DebuggerOpts {
+    pub watch_memory: bool,
+}
+
 pub enum Breakpoint {
     Function { name: String },
 }
@@ -23,6 +28,8 @@ pub struct FunctionFrame {
 }
 
 pub trait Debugger {
+    fn get_opts(&self) -> DebuggerOpts;
+    fn set_opts(&mut self, opts: DebuggerOpts);
     fn run(&mut self, name: Option<String>) -> Result<RunResult>;
     fn is_running(&self) -> bool;
     fn frame(&self) -> Vec<String>;
