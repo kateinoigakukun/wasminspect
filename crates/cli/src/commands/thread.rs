@@ -101,7 +101,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                     _ => panic!(),
                 };
                 debugger.step(style)?;
-                display_asm(debugger)?;
+                display_asm(debugger, Some(4), true)?;
             }
         }
         Ok(())
