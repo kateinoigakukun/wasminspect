@@ -17,64 +17,170 @@ pub struct BrTableData {
 pub enum InstructionKind {
     Unreachable,
     Nop,
-    Block { ty: TypeOrFuncType },
-    Loop { ty: TypeOrFuncType },
-    If { ty: TypeOrFuncType },
+    Block {
+        ty: TypeOrFuncType,
+    },
+    Loop {
+        ty: TypeOrFuncType,
+    },
+    If {
+        ty: TypeOrFuncType,
+    },
     Else,
-    Try { ty: TypeOrFuncType },
-    Catch { index: u32 },
-    Throw { index: u32 },
-    Rethrow { relative_depth: u32 },
+    Try {
+        ty: TypeOrFuncType,
+    },
+    Catch {
+        index: u32,
+    },
+    Throw {
+        index: u32,
+    },
+    Rethrow {
+        relative_depth: u32,
+    },
     Unwind,
     End,
-    Br { relative_depth: u32 },
-    BrIf { relative_depth: u32 },
-    BrTable { table: BrTableData },
+    Br {
+        relative_depth: u32,
+    },
+    BrIf {
+        relative_depth: u32,
+    },
+    BrTable {
+        table: BrTableData,
+    },
     Return,
-    Call { function_index: u32 },
-    CallIndirect { index: u32, table_index: u32 },
-    ReturnCall { function_index: u32 },
-    ReturnCallIndirect { index: u32, table_index: u32 },
+    Call {
+        function_index: u32,
+    },
+    CallIndirect {
+        index: u32,
+        table_index: u32,
+    },
+    ReturnCall {
+        function_index: u32,
+    },
+    ReturnCallIndirect {
+        index: u32,
+        table_index: u32,
+    },
     Drop,
     Select,
-    TypedSelect { ty: Type },
-    LocalGet { local_index: u32 },
-    LocalSet { local_index: u32 },
-    LocalTee { local_index: u32 },
-    GlobalGet { global_index: u32 },
-    GlobalSet { global_index: u32 },
-    I32Load { memarg: MemoryImmediate },
-    I64Load { memarg: MemoryImmediate },
-    F32Load { memarg: MemoryImmediate },
-    F64Load { memarg: MemoryImmediate },
-    I32Load8S { memarg: MemoryImmediate },
-    I32Load8U { memarg: MemoryImmediate },
-    I32Load16S { memarg: MemoryImmediate },
-    I32Load16U { memarg: MemoryImmediate },
-    I64Load8S { memarg: MemoryImmediate },
-    I64Load8U { memarg: MemoryImmediate },
-    I64Load16S { memarg: MemoryImmediate },
-    I64Load16U { memarg: MemoryImmediate },
-    I64Load32S { memarg: MemoryImmediate },
-    I64Load32U { memarg: MemoryImmediate },
-    I32Store { memarg: MemoryImmediate },
-    I64Store { memarg: MemoryImmediate },
-    F32Store { memarg: MemoryImmediate },
-    F64Store { memarg: MemoryImmediate },
-    I32Store8 { memarg: MemoryImmediate },
-    I32Store16 { memarg: MemoryImmediate },
-    I64Store8 { memarg: MemoryImmediate },
-    I64Store16 { memarg: MemoryImmediate },
-    I64Store32 { memarg: MemoryImmediate },
-    MemorySize { mem: u32, mem_byte: u8 },
-    MemoryGrow { mem: u32, mem_byte: u8 },
-    I32Const { value: i32 },
-    I64Const { value: i64 },
-    F32Const { value: Ieee32 },
-    F64Const { value: Ieee64 },
-    RefNull { ty: Type },
+    TypedSelect {
+        ty: Type,
+    },
+    LocalGet {
+        local_index: u32,
+    },
+    LocalSet {
+        local_index: u32,
+    },
+    LocalTee {
+        local_index: u32,
+    },
+    GlobalGet {
+        global_index: u32,
+    },
+    GlobalSet {
+        global_index: u32,
+    },
+    I32Load {
+        memarg: MemoryImmediate,
+    },
+    I64Load {
+        memarg: MemoryImmediate,
+    },
+    F32Load {
+        memarg: MemoryImmediate,
+    },
+    F64Load {
+        memarg: MemoryImmediate,
+    },
+    I32Load8S {
+        memarg: MemoryImmediate,
+    },
+    I32Load8U {
+        memarg: MemoryImmediate,
+    },
+    I32Load16S {
+        memarg: MemoryImmediate,
+    },
+    I32Load16U {
+        memarg: MemoryImmediate,
+    },
+    I64Load8S {
+        memarg: MemoryImmediate,
+    },
+    I64Load8U {
+        memarg: MemoryImmediate,
+    },
+    I64Load16S {
+        memarg: MemoryImmediate,
+    },
+    I64Load16U {
+        memarg: MemoryImmediate,
+    },
+    I64Load32S {
+        memarg: MemoryImmediate,
+    },
+    I64Load32U {
+        memarg: MemoryImmediate,
+    },
+    I32Store {
+        memarg: MemoryImmediate,
+    },
+    I64Store {
+        memarg: MemoryImmediate,
+    },
+    F32Store {
+        memarg: MemoryImmediate,
+    },
+    F64Store {
+        memarg: MemoryImmediate,
+    },
+    I32Store8 {
+        memarg: MemoryImmediate,
+    },
+    I32Store16 {
+        memarg: MemoryImmediate,
+    },
+    I64Store8 {
+        memarg: MemoryImmediate,
+    },
+    I64Store16 {
+        memarg: MemoryImmediate,
+    },
+    I64Store32 {
+        memarg: MemoryImmediate,
+    },
+    MemorySize {
+        mem: u32,
+        mem_byte: u8,
+    },
+    MemoryGrow {
+        mem: u32,
+        mem_byte: u8,
+    },
+    I32Const {
+        value: i32,
+    },
+    I64Const {
+        value: i64,
+    },
+    F32Const {
+        value: Ieee32,
+    },
+    F64Const {
+        value: Ieee64,
+    },
+    RefNull {
+        ty: Type,
+    },
     RefIsNull,
-    RefFunc { function_index: u32 },
+    RefFunc {
+        function_index: u32,
+    },
     I32Eqz,
     I32Eq,
     I32Ne,
@@ -217,114 +323,310 @@ pub enum InstructionKind {
 
     // 0xFC operators
     // bulk memory https://github.com/WebAssembly/bulk-memory-operations/blob/master/proposals/bulk-memory-operations/Overview.md
-    MemoryInit { segment: u32, mem: u32 },
-    DataDrop { segment: u32 },
-    MemoryCopy { src: u32, dst: u32 },
-    MemoryFill { mem: u32 },
-    TableInit { segment: u32, table: u32 },
-    ElemDrop { segment: u32 },
-    TableCopy { dst_table: u32, src_table: u32 },
-    TableFill { table: u32 },
-    TableGet { table: u32 },
-    TableSet { table: u32 },
-    TableGrow { table: u32 },
-    TableSize { table: u32 },
+    MemoryInit {
+        segment: u32,
+        mem: u32,
+    },
+    DataDrop {
+        segment: u32,
+    },
+    MemoryCopy {
+        src: u32,
+        dst: u32,
+    },
+    MemoryFill {
+        mem: u32,
+    },
+    TableInit {
+        segment: u32,
+        table: u32,
+    },
+    ElemDrop {
+        segment: u32,
+    },
+    TableCopy {
+        dst_table: u32,
+        src_table: u32,
+    },
+    TableFill {
+        table: u32,
+    },
+    TableGet {
+        table: u32,
+    },
+    TableSet {
+        table: u32,
+    },
+    TableGrow {
+        table: u32,
+    },
+    TableSize {
+        table: u32,
+    },
 
     // 0xFE operators
     // https://github.com/WebAssembly/threads/blob/master/proposals/threads/Overview.md
-    MemoryAtomicNotify { memarg: MemoryImmediate },
-    MemoryAtomicWait32 { memarg: MemoryImmediate },
-    MemoryAtomicWait64 { memarg: MemoryImmediate },
-    AtomicFence { flags: u8 },
-    I32AtomicLoad { memarg: MemoryImmediate },
-    I64AtomicLoad { memarg: MemoryImmediate },
-    I32AtomicLoad8U { memarg: MemoryImmediate },
-    I32AtomicLoad16U { memarg: MemoryImmediate },
-    I64AtomicLoad8U { memarg: MemoryImmediate },
-    I64AtomicLoad16U { memarg: MemoryImmediate },
-    I64AtomicLoad32U { memarg: MemoryImmediate },
-    I32AtomicStore { memarg: MemoryImmediate },
-    I64AtomicStore { memarg: MemoryImmediate },
-    I32AtomicStore8 { memarg: MemoryImmediate },
-    I32AtomicStore16 { memarg: MemoryImmediate },
-    I64AtomicStore8 { memarg: MemoryImmediate },
-    I64AtomicStore16 { memarg: MemoryImmediate },
-    I64AtomicStore32 { memarg: MemoryImmediate },
-    I32AtomicRmwAdd { memarg: MemoryImmediate },
-    I64AtomicRmwAdd { memarg: MemoryImmediate },
-    I32AtomicRmw8AddU { memarg: MemoryImmediate },
-    I32AtomicRmw16AddU { memarg: MemoryImmediate },
-    I64AtomicRmw8AddU { memarg: MemoryImmediate },
-    I64AtomicRmw16AddU { memarg: MemoryImmediate },
-    I64AtomicRmw32AddU { memarg: MemoryImmediate },
-    I32AtomicRmwSub { memarg: MemoryImmediate },
-    I64AtomicRmwSub { memarg: MemoryImmediate },
-    I32AtomicRmw8SubU { memarg: MemoryImmediate },
-    I32AtomicRmw16SubU { memarg: MemoryImmediate },
-    I64AtomicRmw8SubU { memarg: MemoryImmediate },
-    I64AtomicRmw16SubU { memarg: MemoryImmediate },
-    I64AtomicRmw32SubU { memarg: MemoryImmediate },
-    I32AtomicRmwAnd { memarg: MemoryImmediate },
-    I64AtomicRmwAnd { memarg: MemoryImmediate },
-    I32AtomicRmw8AndU { memarg: MemoryImmediate },
-    I32AtomicRmw16AndU { memarg: MemoryImmediate },
-    I64AtomicRmw8AndU { memarg: MemoryImmediate },
-    I64AtomicRmw16AndU { memarg: MemoryImmediate },
-    I64AtomicRmw32AndU { memarg: MemoryImmediate },
-    I32AtomicRmwOr { memarg: MemoryImmediate },
-    I64AtomicRmwOr { memarg: MemoryImmediate },
-    I32AtomicRmw8OrU { memarg: MemoryImmediate },
-    I32AtomicRmw16OrU { memarg: MemoryImmediate },
-    I64AtomicRmw8OrU { memarg: MemoryImmediate },
-    I64AtomicRmw16OrU { memarg: MemoryImmediate },
-    I64AtomicRmw32OrU { memarg: MemoryImmediate },
-    I32AtomicRmwXor { memarg: MemoryImmediate },
-    I64AtomicRmwXor { memarg: MemoryImmediate },
-    I32AtomicRmw8XorU { memarg: MemoryImmediate },
-    I32AtomicRmw16XorU { memarg: MemoryImmediate },
-    I64AtomicRmw8XorU { memarg: MemoryImmediate },
-    I64AtomicRmw16XorU { memarg: MemoryImmediate },
-    I64AtomicRmw32XorU { memarg: MemoryImmediate },
-    I32AtomicRmwXchg { memarg: MemoryImmediate },
-    I64AtomicRmwXchg { memarg: MemoryImmediate },
-    I32AtomicRmw8XchgU { memarg: MemoryImmediate },
-    I32AtomicRmw16XchgU { memarg: MemoryImmediate },
-    I64AtomicRmw8XchgU { memarg: MemoryImmediate },
-    I64AtomicRmw16XchgU { memarg: MemoryImmediate },
-    I64AtomicRmw32XchgU { memarg: MemoryImmediate },
-    I32AtomicRmwCmpxchg { memarg: MemoryImmediate },
-    I64AtomicRmwCmpxchg { memarg: MemoryImmediate },
-    I32AtomicRmw8CmpxchgU { memarg: MemoryImmediate },
-    I32AtomicRmw16CmpxchgU { memarg: MemoryImmediate },
-    I64AtomicRmw8CmpxchgU { memarg: MemoryImmediate },
-    I64AtomicRmw16CmpxchgU { memarg: MemoryImmediate },
-    I64AtomicRmw32CmpxchgU { memarg: MemoryImmediate },
+    MemoryAtomicNotify {
+        memarg: MemoryImmediate,
+    },
+    MemoryAtomicWait32 {
+        memarg: MemoryImmediate,
+    },
+    MemoryAtomicWait64 {
+        memarg: MemoryImmediate,
+    },
+    AtomicFence {
+        flags: u8,
+    },
+    I32AtomicLoad {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicLoad {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicLoad8U {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicLoad16U {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicLoad8U {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicLoad16U {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicLoad32U {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicStore {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicStore {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicStore8 {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicStore16 {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicStore8 {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicStore16 {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicStore32 {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmwAdd {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmwAdd {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw8AddU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw16AddU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw8AddU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw16AddU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw32AddU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmwSub {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmwSub {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw8SubU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw16SubU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw8SubU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw16SubU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw32SubU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmwAnd {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmwAnd {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw8AndU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw16AndU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw8AndU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw16AndU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw32AndU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmwOr {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmwOr {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw8OrU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw16OrU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw8OrU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw16OrU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw32OrU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmwXor {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmwXor {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw8XorU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw16XorU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw8XorU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw16XorU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw32XorU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmwXchg {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmwXchg {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw8XchgU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw16XchgU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw8XchgU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw16XchgU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw32XchgU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmwCmpxchg {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmwCmpxchg {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw8CmpxchgU {
+        memarg: MemoryImmediate,
+    },
+    I32AtomicRmw16CmpxchgU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw8CmpxchgU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw16CmpxchgU {
+        memarg: MemoryImmediate,
+    },
+    I64AtomicRmw32CmpxchgU {
+        memarg: MemoryImmediate,
+    },
 
     // 0xFD operators
     // SIMD https://github.com/WebAssembly/simd/blob/master/proposals/simd/BinarySIMD.md
-    V128Load { memarg: MemoryImmediate },
-    V128Store { memarg: MemoryImmediate },
-    V128Const { value: V128 },
+    V128Load {
+        memarg: MemoryImmediate,
+    },
+    V128Store {
+        memarg: MemoryImmediate,
+    },
+    V128Const {
+        value: V128,
+    },
     I8x16Splat,
-    I8x16ExtractLaneS { lane: SIMDLaneIndex },
-    I8x16ExtractLaneU { lane: SIMDLaneIndex },
-    I8x16ReplaceLane { lane: SIMDLaneIndex },
+    I8x16ExtractLaneS {
+        lane: SIMDLaneIndex,
+    },
+    I8x16ExtractLaneU {
+        lane: SIMDLaneIndex,
+    },
+    I8x16ReplaceLane {
+        lane: SIMDLaneIndex,
+    },
     I16x8Splat,
-    I16x8ExtractLaneS { lane: SIMDLaneIndex },
-    I16x8ExtractLaneU { lane: SIMDLaneIndex },
-    I16x8ReplaceLane { lane: SIMDLaneIndex },
+    I16x8ExtractLaneS {
+        lane: SIMDLaneIndex,
+    },
+    I16x8ExtractLaneU {
+        lane: SIMDLaneIndex,
+    },
+    I16x8ReplaceLane {
+        lane: SIMDLaneIndex,
+    },
     I32x4Splat,
-    I32x4ExtractLane { lane: SIMDLaneIndex },
-    I32x4ReplaceLane { lane: SIMDLaneIndex },
+    I32x4ExtractLane {
+        lane: SIMDLaneIndex,
+    },
+    I32x4ReplaceLane {
+        lane: SIMDLaneIndex,
+    },
     I64x2Splat,
-    I64x2ExtractLane { lane: SIMDLaneIndex },
-    I64x2ReplaceLane { lane: SIMDLaneIndex },
+    I64x2ExtractLane {
+        lane: SIMDLaneIndex,
+    },
+    I64x2ReplaceLane {
+        lane: SIMDLaneIndex,
+    },
     F32x4Splat,
-    F32x4ExtractLane { lane: SIMDLaneIndex },
-    F32x4ReplaceLane { lane: SIMDLaneIndex },
+    F32x4ExtractLane {
+        lane: SIMDLaneIndex,
+    },
+    F32x4ReplaceLane {
+        lane: SIMDLaneIndex,
+    },
     F64x2Splat,
-    F64x2ExtractLane { lane: SIMDLaneIndex },
-    F64x2ReplaceLane { lane: SIMDLaneIndex },
+    F64x2ExtractLane {
+        lane: SIMDLaneIndex,
+    },
+    F64x2ReplaceLane {
+        lane: SIMDLaneIndex,
+    },
     I8x16Eq,
     I8x16Ne,
     I8x16LtS,
@@ -373,9 +675,9 @@ pub enum InstructionKind {
     V128Or,
     V128Xor,
     V128Bitselect,
+    V128AnyTrue,
     I8x16Abs,
     I8x16Neg,
-    I8x16AnyTrue,
     I8x16AllTrue,
     I8x16Bitmask,
     I8x16Shl,
@@ -393,7 +695,6 @@ pub enum InstructionKind {
     I8x16MaxU,
     I16x8Abs,
     I16x8Neg,
-    I16x8AnyTrue,
     I16x8AllTrue,
     I16x8Bitmask,
     I16x8Shl,
@@ -412,7 +713,6 @@ pub enum InstructionKind {
     I16x8MaxU,
     I32x4Abs,
     I32x4Neg,
-    I32x4AnyTrue,
     I32x4AllTrue,
     I32x4Bitmask,
     I32x4Shl,
@@ -427,6 +727,7 @@ pub enum InstructionKind {
     I32x4MaxU,
     I32x4DotI16x8S,
     I64x2Neg,
+    I64x2Bitmask,
     I64x2Shl,
     I64x2ShrS,
     I64x2ShrU,
@@ -468,13 +769,27 @@ pub enum InstructionKind {
     F32x4ConvertI32x4S,
     F32x4ConvertI32x4U,
     I8x16Swizzle,
-    I8x16Shuffle { lanes: [SIMDLaneIndex; 16] },
-    V128Load8Splat { memarg: MemoryImmediate },
-    V128Load16Splat { memarg: MemoryImmediate },
-    V128Load32Splat { memarg: MemoryImmediate },
-    V128Load32Zero { memarg: MemoryImmediate },
-    V128Load64Splat { memarg: MemoryImmediate },
-    V128Load64Zero { memarg: MemoryImmediate },
+    I8x16Shuffle {
+        lanes: [SIMDLaneIndex; 16],
+    },
+    V128Load8Splat {
+        memarg: MemoryImmediate,
+    },
+    V128Load16Splat {
+        memarg: MemoryImmediate,
+    },
+    V128Load32Splat {
+        memarg: MemoryImmediate,
+    },
+    V128Load32Zero {
+        memarg: MemoryImmediate,
+    },
+    V128Load64Splat {
+        memarg: MemoryImmediate,
+    },
+    V128Load64Zero {
+        memarg: MemoryImmediate,
+    },
     I8x16NarrowI16x8S,
     I8x16NarrowI16x8U,
     I16x8NarrowI32x4S,
@@ -487,6 +802,10 @@ pub enum InstructionKind {
     I32x4WidenHighI16x8S,
     I32x4WidenLowI16x8U,
     I32x4WidenHighI16x8U,
+    I64x2WidenLowI32x4S,
+    I64x2WidenHighI32x4S,
+    I64x2WidenLowI32x4U,
+    I64x2WidenHighI32x4U,
     I16x8ExtMulLowI8x16S,
     I16x8ExtMulHighI8x16S,
     I16x8ExtMulLowI8x16U,
@@ -499,14 +818,59 @@ pub enum InstructionKind {
     I64x2ExtMulHighI32x4S,
     I64x2ExtMulLowI32x4U,
     I64x2ExtMulHighI32x4U,
-    V128Load8x8S { memarg: MemoryImmediate },
-    V128Load8x8U { memarg: MemoryImmediate },
-    V128Load16x4S { memarg: MemoryImmediate },
-    V128Load16x4U { memarg: MemoryImmediate },
-    V128Load32x2S { memarg: MemoryImmediate },
-    V128Load32x2U { memarg: MemoryImmediate },
+    V128Load8x8S {
+        memarg: MemoryImmediate,
+    },
+    V128Load8x8U {
+        memarg: MemoryImmediate,
+    },
+    V128Load16x4S {
+        memarg: MemoryImmediate,
+    },
+    V128Load16x4U {
+        memarg: MemoryImmediate,
+    },
+    V128Load32x2S {
+        memarg: MemoryImmediate,
+    },
+    V128Load32x2U {
+        memarg: MemoryImmediate,
+    },
+    V128Load8Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
+    V128Load16Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
+    V128Load32Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
+    V128Load64Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
+    V128Store8Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
+    V128Store16Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
+    V128Store32Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
+    V128Store64Lane {
+        memarg: MemoryImmediate,
+        lane: SIMDLaneIndex,
+    },
     I8x16RoundingAverageU,
     I16x8RoundingAverageU,
+    I16x8Q15MulrSatS,
 }
 
 use anyhow::Result;
@@ -737,7 +1101,7 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         MemoryInit { segment, mem } => InstructionKind::MemoryInit { segment, mem },
         DataDrop { segment } => InstructionKind::DataDrop { segment },
         MemoryCopy { src, dst } => InstructionKind::MemoryCopy { src, dst },
-        MemoryFill { mem } => InstructionKind::MemoryFill { mem},
+        MemoryFill { mem } => InstructionKind::MemoryFill { mem },
         TableInit {
             segment,
             table: u32,
@@ -904,7 +1268,7 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         V128Bitselect => InstructionKind::V128Bitselect,
         I8x16Abs => InstructionKind::I8x16Abs,
         I8x16Neg => InstructionKind::I8x16Neg,
-        I8x16AnyTrue => InstructionKind::I8x16AnyTrue,
+        V128AnyTrue => InstructionKind::V128AnyTrue,
         I8x16AllTrue => InstructionKind::I8x16AllTrue,
         I8x16Bitmask => InstructionKind::I8x16Bitmask,
         I8x16Shl => InstructionKind::I8x16Shl,
@@ -922,7 +1286,6 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I8x16MaxU => InstructionKind::I8x16MaxU,
         I16x8Abs => InstructionKind::I16x8Abs,
         I16x8Neg => InstructionKind::I16x8Neg,
-        I16x8AnyTrue => InstructionKind::I16x8AnyTrue,
         I16x8AllTrue => InstructionKind::I16x8AllTrue,
         I16x8Bitmask => InstructionKind::I16x8Bitmask,
         I16x8Shl => InstructionKind::I16x8Shl,
@@ -941,7 +1304,6 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I16x8MaxU => InstructionKind::I16x8MaxU,
         I32x4Abs => InstructionKind::I32x4Abs,
         I32x4Neg => InstructionKind::I32x4Neg,
-        I32x4AnyTrue => InstructionKind::I32x4AnyTrue,
         I32x4AllTrue => InstructionKind::I32x4AllTrue,
         I32x4Bitmask => InstructionKind::I32x4Bitmask,
         I32x4Shl => InstructionKind::I32x4Shl,
@@ -956,6 +1318,7 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I32x4MaxU => InstructionKind::I32x4MaxU,
         I32x4DotI16x8S => InstructionKind::I32x4DotI16x8S,
         I64x2Neg => InstructionKind::I64x2Neg,
+        I64x2Bitmask => InstructionKind::I64x2Bitmask,
         I64x2Shl => InstructionKind::I64x2Shl,
         I64x2ShrS => InstructionKind::I64x2ShrS,
         I64x2ShrU => InstructionKind::I64x2ShrU,
@@ -1016,6 +1379,10 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I32x4WidenHighI16x8S => InstructionKind::I32x4WidenHighI16x8S,
         I32x4WidenLowI16x8U => InstructionKind::I32x4WidenLowI16x8U,
         I32x4WidenHighI16x8U => InstructionKind::I32x4WidenHighI16x8U,
+        I64x2WidenLowI32x4S => InstructionKind::I64x2WidenLowI32x4S,
+        I64x2WidenHighI32x4S => InstructionKind::I64x2WidenHighI32x4S,
+        I64x2WidenLowI32x4U => InstructionKind::I64x2WidenLowI32x4U,
+        I64x2WidenHighI32x4U => InstructionKind::I64x2WidenHighI32x4U,
         I16x8ExtMulLowI8x16S => InstructionKind::I16x8ExtMulLowI8x16S,
         I16x8ExtMulHighI8x16S => InstructionKind::I16x8ExtMulHighI8x16S,
         I16x8ExtMulLowI8x16U => InstructionKind::I16x8ExtMulLowI8x16U,
@@ -1028,12 +1395,21 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         I64x2ExtMulHighI32x4S => InstructionKind::I64x2ExtMulHighI32x4S,
         I64x2ExtMulLowI32x4U => InstructionKind::I64x2ExtMulLowI32x4U,
         I64x2ExtMulHighI32x4U => InstructionKind::I64x2ExtMulHighI32x4U,
+        I16x8Q15MulrSatS => InstructionKind::I16x8Q15MulrSatS,
         V128Load8x8S { memarg } => InstructionKind::V128Load8x8S { memarg },
         V128Load8x8U { memarg } => InstructionKind::V128Load8x8U { memarg },
         V128Load16x4S { memarg } => InstructionKind::V128Load16x4S { memarg },
         V128Load16x4U { memarg } => InstructionKind::V128Load16x4U { memarg },
         V128Load32x2S { memarg } => InstructionKind::V128Load32x2S { memarg },
         V128Load32x2U { memarg } => InstructionKind::V128Load32x2U { memarg },
+        V128Load8Lane { memarg, lane } => InstructionKind::V128Load8Lane { memarg, lane },
+        V128Load16Lane { memarg, lane } => InstructionKind::V128Load16Lane { memarg, lane },
+        V128Load32Lane { memarg, lane } => InstructionKind::V128Load32Lane { memarg, lane },
+        V128Load64Lane { memarg, lane } => InstructionKind::V128Load64Lane { memarg, lane },
+        V128Store8Lane { memarg, lane } => InstructionKind::V128Store8Lane { memarg, lane },
+        V128Store16Lane { memarg, lane } => InstructionKind::V128Store16Lane { memarg, lane },
+        V128Store32Lane { memarg, lane } => InstructionKind::V128Store32Lane { memarg, lane },
+        V128Store64Lane { memarg, lane } => InstructionKind::V128Store32Lane { memarg, lane },
         I8x16RoundingAverageU => InstructionKind::I8x16RoundingAverageU,
         I16x8RoundingAverageU => InstructionKind::I16x8RoundingAverageU,
     };
