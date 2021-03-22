@@ -22,7 +22,7 @@ enum Opts {
         count: u32,
     },
     #[structopt(name = "enable-watch")]
-    EnableWatch
+    EnableWatch,
 }
 
 impl<D: Debugger> Command<D> for MemoryCommand {
@@ -49,7 +49,11 @@ impl<D: Debugger> Command<D> for MemoryCommand {
                 let end = begin + (count as usize);
                 let chunk_size = 16;
                 if memory.len() <= end {
-                    return Err(anyhow!("index {} out of range for slice of length {}", end, memory.len()));
+                    return Err(anyhow!(
+                        "index {} out of range for slice of length {}",
+                        end,
+                        memory.len()
+                    ));
                 }
                 for (offset, bytes) in memory[begin..end].chunks(chunk_size).enumerate() {
                     print!("0x{:>08x}: ", begin + offset * chunk_size);

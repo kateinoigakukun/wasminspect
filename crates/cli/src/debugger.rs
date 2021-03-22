@@ -1,9 +1,9 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts};
 use anyhow::{anyhow, Result};
 use log::{debug, trace, warn};
-use std::{cell::RefCell, usize};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::{cell::RefCell, usize};
 use wasminspect_vm::{
     CallFrame, Executor, FuncAddr, FunctionInstance, InstIndex, Instruction, Interceptor,
     MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
