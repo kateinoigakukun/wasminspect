@@ -13,7 +13,7 @@ clap = "2.33.0"
 structopt = "0.3"
 thiserror = "1.0.9"
 anyhow = "1.0.26"
-wasmparser = "0.55.0"
+wasmparser = "0.56.0"
 gimli = "0.21.0"
 log = "0.4.8"
 
