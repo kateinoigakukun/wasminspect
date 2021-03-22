@@ -42,7 +42,7 @@ impl WastContext {
     }
     fn module(&mut self, module_name: Option<&str>, bytes: Vec<u8>) -> Result<()> {
         let mut bytes = bytes;
-        wasmparser::validate(&bytes)?;
+        validate(&bytes)?;
         let start_section = Self::extract_start_section(&bytes)?;
         let module_index = self
             .instance
@@ -268,7 +268,7 @@ impl WastContext {
             }
             wast::WastExecute::Module(mut module) => {
                 let mut binary = module.encode()?;
-                wasmparser::validate(&binary)?;
+                validate(&binary)?;
                 let start_section = Self::extract_start_section(&binary)?;
                 let module_index = self
                     .instance
@@ -332,4 +332,13 @@ fn is_arithmetic_f32_nan(f: &u32) -> bool {
 
 fn is_arithmetic_f64_nan(f: &u64) -> bool {
     return (f & 0x0008000000000000) == 0x0008000000000000;
+}
+
+fn validate(bytes: &[u8]) -> wasmparser::Result<()> {
+    let mut feature = wasmparser::WasmFeatures::default();
+    // TODO: support multiple tables
+    feature.reference_types = false;
+    let mut validator = wasmparser::Validator::new();
+    validator.wasm_features(feature);
+    validator.validate_all(bytes)
 }
