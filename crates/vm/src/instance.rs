@@ -21,17 +21,15 @@ impl WasmInstance {
         let mut f = ::std::fs::File::open(module_filename)?;
         let mut buffer = Vec::new();
         f.read_to_end(&mut buffer)?;
-        let reader = wasmparser::ModuleReader::new(&buffer)?;
-        self.load_module_from_module(name, reader)
+        self.load_module_from_module(name, &mut buffer)
     }
 
     pub fn load_module_from_module(
         &mut self,
         name: Option<String>,
-        reader: wasmparser::ModuleReader,
+        reader: &mut [u8],
     ) -> Result<ModuleIndex> {
-        let mut reader = reader;
-        self.store.load_module(name, &mut reader)
+        self.store.load_module(name, reader)
     }
 
     pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {

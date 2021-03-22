@@ -9,7 +9,6 @@ use wasminspect_vm::{
     MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
-use wasmparser::ModuleReader;
 
 pub struct MainDebugger {
     store: Store,
@@ -21,12 +20,11 @@ pub struct MainDebugger {
 }
 
 impl MainDebugger {
-    pub fn load_module(&mut self, module: &[u8]) -> Result<()> {
-        let mut reader = ModuleReader::new(module)?;
-        if let Err(err) = wasmparser::validate(module, None) {
+    pub fn load_module(&mut self, module: &mut [u8]) -> Result<()> {
+        if let Err(err) = wasmparser::validate(module) {
             warn!("{}", err);
         }
-        self.module_index = Some(self.store.load_module(None, &mut reader)?);
+        self.module_index = Some(self.store.load_module(None, module)?);
         Ok(())
     }
     pub fn new() -> Result<Self> {

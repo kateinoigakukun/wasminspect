@@ -6,7 +6,7 @@ use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{simple_invoke_func, FuncAddr, ModuleIndex, WasmInstance, WasmValue};
-use wasmparser::{validate, ModuleReader};
+use wasmparser::{validate};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -30,29 +30,24 @@ impl WastContext {
     }
 
     pub fn extract_start_section(bytes: &[u8]) -> Result<Option<u32>> {
-        let mut reader = ModuleReader::new(bytes)?;
-        while !reader.eof() {
-            let section = reader.read()?;
-            if section.code != wasmparser::SectionCode::Start {
-                continue;
-            }
-            match section.get_start_section_content() {
-                Ok(offset) => return Ok(Some(offset)),
-                Err(_) => continue,
+        let parser = wasmparser::Parser::new(0);
+        for payload in parser.parse_all(bytes) {
+            match payload? {
+                wasmparser::Payload::StartSection { func, .. } => {
+                    return Ok(Some(func));
+                }
+                _ => continue,
             }
         }
         return Ok(None);
     }
-    pub fn instantiate<'a>(&self, bytes: &'a [u8]) -> Result<ModuleReader<'a>> {
-        validate(bytes, None)?;
-        Ok(ModuleReader::new(bytes)?)
-    }
-    fn module(&mut self, module_name: Option<&str>, bytes: &[u8]) -> Result<()> {
-        let module = self.instantiate(&bytes)?;
-        let start_section = Self::extract_start_section(bytes)?;
+    fn module(&mut self, module_name: Option<&str>, bytes: Vec<u8>) -> Result<()> {
+        let mut bytes = bytes;
+        wasmparser::validate(&bytes)?;
+        let start_section = Self::extract_start_section(&bytes)?;
         let module_index = self
             .instance
-            .load_module_from_module(module_name.map(|n| n.to_string()), module)
+            .load_module_from_module(module_name.map(|n| n.to_string()), &mut bytes)
             .map_err(|e| anyhow!("Failed to instantiate: {}", e))?;
         if let Some(start_section) = start_section {
             let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
@@ -89,7 +84,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name()), &bytes)
+                    self.module(module.name.map(|s| s.name()), bytes)
                         .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
                 }
                 Register {
@@ -148,7 +143,7 @@ impl WastContext {
                         wast::QuoteModule::Quote(_) => return Ok(()),
                     };
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes) {
+                    let err = match self.module(None, bytes) {
                         Ok(()) => {
                             panic!("{}\nexpected module to fail to instantiate", context(span))
                         }
@@ -171,7 +166,7 @@ impl WastContext {
                     message,
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes) {
+                    let err = match self.module(None, bytes) {
                         Ok(()) => panic!("{}\nexpected module to fail to link", context(span)),
                         Err(e) => e,
                     };
@@ -205,7 +200,7 @@ impl WastContext {
                     message,
                 } => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, &bytes) {
+                    let err = match self.module(None, bytes) {
                         Ok(()) => panic!("{}\nexpected module to fail to build", context(span)),
                         Err(e) => e,
                     };
@@ -273,12 +268,12 @@ impl WastContext {
                 Ok(self.invoke(i.module.map(|s| s.name()), i.name, &i.args))
             }
             wast::WastExecute::Module(mut module) => {
-                let binary = module.encode()?;
-                let module = self.instantiate(&binary)?;
+                let mut binary = module.encode()?;
+                wasmparser::validate(&binary)?;
                 let start_section = Self::extract_start_section(&binary)?;
                 let module_index = self
                     .instance
-                    .load_module_from_module(None, module)
+                    .load_module_from_module(None, &mut binary)
                     .map_err(|e| anyhow!("{}", e))?;
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);

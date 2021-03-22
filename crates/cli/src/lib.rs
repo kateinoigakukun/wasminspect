@@ -38,7 +38,7 @@ pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()>
     if let Some(file) = file {
         let mut f = ::std::fs::File::open(file)?;
         f.read_to_end(&mut buffer)?;
-        debugger.load_module(&buffer)?;
+        debugger.load_module(&mut buffer)?;
         match try_load_dwarf(&buffer, &mut context) {
             Ok(_) => (),
             Err(err) => {

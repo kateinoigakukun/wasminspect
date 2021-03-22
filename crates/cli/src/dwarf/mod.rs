@@ -6,7 +6,6 @@ use gimli::{
 };
 use log::trace;
 use std::collections::{BTreeMap, HashMap};
-use wasmparser::{ModuleReader, SectionCode};
 
 mod format;
 mod types;
@@ -19,17 +18,14 @@ pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
 
 pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
     const EMPTY_SECTION: &[u8] = &[];
-    let mut reader = ModuleReader::new(module)?;
+    let parser = wasmparser::Parser::new(0);
     let mut sections = HashMap::new();
-    while !reader.eof() {
-        let section = reader.read().expect("section");
-        match section.code {
-            SectionCode::Custom { name, kind: _ } => {
-                let mut reader = section.get_binary_reader();
-                let len = reader.bytes_remaining();
-                sections.insert(name, reader.read_bytes(len).expect("bytes"));
+    for payload in parser.parse_all(module) {
+        match payload? {
+            wasmparser::Payload::CustomSection { name, data, .. } => {
+                sections.insert(name, data);
             }
-            _ => (),
+            _ => continue,
         }
     }
     let try_get = |key: &str| sections.get(key).ok_or(anyhow!("no {}", key));

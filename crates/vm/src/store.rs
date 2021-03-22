@@ -14,10 +14,7 @@ use anyhow::{Context, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use wasmparser::{
-    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, ModuleReader, SectionCode, TableType, Type, TypeDef,
-};
+use wasmparser::{Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType, Import, MemoryType, NameSectionReader, Parser, SectionCode, TableType, Type, TypeDef};
 
 /// Store
 pub struct Store {
@@ -148,7 +145,7 @@ pub enum StoreError {
     UnknownType(/* type index: */ u32),
     UndefinedFunction {
         module: String,
-        field: Option<String>
+        field: Option<String>,
     },
     UndefinedMemory {
         module: String,
@@ -180,22 +177,22 @@ impl std::fmt::Display for StoreError {
             Self::InvalidHostImport(err) => write!(f, "invalid host import: {}", err),
             Self::InvalidImport(err) => write!(f, "invalid import: {}", err),
             Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
-            Self::UndefinedFunction {module, field} => write!(
+            Self::UndefinedFunction { module, field } => write!(
                 f,
                 "unknown import: Undefined function \"{:?}\" in \"{}\"",
                 field, module
             ),
-            Self::UndefinedMemory{ module, field } => write!(
+            Self::UndefinedMemory { module, field } => write!(
                 f,
                 "unknown import: Undefined memory \"{:?}\" in \"{}\"",
                 field, module
             ),
-            Self::UndefinedTable {module, field} => write!(
+            Self::UndefinedTable { module, field } => write!(
                 f,
                 "unknown import: Undefined table \"{:?}\" in \"{}\"",
                 field, module
             ),
-            Self::UndefinedGlobal {module, field} => write!(
+            Self::UndefinedGlobal { module, field } => write!(
                 f,
                 "unknown import: Undefined global \"{:?}\" in \"{}\"",
                 field, module
@@ -257,7 +254,7 @@ impl Store {
     fn load_module_internal(
         &mut self,
         name: Option<String>,
-        reader: &mut ModuleReader,
+        reader: &mut [u8],
         module_index: ModuleIndex,
     ) -> Result<ModuleIndex> {
         let mut types = Vec::new();
@@ -276,12 +273,13 @@ impl Store {
 
         let mut code_section_base_offset = None;
 
-        while !reader.eof() {
-            let offset = reader.current_position();
-            let section = reader.read()?;
-            match section.code {
-                SectionCode::Type => {
-                    let section = section.get_type_section_reader()?;
+        let mut parser = wasmparser::Parser::new(0);
+
+        for payload in parser.parse_all(reader) {
+            use wasmparser::Payload;
+            match payload? {
+                Payload::Version { .. } => {}
+                Payload::TypeSection(section) => {
                     types.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         match entry? {
@@ -290,88 +288,82 @@ impl Store {
                         }
                     }
                 }
-                SectionCode::Element => {
-                    let section = section.get_element_section_reader()?;
+                Payload::ElementSection(section) => {
                     elem_segs.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         elem_segs.push(entry?);
                     }
                 }
-                SectionCode::Data => {
-                    let section = section.get_data_section_reader()?;
+                Payload::DataSection(section) => {
                     data_segs.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         data_segs.push(entry?);
                     }
                 }
-                SectionCode::Import => {
-                    let section = section.get_import_section_reader()?;
+                Payload::ImportSection(section) => {
                     imports.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         imports.push(entry?);
                     }
                 }
-                SectionCode::Export => {
-                    let section = section.get_export_section_reader()?;
+                Payload::ExportSection(section) => {
                     exports.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         exports.push(entry?);
                     }
                 }
-                SectionCode::Function => {
-                    let section = section.get_function_section_reader()?;
+                Payload::FunctionSection(section) => {
                     func_sigs.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         func_sigs.push(entry?);
                     }
                 }
-                SectionCode::Code => {
-                    let section = section.get_code_section_reader()?;
-                    code_section_base_offset = Some(offset);
-                    bodies.reserve_exact(section.get_count() as usize);
-                    for entry in section {
-                        bodies.push(entry?);
-                    }
+                Payload::CodeSectionStart { count, range, .. } => {
+                    code_section_base_offset = Some(range.start);
+                    bodies.reserve_exact(count as usize);
                 }
-                SectionCode::Table => {
-                    let section = section.get_table_section_reader()?;
+                Payload::CodeSectionEntry(entry) => {
+                    bodies.push(entry);
+                }
+                Payload::TableSection(section) => {
                     tables.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         tables.push(entry?);
                     }
                 }
-                SectionCode::Memory => {
-                    let section = section.get_memory_section_reader()?;
+                Payload::MemorySection(section) => {
                     mems.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         mems.push(entry?);
                     }
                 }
-                SectionCode::Global => {
-                    let section = section.get_global_section_reader()?;
+                Payload::GlobalSection(section) => {
                     globals.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         globals.push(entry?);
                     }
                 }
-                SectionCode::Start => {
-                    start_func = Some(FuncAddr::new_unsafe(
-                        module_index,
-                        section.get_start_section_content()? as usize,
-                    ));
+                Payload::StartSection { func, .. } => {
+                    start_func = Some(FuncAddr::new_unsafe(module_index, func as usize));
                 }
-                SectionCode::Custom { name: _, kind } => {
-                    use wasmparser::CustomSectionKind;
-                    match kind {
-                        CustomSectionKind::Name => {
-                            let section = section.get_name_section_reader()?;
+                Payload::CustomSection { name, data,  .. } => {
+                    match name {
+                        "name" => {
+                            let section = NameSectionReader::new(data, 0)?;
                             func_names = read_name_section(section)?;
                         }
                         _ => (),
                     }
                 }
+                Payload::ModuleCodeSectionEntry { parser: subparser, .. } => {
+                    panic!("nested module is not supported yet");
+                }
+                Payload::End => {
+                    break;
+                }
                 _ => (),
             }
+            // buf.drain(..consumed);
         }
 
         self.load_imports(imports, module_index, &types)?;
@@ -403,7 +395,7 @@ impl Store {
     pub fn load_module(
         &mut self,
         name: Option<String>,
-        reader: &mut ModuleReader,
+        reader: &mut [u8],
     ) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
@@ -469,15 +461,14 @@ impl Store {
             .get(type_index)
             .ok_or(StoreError::UnknownType(type_index as u32))?
             .clone();
-        let name = import.field
-        .with_context(|| "expect non-nil field name in function import")?
-        .to_string();
+        let name = import
+            .field
+            .with_context(|| "expect non-nil field name in function import")?
+            .to_string();
         let module = self.module_by_name(import.module.to_string());
-        let err = || {
-            StoreError::UndefinedFunction {
-                module: import.module.clone().to_string(),
-                field: import.field.map(String::from),
-            }
+        let err = || StoreError::UndefinedFunction {
+            module: import.module.clone().to_string(),
+            field: import.field.map(String::from),
         };
         let exec_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -511,15 +502,14 @@ impl Store {
         import: Import,
         memory_ty: MemoryType,
     ) -> Result<()> {
-        let err = || {
-            StoreError::UndefinedMemory {
-                module: import.module.clone().to_string(),
-                field: import.field.map(String::from),
-            }
+        let err = || StoreError::UndefinedMemory {
+            module: import.module.clone().to_string(),
+            field: import.field.map(String::from),
         };
-        let name = import.field
-        .with_context(|| "expect non-nil field name in memory import")?
-        .to_string();
+        let name = import
+            .field
+            .with_context(|| "expect non-nil field name in memory import")?
+            .to_string();
         let module = self.module_by_name(import.module.to_string());
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -562,15 +552,14 @@ impl Store {
         import: Import,
         table_ty: TableType,
     ) -> Result<()> {
-        let name = import.field
-        .with_context(|| "expect non-nil field name in table import")?
-        .to_string();
+        let name = import
+            .field
+            .with_context(|| "expect non-nil field name in table import")?
+            .to_string();
         let module = self.module_by_name(import.module.to_string());
-        let err = || {
-            StoreError::UndefinedTable {
-                module: import.module.clone().to_string(),
-                field: import.field.map(String::from),
-            }
+        let err = || StoreError::UndefinedTable {
+            module: import.module.clone().to_string(),
+            field: import.field.map(String::from),
         };
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
