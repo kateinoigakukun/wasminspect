@@ -9,7 +9,7 @@ pub struct Instruction {
 
 #[derive(Debug, Clone)]
 pub struct BrTableData {
-    pub table: Box<[u32]>,
+    pub table: Vec<u32>,
     pub default: u32,
 }
 
@@ -227,9 +227,9 @@ pub enum InstructionKind {
 
     // 0xFE operators
     // https://github.com/WebAssembly/threads/blob/master/proposals/threads/Overview.md
-    AtomicNotify { memarg: MemoryImmediate },
-    I32AtomicWait { memarg: MemoryImmediate },
-    I64AtomicWait { memarg: MemoryImmediate },
+    MemoryAtomicNotify { memarg: MemoryImmediate },
+    MemoryAtomicWait32 { memarg: MemoryImmediate },
+    MemoryAtomicWait64 { memarg: MemoryImmediate },
     AtomicFence { flags: u8 },
     I32AtomicLoad { memarg: MemoryImmediate },
     I64AtomicLoad { memarg: MemoryImmediate },
@@ -492,10 +492,19 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
         Br { relative_depth } => InstructionKind::Br { relative_depth },
         BrIf { relative_depth } => InstructionKind::BrIf { relative_depth },
         BrTable { table } => {
-            let br_table_depths = table.read_table().unwrap();
+            let mut ids = vec![];
+            let mut default = None;
+            for target in table.targets() {
+                let target = target?;
+                if target.1 {
+                    default = Some(target.0);
+                } else {
+                    ids.push(target.0);
+                }
+            }
             let payload = BrTableData {
-                table: br_table_depths.0,
-                default: br_table_depths.1,
+                table: ids,
+                default: default.unwrap(),
             };
             InstructionKind::BrTable { table: payload }
         }
@@ -715,9 +724,9 @@ pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Resul
 
         // 0xFE operators
         // https://github.com/WebAssembly/threads/blob/master/proposals/threads/Overview.md
-        AtomicNotify { memarg } => InstructionKind::AtomicNotify { memarg },
-        I32AtomicWait { memarg } => InstructionKind::I32AtomicWait { memarg },
-        I64AtomicWait { memarg } => InstructionKind::I64AtomicWait { memarg },
+        MemoryAtomicNotify { memarg } => InstructionKind::MemoryAtomicNotify { memarg },
+        MemoryAtomicWait32 { memarg } => InstructionKind::MemoryAtomicWait32 { memarg },
+        MemoryAtomicWait64 { memarg } => InstructionKind::MemoryAtomicWait64 { memarg },
         AtomicFence { flags } => InstructionKind::AtomicFence { flags },
         I32AtomicLoad { memarg } => InstructionKind::I32AtomicLoad { memarg },
         I64AtomicLoad { memarg } => InstructionKind::I64AtomicLoad { memarg },
