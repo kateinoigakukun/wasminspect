@@ -772,10 +772,8 @@ impl Store {
                 MemoryType::M32 { limits, .. } => limits.maximum.map(u64::from),
                 MemoryType::M64 { limits } => limits.maximum,
             };
-            let instance = MemoryInstance::new(
-                limit_initial as usize,
-                limit_max.map(|mx| mx as usize),
-            );
+            let instance =
+                MemoryInstance::new(limit_initial as usize, limit_max.map(|mx| mx as usize));
             let addr = self
                 .mems
                 .push(module_index, Rc::new(RefCell::new(instance)));
