@@ -6,7 +6,7 @@ use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{simple_invoke_func, FuncAddr, ModuleIndex, WasmInstance, WasmValue};
-use wasmparser::validate;
+
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,

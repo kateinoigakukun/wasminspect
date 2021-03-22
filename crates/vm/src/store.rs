@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, NameSectionReader, Parser, SectionCode, TableType, Type, TypeDef,
+    Import, MemoryType, NameSectionReader, TableType, Type, TypeDef,
 };
 
 /// Store
@@ -276,7 +276,7 @@ impl Store {
 
         let mut code_section_base_offset = None;
 
-        let mut parser = wasmparser::Parser::new(0);
+        let parser = wasmparser::Parser::new(0);
 
         for payload in parser.parse_all(reader) {
             use wasmparser::Payload;
@@ -356,9 +356,7 @@ impl Store {
                     }
                     _ => (),
                 },
-                Payload::ModuleCodeSectionEntry {
-                    parser: subparser, ..
-                } => {
+                Payload::ModuleCodeSectionEntry { .. } => {
                     panic!("nested module is not supported yet");
                 }
                 Payload::End => {
