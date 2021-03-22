@@ -386,12 +386,12 @@ impl Executor {
                 self.store_with_width::<i64, _>(memarg.offset as usize, 4, store, interceptor)
             }
 
-            InstructionKind::MemorySize { reserved: _ } => {
+            InstructionKind::MemorySize { .. } => {
                 self.stack
                     .push_value(Value::I32(self.memory(store)?.borrow().page_count() as i32));
                 Ok(Signal::Next)
             }
-            InstructionKind::MemoryGrow { reserved: _ } => {
+            InstructionKind::MemoryGrow { .. } => {
                 let grow_page: i32 = self.pop_as()?;
                 let mem = self.memory(store)?;
                 let size = mem.borrow().page_count();
