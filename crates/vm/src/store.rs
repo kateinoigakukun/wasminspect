@@ -442,6 +442,9 @@ impl Store {
                 Module(_) | Instance(_) => {
                     panic!("module type is not supported yet");
                 }
+                Event(_) => {
+                    panic!("event type is not supported yet");
+                }
             }
         }
         Ok(())
