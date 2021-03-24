@@ -1,10 +1,126 @@
+use std::convert::TryFrom;
 use wasmparser::*;
-pub type SIMDLaneIndex = u8;
-
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub kind: InstructionKind,
     pub offset: usize,
+}
+
+macro_rules! translate_match {
+    // VariantName
+    (
+        $val:ident,
+        @variants [
+            $($variants:tt)*
+        ]
+        @parsing
+            $VariantName:ident
+            $(, $($input:tt)*)?
+    ) => (translate_match! {
+        $val,
+        @variants [
+            $($variants)*
+            {
+                $VariantName
+            }
+        ]
+        @parsing
+            $( $($input)* )?
+    });
+
+    // VariantName(...)
+    (
+        $val:ident,
+        @variants [
+            $($variants:tt)*
+        ]
+        @parsing
+            $VariantName:ident ( $($tt:tt)* )
+            $(, $($input:tt)*)?
+    ) => (translate_match! {
+        $val,
+        @variants [
+            $($variants)*
+            {
+                $VariantName ($($tt)*)
+            }
+        ]
+        @parsing
+            $( $($input)* )?
+    });
+
+    // VariantName { ... }
+    (
+        $val:ident,
+        @variants [
+            $($variants:tt)*
+        ]
+        @parsing
+            $VariantName:ident { $($tt:tt)* }
+            $(, $($input:tt)*)?
+    ) => (translate_match! {
+        $val,
+        @variants [
+            $($variants)*
+            {
+                $VariantName { $($tt)* }
+            }
+        ]
+        @parsing
+            $( $($input)* )?
+    });
+
+    // Done parsing, time to generate code:
+    (
+        $val:ident,
+        @variants [
+            $(
+                {
+                    $VariantName:ident $({ $($k:ident : $v:ident),* $(,)* })?
+                }
+            )*
+        ]
+        @parsing
+            // Nothing left to parse
+    ) => (
+        match $val {
+            $(wasmparser::Operator::$VariantName $(
+                {$($k),*}
+            )? => { InstructionKind::$VariantName $(
+                {$($k:WasmInstPayloadFrom::from_payload($k)?),*}
+            )? }),*
+        }
+    );
+
+    // == ENTRY POINT ==
+    (
+        $val:ident,
+        $($input:tt)*
+    ) => (translate_match! {
+        $val,
+        // a sequence of brace-enclosed variants
+        @variants []
+        // remaining tokens to parse
+        @parsing
+            $($input)*
+    });
+}
+
+macro_rules! build_wasm_inst_kind {
+
+    ($($body:tt)*) => (
+        #[derive(Debug, Clone)]
+        pub enum InstructionKind {
+            $($body)*
+        }
+
+        impl TryFrom<wasmparser::Operator<'_>> for InstructionKind {
+            type Error = wasmparser::BinaryReaderError;
+            fn try_from(op: wasmparser::Operator<'_>) -> Result<Self, Self::Error> {
+                Ok(translate_match!(op, $($body)*))
+            }
+        }
+    );
 }
 
 #[derive(Debug, Clone)]
@@ -13,29 +129,54 @@ pub struct BrTableData {
     pub default: u32,
 }
 
-#[derive(Debug, Clone)]
-pub enum InstructionKind {
+trait WasmInstPayloadFrom<T>: Sized {
+    type Error;
+    fn from_payload(_: T) -> Result<Self, Self::Error>;
+}
+
+impl<T, U> WasmInstPayloadFrom<T> for U
+where
+    U: From<T>,
+{
+    type Error = wasmparser::BinaryReaderError;
+    fn from_payload(from: T) -> Result<U, Self::Error> {
+        Ok(From::<T>::from(from))
+    }
+}
+
+impl WasmInstPayloadFrom<BrTable<'_>> for BrTableData {
+    type Error = wasmparser::BinaryReaderError;
+    fn from_payload(table: BrTable) -> Result<Self, Self::Error> {
+        let mut ids = vec![];
+        let mut default = None;
+        for target in table.targets() {
+            let target = target?;
+            if target.1 {
+                default = Some(target.0);
+            } else {
+                ids.push(target.0);
+            }
+        }
+        Ok(BrTableData {
+            table: ids,
+            default: default.unwrap(),
+        })
+    }
+}
+
+type I8x16ShuffleLanes = Vec<u8>;
+pub type SIMDLaneIndex = u8;
+
+build_wasm_inst_kind!(
     Unreachable,
     Nop,
-    Block {
-        ty: TypeOrFuncType,
-    },
-    Loop {
-        ty: TypeOrFuncType,
-    },
-    If {
-        ty: TypeOrFuncType,
-    },
+    Block { ty: TypeOrFuncType },
+    Loop { ty: TypeOrFuncType },
+    If { ty: TypeOrFuncType },
     Else,
-    Try {
-        ty: TypeOrFuncType,
-    },
-    Catch {
-        index: u32,
-    },
-    Throw {
-        index: u32,
-    },
+    Try { ty: TypeOrFuncType },
+    Catch { index: u32 },
+    Throw { index: u32 },
     Rethrow {
         relative_depth: u32,
     },
@@ -47,9 +188,7 @@ pub enum InstructionKind {
     BrIf {
         relative_depth: u32,
     },
-    BrTable {
-        table: BrTableData,
-    },
+    BrTable { table: BrTableData },
     Return,
     Call {
         function_index: u32,
@@ -71,24 +210,12 @@ pub enum InstructionKind {
     CatchAll,
     Drop,
     Select,
-    TypedSelect {
-        ty: Type,
-    },
-    LocalGet {
-        local_index: u32,
-    },
-    LocalSet {
-        local_index: u32,
-    },
-    LocalTee {
-        local_index: u32,
-    },
-    GlobalGet {
-        global_index: u32,
-    },
-    GlobalSet {
-        global_index: u32,
-    },
+    TypedSelect { ty: Type },
+    LocalGet { local_index: u32 },
+    LocalSet { local_index: u32 },
+    LocalTee { local_index: u32 },
+    GlobalGet { global_index: u32 },
+    GlobalSet { global_index: u32 },
     I32Load {
         memarg: MemoryImmediate,
     },
@@ -166,21 +293,11 @@ pub enum InstructionKind {
         mem: u32,
         mem_byte: u8,
     },
-    I32Const {
-        value: i32,
-    },
-    I64Const {
-        value: i64,
-    },
-    F32Const {
-        value: Ieee32,
-    },
-    F64Const {
-        value: Ieee64,
-    },
-    RefNull {
-        ty: Type,
-    },
+    I32Const { value: i32 },
+    I64Const { value: i64 },
+    F32Const { value: Ieee32 },
+    F64Const { value: Ieee64 },
+    RefNull { ty: Type },
     RefIsNull,
     RefFunc {
         function_index: u32,
@@ -313,7 +430,6 @@ pub enum InstructionKind {
     I64Extend8S,
     I64Extend16S,
     I64Extend32S,
-
     // 0xFC operators
     // Non-trapping Float-to-int Conversions
     I32TruncSatF32S,
@@ -324,50 +440,29 @@ pub enum InstructionKind {
     I64TruncSatF32U,
     I64TruncSatF64S,
     I64TruncSatF64U,
-
     // 0xFC operators
     // bulk memory https://github.com/WebAssembly/bulk-memory-operations/blob/master/proposals/bulk-memory-operations/Overview.md
     MemoryInit {
         segment: u32,
         mem: u32,
     },
-    DataDrop {
-        segment: u32,
-    },
-    MemoryCopy {
-        src: u32,
-        dst: u32,
-    },
-    MemoryFill {
-        mem: u32,
-    },
+    DataDrop { segment: u32 },
+    MemoryCopy { src: u32, dst: u32 },
+    MemoryFill { mem: u32 },
     TableInit {
         segment: u32,
         table: u32,
     },
-    ElemDrop {
-        segment: u32,
-    },
+    ElemDrop { segment: u32 },
     TableCopy {
         dst_table: u32,
         src_table: u32,
     },
-    TableFill {
-        table: u32,
-    },
-    TableGet {
-        table: u32,
-    },
-    TableSet {
-        table: u32,
-    },
-    TableGrow {
-        table: u32,
-    },
-    TableSize {
-        table: u32,
-    },
-
+    TableFill { table: u32 },
+    TableGet { table: u32 },
+    TableSet { table: u32 },
+    TableGrow { table: u32 },
+    TableSize { table: u32 },
     // 0xFE operators
     // https://github.com/WebAssembly/threads/blob/master/proposals/threads/Overview.md
     MemoryAtomicNotify {
@@ -379,9 +474,7 @@ pub enum InstructionKind {
     MemoryAtomicWait64 {
         memarg: MemoryImmediate,
     },
-    AtomicFence {
-        flags: u8,
-    },
+    AtomicFence { flags: u8 },
     I32AtomicLoad {
         memarg: MemoryImmediate,
     },
@@ -571,7 +664,6 @@ pub enum InstructionKind {
     I64AtomicRmw32CmpxchgU {
         memarg: MemoryImmediate,
     },
-
     // 0xFD operators
     // SIMD https://github.com/WebAssembly/simd/blob/master/proposals/simd/BinarySIMD.md
     V128Load {
@@ -580,9 +672,7 @@ pub enum InstructionKind {
     V128Store {
         memarg: MemoryImmediate,
     },
-    V128Const {
-        value: V128,
-    },
+    V128Const { value: V128 },
     I8x16Splat,
     I8x16ExtractLaneS {
         lane: SIMDLaneIndex,
@@ -782,7 +872,7 @@ pub enum InstructionKind {
     F32x4ConvertI32x4U,
     I8x16Swizzle,
     I8x16Shuffle {
-        lanes: [SIMDLaneIndex; 16],
+        lanes: I8x16ShuffleLanes,
     },
     V128Load8Splat {
         memarg: MemoryImmediate,
@@ -893,570 +983,15 @@ pub enum InstructionKind {
     F64x2ConvertLowI32x4U,
     I32x4TruncSatF64x2SZero,
     I32x4TruncSatF64x2UZero,
-    I8x16Popcnt,
-}
+    I8x16Popcnt
+);
 
-use anyhow::Result;
-pub fn transform_inst(reader: &mut OperatorsReader, base_offset: usize) -> Result<Instruction> {
-    use wasmparser::Operator::*;
+pub fn transform_inst(
+    reader: &mut OperatorsReader,
+    base_offset: usize,
+) -> anyhow::Result<Instruction> {
     let (op, offset) = reader.read_with_offset()?;
-    let kind = match op {
-        Unreachable => InstructionKind::Unreachable,
-        Nop => InstructionKind::Nop,
-        Block { ty } => InstructionKind::Block { ty },
-        Loop { ty } => InstructionKind::Loop { ty },
-        If { ty } => InstructionKind::If { ty },
-        Else => InstructionKind::Else,
-        Try { ty } => InstructionKind::Try { ty },
-        Catch { index } => InstructionKind::Catch { index },
-        Throw { index } => InstructionKind::Throw { index },
-        Rethrow { relative_depth } => InstructionKind::Rethrow { relative_depth },
-        Unwind => InstructionKind::Unwind,
-        End => InstructionKind::End,
-        Br { relative_depth } => InstructionKind::Br { relative_depth },
-        BrIf { relative_depth } => InstructionKind::BrIf { relative_depth },
-        BrTable { table } => {
-            let mut ids = vec![];
-            let mut default = None;
-            for target in table.targets() {
-                let target = target?;
-                if target.1 {
-                    default = Some(target.0);
-                } else {
-                    ids.push(target.0);
-                }
-            }
-            let payload = BrTableData {
-                table: ids,
-                default: default.unwrap(),
-            };
-            InstructionKind::BrTable { table: payload }
-        }
-        Return => InstructionKind::Return,
-        Call { function_index } => InstructionKind::Call { function_index },
-        CallIndirect { index, table_index } => InstructionKind::CallIndirect { index, table_index },
-        ReturnCall { function_index } => InstructionKind::ReturnCall { function_index },
-        ReturnCallIndirect { index, table_index } => {
-            InstructionKind::ReturnCallIndirect { index, table_index }
-        }
-        Delegate { relative_depth } => InstructionKind::Delegate { relative_depth },
-        CatchAll => InstructionKind::CatchAll,
-        Drop => InstructionKind::Drop,
-        Select => InstructionKind::Select,
-        TypedSelect { ty } => InstructionKind::TypedSelect { ty },
-        LocalGet { local_index } => InstructionKind::LocalGet { local_index },
-        LocalSet { local_index } => InstructionKind::LocalSet { local_index },
-        LocalTee { local_index } => InstructionKind::LocalTee { local_index },
-        GlobalGet { global_index } => InstructionKind::GlobalGet { global_index },
-        GlobalSet { global_index } => InstructionKind::GlobalSet { global_index },
-        I32Load { memarg } => InstructionKind::I32Load { memarg },
-        I64Load { memarg } => InstructionKind::I64Load { memarg },
-        F32Load { memarg } => InstructionKind::F32Load { memarg },
-        F64Load { memarg } => InstructionKind::F64Load { memarg },
-        I32Load8S { memarg } => InstructionKind::I32Load8S { memarg },
-        I32Load8U { memarg } => InstructionKind::I32Load8U { memarg },
-        I32Load16S { memarg } => InstructionKind::I32Load16S { memarg },
-        I32Load16U { memarg } => InstructionKind::I32Load16U { memarg },
-        I64Load8S { memarg } => InstructionKind::I64Load8S { memarg },
-        I64Load8U { memarg } => InstructionKind::I64Load8U { memarg },
-        I64Load16S { memarg } => InstructionKind::I64Load16S { memarg },
-        I64Load16U { memarg } => InstructionKind::I64Load16U { memarg },
-        I64Load32S { memarg } => InstructionKind::I64Load32S { memarg },
-        I64Load32U { memarg } => InstructionKind::I64Load32U { memarg },
-        I32Store { memarg } => InstructionKind::I32Store { memarg },
-        I64Store { memarg } => InstructionKind::I64Store { memarg },
-        F32Store { memarg } => InstructionKind::F32Store { memarg },
-        F64Store { memarg } => InstructionKind::F64Store { memarg },
-        I32Store8 { memarg } => InstructionKind::I32Store8 { memarg },
-        I32Store16 { memarg } => InstructionKind::I32Store16 { memarg },
-        I64Store8 { memarg } => InstructionKind::I64Store8 { memarg },
-        I64Store16 { memarg } => InstructionKind::I64Store16 { memarg },
-        I64Store32 { memarg } => InstructionKind::I64Store32 { memarg },
-        MemorySize { mem, mem_byte } => InstructionKind::MemorySize { mem, mem_byte },
-        MemoryGrow { mem, mem_byte } => InstructionKind::MemoryGrow { mem, mem_byte },
-        I32Const { value } => InstructionKind::I32Const { value },
-        I64Const { value } => InstructionKind::I64Const { value },
-        F32Const { value } => InstructionKind::F32Const { value },
-        F64Const { value } => InstructionKind::F64Const { value },
-        RefNull { ty } => InstructionKind::RefNull { ty },
-        RefIsNull => InstructionKind::RefIsNull,
-        RefFunc { function_index } => InstructionKind::RefFunc { function_index },
-        I32Eqz => InstructionKind::I32Eqz,
-        I32Eq => InstructionKind::I32Eq,
-        I32Ne => InstructionKind::I32Ne,
-        I32LtS => InstructionKind::I32LtS,
-        I32LtU => InstructionKind::I32LtU,
-        I32GtS => InstructionKind::I32GtS,
-        I32GtU => InstructionKind::I32GtU,
-        I32LeS => InstructionKind::I32LeS,
-        I32LeU => InstructionKind::I32LeU,
-        I32GeS => InstructionKind::I32GeS,
-        I32GeU => InstructionKind::I32GeU,
-        I64Eqz => InstructionKind::I64Eqz,
-        I64Eq => InstructionKind::I64Eq,
-        I64Ne => InstructionKind::I64Ne,
-        I64LtS => InstructionKind::I64LtS,
-        I64LtU => InstructionKind::I64LtU,
-        I64GtS => InstructionKind::I64GtS,
-        I64GtU => InstructionKind::I64GtU,
-        I64LeS => InstructionKind::I64LeS,
-        I64LeU => InstructionKind::I64LeU,
-        I64GeS => InstructionKind::I64GeS,
-        I64GeU => InstructionKind::I64GeU,
-        F32Eq => InstructionKind::F32Eq,
-        F32Ne => InstructionKind::F32Ne,
-        F32Lt => InstructionKind::F32Lt,
-        F32Gt => InstructionKind::F32Gt,
-        F32Le => InstructionKind::F32Le,
-        F32Ge => InstructionKind::F32Ge,
-        F64Eq => InstructionKind::F64Eq,
-        F64Ne => InstructionKind::F64Ne,
-        F64Lt => InstructionKind::F64Lt,
-        F64Gt => InstructionKind::F64Gt,
-        F64Le => InstructionKind::F64Le,
-        F64Ge => InstructionKind::F64Ge,
-        I32Clz => InstructionKind::I32Clz,
-        I32Ctz => InstructionKind::I32Ctz,
-        I32Popcnt => InstructionKind::I32Popcnt,
-        I32Add => InstructionKind::I32Add,
-        I32Sub => InstructionKind::I32Sub,
-        I32Mul => InstructionKind::I32Mul,
-        I32DivS => InstructionKind::I32DivS,
-        I32DivU => InstructionKind::I32DivU,
-        I32RemS => InstructionKind::I32RemS,
-        I32RemU => InstructionKind::I32RemU,
-        I32And => InstructionKind::I32And,
-        I32Or => InstructionKind::I32Or,
-        I32Xor => InstructionKind::I32Xor,
-        I32Shl => InstructionKind::I32Shl,
-        I32ShrS => InstructionKind::I32ShrS,
-        I32ShrU => InstructionKind::I32ShrU,
-        I32Rotl => InstructionKind::I32Rotl,
-        I32Rotr => InstructionKind::I32Rotr,
-        I64Clz => InstructionKind::I64Clz,
-        I64Ctz => InstructionKind::I64Ctz,
-        I64Popcnt => InstructionKind::I64Popcnt,
-        I64Add => InstructionKind::I64Add,
-        I64Sub => InstructionKind::I64Sub,
-        I64Mul => InstructionKind::I64Mul,
-        I64DivS => InstructionKind::I64DivS,
-        I64DivU => InstructionKind::I64DivU,
-        I64RemS => InstructionKind::I64RemS,
-        I64RemU => InstructionKind::I64RemU,
-        I64And => InstructionKind::I64And,
-        I64Or => InstructionKind::I64Or,
-        I64Xor => InstructionKind::I64Xor,
-        I64Shl => InstructionKind::I64Shl,
-        I64ShrS => InstructionKind::I64ShrS,
-        I64ShrU => InstructionKind::I64ShrU,
-        I64Rotl => InstructionKind::I64Rotl,
-        I64Rotr => InstructionKind::I64Rotr,
-        F32Abs => InstructionKind::F32Abs,
-        F32Neg => InstructionKind::F32Neg,
-        F32Ceil => InstructionKind::F32Ceil,
-        F32Floor => InstructionKind::F32Floor,
-        F32Trunc => InstructionKind::F32Trunc,
-        F32Nearest => InstructionKind::F32Nearest,
-        F32Sqrt => InstructionKind::F32Sqrt,
-        F32Add => InstructionKind::F32Add,
-        F32Sub => InstructionKind::F32Sub,
-        F32Mul => InstructionKind::F32Mul,
-        F32Div => InstructionKind::F32Div,
-        F32Min => InstructionKind::F32Min,
-        F32Max => InstructionKind::F32Max,
-        F32Copysign => InstructionKind::F32Copysign,
-        F64Abs => InstructionKind::F64Abs,
-        F64Neg => InstructionKind::F64Neg,
-        F64Ceil => InstructionKind::F64Ceil,
-        F64Floor => InstructionKind::F64Floor,
-        F64Trunc => InstructionKind::F64Trunc,
-        F64Nearest => InstructionKind::F64Nearest,
-        F64Sqrt => InstructionKind::F64Sqrt,
-        F64Add => InstructionKind::F64Add,
-        F64Sub => InstructionKind::F64Sub,
-        F64Mul => InstructionKind::F64Mul,
-        F64Div => InstructionKind::F64Div,
-        F64Min => InstructionKind::F64Min,
-        F64Max => InstructionKind::F64Max,
-        F64Copysign => InstructionKind::F64Copysign,
-        I32WrapI64 => InstructionKind::I32WrapI64,
-        I32TruncF32S => InstructionKind::I32TruncF32S,
-        I32TruncF32U => InstructionKind::I32TruncF32U,
-        I32TruncF64S => InstructionKind::I32TruncF64S,
-        I32TruncF64U => InstructionKind::I32TruncF64U,
-        I64ExtendI32S => InstructionKind::I64ExtendI32S,
-        I64ExtendI32U => InstructionKind::I64ExtendI32U,
-        I64TruncF32S => InstructionKind::I64TruncF32S,
-        I64TruncF32U => InstructionKind::I64TruncF32U,
-        I64TruncF64S => InstructionKind::I64TruncF64S,
-        I64TruncF64U => InstructionKind::I64TruncF64U,
-        F32ConvertI32S => InstructionKind::F32ConvertI32S,
-        F32ConvertI32U => InstructionKind::F32ConvertI32U,
-        F32ConvertI64S => InstructionKind::F32ConvertI64S,
-        F32ConvertI64U => InstructionKind::F32ConvertI64U,
-        F32DemoteF64 => InstructionKind::F32DemoteF64,
-        F64ConvertI32S => InstructionKind::F64ConvertI32S,
-        F64ConvertI32U => InstructionKind::F64ConvertI32U,
-        F64ConvertI64S => InstructionKind::F64ConvertI64S,
-        F64ConvertI64U => InstructionKind::F64ConvertI64U,
-        F64PromoteF32 => InstructionKind::F64PromoteF32,
-        I32ReinterpretF32 => InstructionKind::I32ReinterpretF32,
-        I64ReinterpretF64 => InstructionKind::I64ReinterpretF64,
-        F32ReinterpretI32 => InstructionKind::F32ReinterpretI32,
-        F64ReinterpretI64 => InstructionKind::F64ReinterpretI64,
-        I32Extend8S => InstructionKind::I32Extend8S,
-        I32Extend16S => InstructionKind::I32Extend16S,
-        I64Extend8S => InstructionKind::I64Extend8S,
-        I64Extend16S => InstructionKind::I64Extend16S,
-        I64Extend32S => InstructionKind::I64Extend32S,
-
-        // 0xFC operators
-        // Non-trapping Float-to-int Conversions
-        I32TruncSatF32S => InstructionKind::I32TruncSatF32S,
-        I32TruncSatF32U => InstructionKind::I32TruncSatF32U,
-        I32TruncSatF64S => InstructionKind::I32TruncSatF64S,
-        I32TruncSatF64U => InstructionKind::I32TruncSatF64U,
-        I64TruncSatF32S => InstructionKind::I64TruncSatF32S,
-        I64TruncSatF32U => InstructionKind::I64TruncSatF32U,
-        I64TruncSatF64S => InstructionKind::I64TruncSatF64S,
-        I64TruncSatF64U => InstructionKind::I64TruncSatF64U,
-
-        // 0xFC operators
-        // bulk memory https://github.com/WebAssembly/bulk-memory-operations/blob/master/proposals/bulk-memory-operations/Overview.md
-        MemoryInit { segment, mem } => InstructionKind::MemoryInit { segment, mem },
-        DataDrop { segment } => InstructionKind::DataDrop { segment },
-        MemoryCopy { src, dst } => InstructionKind::MemoryCopy { src, dst },
-        MemoryFill { mem } => InstructionKind::MemoryFill { mem },
-        TableInit {
-            segment,
-            table: u32,
-        } => InstructionKind::TableInit {
-            segment,
-            table: u32,
-        },
-        ElemDrop { segment } => InstructionKind::ElemDrop { segment },
-        TableCopy {
-            dst_table,
-            src_table: u32,
-        } => InstructionKind::TableCopy {
-            dst_table,
-            src_table: u32,
-        },
-        TableFill { table } => InstructionKind::TableFill { table },
-        TableGet { table } => InstructionKind::TableGet { table },
-        TableSet { table } => InstructionKind::TableSet { table },
-        TableGrow { table } => InstructionKind::TableGrow { table },
-        TableSize { table } => InstructionKind::TableSize { table },
-
-        // 0xFE operators
-        // https://github.com/WebAssembly/threads/blob/master/proposals/threads/Overview.md
-        MemoryAtomicNotify { memarg } => InstructionKind::MemoryAtomicNotify { memarg },
-        MemoryAtomicWait32 { memarg } => InstructionKind::MemoryAtomicWait32 { memarg },
-        MemoryAtomicWait64 { memarg } => InstructionKind::MemoryAtomicWait64 { memarg },
-        AtomicFence { flags } => InstructionKind::AtomicFence { flags },
-        I32AtomicLoad { memarg } => InstructionKind::I32AtomicLoad { memarg },
-        I64AtomicLoad { memarg } => InstructionKind::I64AtomicLoad { memarg },
-        I32AtomicLoad8U { memarg } => InstructionKind::I32AtomicLoad8U { memarg },
-        I32AtomicLoad16U { memarg } => InstructionKind::I32AtomicLoad16U { memarg },
-        I64AtomicLoad8U { memarg } => InstructionKind::I64AtomicLoad8U { memarg },
-        I64AtomicLoad16U { memarg } => InstructionKind::I64AtomicLoad16U { memarg },
-        I64AtomicLoad32U { memarg } => InstructionKind::I64AtomicLoad32U { memarg },
-        I32AtomicStore { memarg } => InstructionKind::I32AtomicStore { memarg },
-        I64AtomicStore { memarg } => InstructionKind::I64AtomicStore { memarg },
-        I32AtomicStore8 { memarg } => InstructionKind::I32AtomicStore8 { memarg },
-        I32AtomicStore16 { memarg } => InstructionKind::I32AtomicStore16 { memarg },
-        I64AtomicStore8 { memarg } => InstructionKind::I64AtomicStore8 { memarg },
-        I64AtomicStore16 { memarg } => InstructionKind::I64AtomicStore16 { memarg },
-        I64AtomicStore32 { memarg } => InstructionKind::I64AtomicStore32 { memarg },
-        I32AtomicRmwAdd { memarg } => InstructionKind::I32AtomicRmwAdd { memarg },
-        I64AtomicRmwAdd { memarg } => InstructionKind::I64AtomicRmwAdd { memarg },
-        I32AtomicRmw8AddU { memarg } => InstructionKind::I32AtomicRmw8AddU { memarg },
-        I32AtomicRmw16AddU { memarg } => InstructionKind::I32AtomicRmw16AddU { memarg },
-        I64AtomicRmw8AddU { memarg } => InstructionKind::I64AtomicRmw8AddU { memarg },
-        I64AtomicRmw16AddU { memarg } => InstructionKind::I64AtomicRmw16AddU { memarg },
-        I64AtomicRmw32AddU { memarg } => InstructionKind::I64AtomicRmw32AddU { memarg },
-        I32AtomicRmwSub { memarg } => InstructionKind::I32AtomicRmwSub { memarg },
-        I64AtomicRmwSub { memarg } => InstructionKind::I64AtomicRmwSub { memarg },
-        I32AtomicRmw8SubU { memarg } => InstructionKind::I32AtomicRmw8SubU { memarg },
-        I32AtomicRmw16SubU { memarg } => InstructionKind::I32AtomicRmw16SubU { memarg },
-        I64AtomicRmw8SubU { memarg } => InstructionKind::I64AtomicRmw8SubU { memarg },
-        I64AtomicRmw16SubU { memarg } => InstructionKind::I64AtomicRmw16SubU { memarg },
-        I64AtomicRmw32SubU { memarg } => InstructionKind::I64AtomicRmw32SubU { memarg },
-        I32AtomicRmwAnd { memarg } => InstructionKind::I32AtomicRmwAnd { memarg },
-        I64AtomicRmwAnd { memarg } => InstructionKind::I64AtomicRmwAnd { memarg },
-        I32AtomicRmw8AndU { memarg } => InstructionKind::I32AtomicRmw8AndU { memarg },
-        I32AtomicRmw16AndU { memarg } => InstructionKind::I32AtomicRmw16AndU { memarg },
-        I64AtomicRmw8AndU { memarg } => InstructionKind::I64AtomicRmw8AndU { memarg },
-        I64AtomicRmw16AndU { memarg } => InstructionKind::I64AtomicRmw16AndU { memarg },
-        I64AtomicRmw32AndU { memarg } => InstructionKind::I64AtomicRmw32AndU { memarg },
-        I32AtomicRmwOr { memarg } => InstructionKind::I32AtomicRmwOr { memarg },
-        I64AtomicRmwOr { memarg } => InstructionKind::I64AtomicRmwOr { memarg },
-        I32AtomicRmw8OrU { memarg } => InstructionKind::I32AtomicRmw8OrU { memarg },
-        I32AtomicRmw16OrU { memarg } => InstructionKind::I32AtomicRmw16OrU { memarg },
-        I64AtomicRmw8OrU { memarg } => InstructionKind::I64AtomicRmw8OrU { memarg },
-        I64AtomicRmw16OrU { memarg } => InstructionKind::I64AtomicRmw16OrU { memarg },
-        I64AtomicRmw32OrU { memarg } => InstructionKind::I64AtomicRmw32OrU { memarg },
-        I32AtomicRmwXor { memarg } => InstructionKind::I32AtomicRmwXor { memarg },
-        I64AtomicRmwXor { memarg } => InstructionKind::I64AtomicRmwXor { memarg },
-        I32AtomicRmw8XorU { memarg } => InstructionKind::I32AtomicRmw8XorU { memarg },
-        I32AtomicRmw16XorU { memarg } => InstructionKind::I32AtomicRmw16XorU { memarg },
-        I64AtomicRmw8XorU { memarg } => InstructionKind::I64AtomicRmw8XorU { memarg },
-        I64AtomicRmw16XorU { memarg } => InstructionKind::I64AtomicRmw16XorU { memarg },
-        I64AtomicRmw32XorU { memarg } => InstructionKind::I64AtomicRmw32XorU { memarg },
-        I32AtomicRmwXchg { memarg } => InstructionKind::I32AtomicRmwXchg { memarg },
-        I64AtomicRmwXchg { memarg } => InstructionKind::I64AtomicRmwXchg { memarg },
-        I32AtomicRmw8XchgU { memarg } => InstructionKind::I32AtomicRmw8XchgU { memarg },
-        I32AtomicRmw16XchgU { memarg } => InstructionKind::I32AtomicRmw16XchgU { memarg },
-        I64AtomicRmw8XchgU { memarg } => InstructionKind::I64AtomicRmw8XchgU { memarg },
-        I64AtomicRmw16XchgU { memarg } => InstructionKind::I64AtomicRmw16XchgU { memarg },
-        I64AtomicRmw32XchgU { memarg } => InstructionKind::I64AtomicRmw32XchgU { memarg },
-        I32AtomicRmwCmpxchg { memarg } => InstructionKind::I32AtomicRmwCmpxchg { memarg },
-        I64AtomicRmwCmpxchg { memarg } => InstructionKind::I64AtomicRmwCmpxchg { memarg },
-        I32AtomicRmw8CmpxchgU { memarg } => InstructionKind::I32AtomicRmw8CmpxchgU { memarg },
-        I32AtomicRmw16CmpxchgU { memarg } => InstructionKind::I32AtomicRmw16CmpxchgU { memarg },
-        I64AtomicRmw8CmpxchgU { memarg } => InstructionKind::I64AtomicRmw8CmpxchgU { memarg },
-        I64AtomicRmw16CmpxchgU { memarg } => InstructionKind::I64AtomicRmw16CmpxchgU { memarg },
-        I64AtomicRmw32CmpxchgU { memarg } => InstructionKind::I64AtomicRmw32CmpxchgU { memarg },
-
-        // 0xFD operators
-        // SIMD https://github.com/WebAssembly/simd/blob/master/proposals/simd/BinarySIMD.md
-        V128Load { memarg } => InstructionKind::V128Load { memarg },
-        V128Store { memarg } => InstructionKind::V128Store { memarg },
-        V128Const { value } => InstructionKind::V128Const { value },
-        I8x16Splat => InstructionKind::I8x16Splat,
-        I8x16ExtractLaneS { lane } => InstructionKind::I8x16ExtractLaneS { lane },
-        I8x16ExtractLaneU { lane } => InstructionKind::I8x16ExtractLaneU { lane },
-        I8x16ReplaceLane { lane } => InstructionKind::I8x16ReplaceLane { lane },
-        I16x8Splat => InstructionKind::I16x8Splat,
-        I16x8ExtractLaneS { lane } => InstructionKind::I16x8ExtractLaneS { lane },
-        I16x8ExtractLaneU { lane } => InstructionKind::I16x8ExtractLaneU { lane },
-        I16x8ReplaceLane { lane } => InstructionKind::I16x8ReplaceLane { lane },
-        I32x4Splat => InstructionKind::I32x4Splat,
-        I32x4ExtractLane { lane } => InstructionKind::I32x4ExtractLane { lane },
-        I32x4ReplaceLane { lane } => InstructionKind::I32x4ReplaceLane { lane },
-        I64x2Splat => InstructionKind::I64x2Splat,
-        I64x2ExtractLane { lane } => InstructionKind::I64x2ExtractLane { lane },
-        I64x2ReplaceLane { lane } => InstructionKind::I64x2ReplaceLane { lane },
-        F32x4Splat => InstructionKind::F32x4Splat,
-        F32x4ExtractLane { lane } => InstructionKind::F32x4ExtractLane { lane },
-        F32x4ReplaceLane { lane } => InstructionKind::F32x4ReplaceLane { lane },
-        F64x2Splat => InstructionKind::F64x2Splat,
-        F64x2ExtractLane { lane } => InstructionKind::F64x2ExtractLane { lane },
-        F64x2ReplaceLane { lane } => InstructionKind::F64x2ReplaceLane { lane },
-        I8x16Eq => InstructionKind::I8x16Eq,
-        I8x16Ne => InstructionKind::I8x16Ne,
-        I8x16LtS => InstructionKind::I8x16LtS,
-        I8x16LtU => InstructionKind::I8x16LtU,
-        I8x16GtS => InstructionKind::I8x16GtS,
-        I8x16GtU => InstructionKind::I8x16GtU,
-        I8x16LeS => InstructionKind::I8x16LeS,
-        I8x16LeU => InstructionKind::I8x16LeU,
-        I8x16GeS => InstructionKind::I8x16GeS,
-        I8x16GeU => InstructionKind::I8x16GeU,
-        I16x8Eq => InstructionKind::I16x8Eq,
-        I16x8Ne => InstructionKind::I16x8Ne,
-        I16x8LtS => InstructionKind::I16x8LtS,
-        I16x8LtU => InstructionKind::I16x8LtU,
-        I16x8GtS => InstructionKind::I16x8GtS,
-        I16x8GtU => InstructionKind::I16x8GtU,
-        I16x8LeS => InstructionKind::I16x8LeS,
-        I16x8LeU => InstructionKind::I16x8LeU,
-        I16x8GeS => InstructionKind::I16x8GeS,
-        I16x8GeU => InstructionKind::I16x8GeU,
-        I32x4Eq => InstructionKind::I32x4Eq,
-        I32x4Ne => InstructionKind::I32x4Ne,
-        I32x4LtS => InstructionKind::I32x4LtS,
-        I32x4LtU => InstructionKind::I32x4LtU,
-        I32x4GtS => InstructionKind::I32x4GtS,
-        I32x4GtU => InstructionKind::I32x4GtU,
-        I32x4LeS => InstructionKind::I32x4LeS,
-        I32x4LeU => InstructionKind::I32x4LeU,
-        I32x4GeS => InstructionKind::I32x4GeS,
-        I32x4GeU => InstructionKind::I32x4GeU,
-        I64x2Eq => InstructionKind::I64x2Eq,
-        I64x2Ne => InstructionKind::I64x2Ne,
-        I64x2LtS => InstructionKind::I64x2LtS,
-        I64x2GtS => InstructionKind::I64x2GtS,
-        I64x2LeS => InstructionKind::I64x2LeS,
-        I64x2GeS => InstructionKind::I64x2GeS,
-        F32x4Eq => InstructionKind::F32x4Eq,
-        F32x4Ne => InstructionKind::F32x4Ne,
-        F32x4Lt => InstructionKind::F32x4Lt,
-        F32x4Gt => InstructionKind::F32x4Gt,
-        F32x4Le => InstructionKind::F32x4Le,
-        F32x4Ge => InstructionKind::F32x4Ge,
-        F64x2Eq => InstructionKind::F64x2Eq,
-        F64x2Ne => InstructionKind::F64x2Ne,
-        F64x2Lt => InstructionKind::F64x2Lt,
-        F64x2Gt => InstructionKind::F64x2Gt,
-        F64x2Le => InstructionKind::F64x2Le,
-        F64x2Ge => InstructionKind::F64x2Ge,
-        V128Not => InstructionKind::V128Not,
-        V128And => InstructionKind::V128And,
-        V128AndNot => InstructionKind::V128AndNot,
-        V128Or => InstructionKind::V128Or,
-        V128Xor => InstructionKind::V128Xor,
-        V128Bitselect => InstructionKind::V128Bitselect,
-        I8x16Abs => InstructionKind::I8x16Abs,
-        I8x16Neg => InstructionKind::I8x16Neg,
-        V128AnyTrue => InstructionKind::V128AnyTrue,
-        I8x16AllTrue => InstructionKind::I8x16AllTrue,
-        I8x16Bitmask => InstructionKind::I8x16Bitmask,
-        I8x16Shl => InstructionKind::I8x16Shl,
-        I8x16ShrS => InstructionKind::I8x16ShrS,
-        I8x16ShrU => InstructionKind::I8x16ShrU,
-        I8x16Add => InstructionKind::I8x16Add,
-        I8x16AddSatS => InstructionKind::I8x16AddSatS,
-        I8x16AddSatU => InstructionKind::I8x16AddSatU,
-        I8x16Sub => InstructionKind::I8x16Sub,
-        I8x16SubSatS => InstructionKind::I8x16SubSatS,
-        I8x16SubSatU => InstructionKind::I8x16SubSatU,
-        I8x16MinS => InstructionKind::I8x16MinS,
-        I8x16MinU => InstructionKind::I8x16MinU,
-        I8x16MaxS => InstructionKind::I8x16MaxS,
-        I8x16MaxU => InstructionKind::I8x16MaxU,
-        I16x8Abs => InstructionKind::I16x8Abs,
-        I16x8Neg => InstructionKind::I16x8Neg,
-        I16x8AllTrue => InstructionKind::I16x8AllTrue,
-        I16x8Bitmask => InstructionKind::I16x8Bitmask,
-        I16x8Shl => InstructionKind::I16x8Shl,
-        I16x8ShrS => InstructionKind::I16x8ShrS,
-        I16x8ShrU => InstructionKind::I16x8ShrU,
-        I16x8Add => InstructionKind::I16x8Add,
-        I16x8AddSatS => InstructionKind::I16x8AddSatS,
-        I16x8AddSatU => InstructionKind::I16x8AddSatU,
-        I16x8Sub => InstructionKind::I16x8Sub,
-        I16x8SubSatS => InstructionKind::I16x8SubSatS,
-        I16x8SubSatU => InstructionKind::I16x8SubSatU,
-        I16x8Mul => InstructionKind::I16x8Mul,
-        I16x8MinS => InstructionKind::I16x8MinS,
-        I16x8MinU => InstructionKind::I16x8MinU,
-        I16x8MaxS => InstructionKind::I16x8MaxS,
-        I16x8MaxU => InstructionKind::I16x8MaxU,
-        I32x4Abs => InstructionKind::I32x4Abs,
-        I32x4Neg => InstructionKind::I32x4Neg,
-        I32x4AllTrue => InstructionKind::I32x4AllTrue,
-        I32x4Bitmask => InstructionKind::I32x4Bitmask,
-        I32x4Shl => InstructionKind::I32x4Shl,
-        I32x4ShrS => InstructionKind::I32x4ShrS,
-        I32x4ShrU => InstructionKind::I32x4ShrU,
-        I32x4Add => InstructionKind::I32x4Add,
-        I32x4Sub => InstructionKind::I32x4Sub,
-        I32x4Mul => InstructionKind::I32x4Mul,
-        I32x4MinS => InstructionKind::I32x4MinS,
-        I32x4MinU => InstructionKind::I32x4MinU,
-        I32x4MaxS => InstructionKind::I32x4MaxS,
-        I32x4MaxU => InstructionKind::I32x4MaxU,
-        I32x4DotI16x8S => InstructionKind::I32x4DotI16x8S,
-        I64x2Abs => InstructionKind::I64x2Abs,
-        I64x2Neg => InstructionKind::I64x2Neg,
-        I64x2AllTrue => InstructionKind::I64x2AllTrue,
-        I64x2Bitmask => InstructionKind::I64x2Bitmask,
-        I64x2Shl => InstructionKind::I64x2Shl,
-        I64x2ShrS => InstructionKind::I64x2ShrS,
-        I64x2ShrU => InstructionKind::I64x2ShrU,
-        I64x2Add => InstructionKind::I64x2Add,
-        I64x2Sub => InstructionKind::I64x2Sub,
-        I64x2Mul => InstructionKind::I64x2Mul,
-        F32x4Ceil => InstructionKind::F32x4Ceil,
-        F32x4Floor => InstructionKind::F32x4Floor,
-        F32x4Trunc => InstructionKind::F32x4Trunc,
-        F32x4Nearest => InstructionKind::F32x4Nearest,
-        F64x2Ceil => InstructionKind::F64x2Ceil,
-        F64x2Floor => InstructionKind::F64x2Floor,
-        F64x2Trunc => InstructionKind::F64x2Trunc,
-        F64x2Nearest => InstructionKind::F64x2Nearest,
-        F32x4Abs => InstructionKind::F32x4Abs,
-        F32x4Neg => InstructionKind::F32x4Neg,
-        F32x4Sqrt => InstructionKind::F32x4Sqrt,
-        F32x4Add => InstructionKind::F32x4Add,
-        F32x4Sub => InstructionKind::F32x4Sub,
-        F32x4Mul => InstructionKind::F32x4Mul,
-        F32x4Div => InstructionKind::F32x4Div,
-        F32x4Min => InstructionKind::F32x4Min,
-        F32x4Max => InstructionKind::F32x4Max,
-        F32x4PMin => InstructionKind::F32x4PMin,
-        F32x4PMax => InstructionKind::F32x4PMax,
-        F64x2Abs => InstructionKind::F64x2Abs,
-        F64x2Neg => InstructionKind::F64x2Neg,
-        F64x2Sqrt => InstructionKind::F64x2Sqrt,
-        F64x2Add => InstructionKind::F64x2Add,
-        F64x2Sub => InstructionKind::F64x2Sub,
-        F64x2Mul => InstructionKind::F64x2Mul,
-        F64x2Div => InstructionKind::F64x2Div,
-        F64x2Min => InstructionKind::F64x2Min,
-        F64x2Max => InstructionKind::F64x2Max,
-        F64x2PMin => InstructionKind::F64x2PMin,
-        F64x2PMax => InstructionKind::F64x2PMax,
-        I32x4TruncSatF32x4S => InstructionKind::I32x4TruncSatF32x4S,
-        I32x4TruncSatF32x4U => InstructionKind::I32x4TruncSatF32x4U,
-        F32x4ConvertI32x4S => InstructionKind::F32x4ConvertI32x4S,
-        F32x4ConvertI32x4U => InstructionKind::F32x4ConvertI32x4U,
-        I8x16Swizzle => InstructionKind::I8x16Swizzle,
-        I8x16Shuffle { lanes } => InstructionKind::I8x16Shuffle { lanes },
-        V128Load8Splat { memarg } => InstructionKind::V128Load8Splat { memarg },
-        V128Load16Splat { memarg } => InstructionKind::V128Load16Splat { memarg },
-        V128Load32Splat { memarg } => InstructionKind::V128Load32Splat { memarg },
-        V128Load32Zero { memarg } => InstructionKind::V128Load32Zero { memarg },
-        V128Load64Splat { memarg } => InstructionKind::V128Load64Splat { memarg },
-        V128Load64Zero { memarg } => InstructionKind::V128Load64Zero { memarg },
-        I8x16NarrowI16x8S => InstructionKind::I8x16NarrowI16x8S,
-        I8x16NarrowI16x8U => InstructionKind::I8x16NarrowI16x8U,
-        I16x8NarrowI32x4S => InstructionKind::I16x8NarrowI32x4S,
-        I16x8NarrowI32x4U => InstructionKind::I16x8NarrowI32x4U,
-        I16x8ExtendLowI8x16S => InstructionKind::I16x8ExtendLowI8x16S,
-        I16x8ExtendLowI8x16U => InstructionKind::I16x8ExtendLowI8x16U,
-        I16x8ExtendHighI8x16S => InstructionKind::I16x8ExtendHighI8x16S,
-        I16x8ExtendHighI8x16U => InstructionKind::I16x8ExtendHighI8x16U,
-        I32x4ExtendLowI16x8S => InstructionKind::I32x4ExtendLowI16x8S,
-        I32x4ExtendHighI16x8S => InstructionKind::I32x4ExtendHighI16x8S,
-        I32x4ExtendLowI16x8U => InstructionKind::I32x4ExtendLowI16x8U,
-        I32x4ExtendHighI16x8U => InstructionKind::I32x4ExtendHighI16x8U,
-        I64x2ExtendLowI32x4S => InstructionKind::I64x2ExtendLowI32x4S,
-        I64x2ExtendHighI32x4S => InstructionKind::I64x2ExtendHighI32x4S,
-        I64x2ExtendLowI32x4U => InstructionKind::I64x2ExtendLowI32x4U,
-        I64x2ExtendHighI32x4U => InstructionKind::I64x2ExtendHighI32x4U,
-        I16x8ExtMulLowI8x16S => InstructionKind::I16x8ExtMulLowI8x16S,
-        I16x8ExtMulHighI8x16S => InstructionKind::I16x8ExtMulHighI8x16S,
-        I16x8ExtMulLowI8x16U => InstructionKind::I16x8ExtMulLowI8x16U,
-        I16x8ExtMulHighI8x16U => InstructionKind::I16x8ExtMulHighI8x16U,
-        I32x4ExtMulLowI16x8S => InstructionKind::I32x4ExtMulLowI16x8S,
-        I32x4ExtMulHighI16x8S => InstructionKind::I32x4ExtMulHighI16x8S,
-        I32x4ExtMulLowI16x8U => InstructionKind::I32x4ExtMulLowI16x8U,
-        I32x4ExtMulHighI16x8U => InstructionKind::I32x4ExtMulHighI16x8U,
-        I64x2ExtMulLowI32x4S => InstructionKind::I64x2ExtMulLowI32x4S,
-        I64x2ExtMulHighI32x4S => InstructionKind::I64x2ExtMulHighI32x4S,
-        I64x2ExtMulLowI32x4U => InstructionKind::I64x2ExtMulLowI32x4U,
-        I64x2ExtMulHighI32x4U => InstructionKind::I64x2ExtMulHighI32x4U,
-        I16x8ExtAddPairwiseI8x16S => InstructionKind::I16x8ExtAddPairwiseI8x16S,
-        I16x8ExtAddPairwiseI8x16U => InstructionKind::I16x8ExtAddPairwiseI8x16U,
-        I32x4ExtAddPairwiseI16x8S => InstructionKind::I32x4ExtAddPairwiseI16x8S,
-        I32x4ExtAddPairwiseI16x8U => InstructionKind::I32x4ExtAddPairwiseI16x8U,
-        I16x8Q15MulrSatS => InstructionKind::I16x8Q15MulrSatS,
-        V128Load8x8S { memarg } => InstructionKind::V128Load8x8S { memarg },
-        V128Load8x8U { memarg } => InstructionKind::V128Load8x8U { memarg },
-        V128Load16x4S { memarg } => InstructionKind::V128Load16x4S { memarg },
-        V128Load16x4U { memarg } => InstructionKind::V128Load16x4U { memarg },
-        V128Load32x2S { memarg } => InstructionKind::V128Load32x2S { memarg },
-        V128Load32x2U { memarg } => InstructionKind::V128Load32x2U { memarg },
-        V128Load8Lane { memarg, lane } => InstructionKind::V128Load8Lane { memarg, lane },
-        V128Load16Lane { memarg, lane } => InstructionKind::V128Load16Lane { memarg, lane },
-        V128Load32Lane { memarg, lane } => InstructionKind::V128Load32Lane { memarg, lane },
-        V128Load64Lane { memarg, lane } => InstructionKind::V128Load64Lane { memarg, lane },
-        V128Store8Lane { memarg, lane } => InstructionKind::V128Store8Lane { memarg, lane },
-        V128Store16Lane { memarg, lane } => InstructionKind::V128Store16Lane { memarg, lane },
-        V128Store32Lane { memarg, lane } => InstructionKind::V128Store32Lane { memarg, lane },
-        V128Store64Lane { memarg, lane } => InstructionKind::V128Store32Lane { memarg, lane },
-        I8x16RoundingAverageU => InstructionKind::I8x16RoundingAverageU,
-        I16x8RoundingAverageU => InstructionKind::I16x8RoundingAverageU,
-        F32x4DemoteF64x2Zero => InstructionKind::F32x4DemoteF64x2Zero,
-        F64x2PromoteLowF32x4 => InstructionKind::F64x2PromoteLowF32x4,
-        F64x2ConvertLowI32x4S => InstructionKind::F64x2ConvertLowI32x4S,
-        F64x2ConvertLowI32x4U => InstructionKind::F64x2ConvertLowI32x4U,
-        I32x4TruncSatF64x2SZero => InstructionKind::I32x4TruncSatF64x2SZero,
-        I32x4TruncSatF64x2UZero => InstructionKind::I32x4TruncSatF64x2UZero,
-        I8x16Popcnt => InstructionKind::I8x16Popcnt,
-    };
+    let kind = TryFrom::try_from(op)?;
     Ok(Instruction {
         kind,
         offset: offset - base_offset,
