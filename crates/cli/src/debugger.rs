@@ -289,7 +289,7 @@ impl Interceptor for MainDebugger {
         trace!("Execute {:?}", inst);
     }
 
-    fn after_store(&self, addr: usize, bytes: &[u8]) -> Result<Signal, Trap> {
+    fn after_store(&self, _addr: usize, _bytes: &[u8]) -> Result<Signal, Trap> {
         Ok(Signal::Next)
     }
 }
