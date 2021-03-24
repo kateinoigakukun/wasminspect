@@ -27,6 +27,11 @@ pub struct FunctionFrame {
     pub argument_count: usize,
 }
 
+pub trait OutputPrinter {
+    fn println(&self, _: &str);
+    fn eprintln(&self, _: &str);
+}
+
 pub trait Debugger {
     fn get_opts(&self) -> DebuggerOpts;
     fn set_opts(&mut self, opts: DebuggerOpts);

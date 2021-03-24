@@ -42,7 +42,10 @@ impl<D: Debugger> Command<D> for SettingsCommand {
                 "directory.map" => {
                     context.sourcemap.set_directory_map(operand1, operand2);
                 }
-                _ => println!("'{}' is not valid key", key),
+                _ => {
+                    let output = format!("'{}' is not valid key", key);
+                    context.printer.eprintln(&output);
+                },
             },
         }
         Ok(())

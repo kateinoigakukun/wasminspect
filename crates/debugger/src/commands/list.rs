@@ -1,5 +1,5 @@
 use super::command::{Command, CommandContext};
-use super::debugger::Debugger;
+use super::debugger::{Debugger, OutputPrinter};
 use super::sourcemap::{ColumnType, LineInfo, SourceMap};
 use anyhow::{anyhow, Result};
 
@@ -22,7 +22,7 @@ impl<D: Debugger> Command<D> for ListCommand {
 
     fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         let line_info = next_line_info(debugger, &context.sourcemap)?;
-        display_source(line_info)
+        display_source(line_info, context.printer.as_ref())
     }
 }
 
@@ -37,7 +37,7 @@ pub fn next_line_info<D: Debugger>(
     }
 }
 
-pub fn display_source(line_info: LineInfo) -> Result<()> {
+pub fn display_source(line_info: LineInfo, printer: &dyn OutputPrinter) -> Result<()> {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
     let source = BufReader::new(File::open(line_info.filepath)?);
@@ -81,7 +81,7 @@ pub fn display_source(line_info: LineInfo) -> Result<()> {
         } else {
             format!("   {: <4} {}", index, line)
         };
-        println!("{}", out);
+        printer.println(&out);
     }
     Ok(())
 }

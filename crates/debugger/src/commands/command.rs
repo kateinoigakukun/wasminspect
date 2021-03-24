@@ -1,4 +1,4 @@
-use super::debugger::Debugger;
+use super::debugger::{Debugger, OutputPrinter};
 use super::sourcemap::SourceMap;
 use super::subroutine::SubroutineMap;
 use anyhow::Result;
@@ -6,6 +6,7 @@ use anyhow::Result;
 pub struct CommandContext<'a> {
     pub sourcemap: Box<dyn SourceMap>,
     pub subroutine: Box<dyn SubroutineMap + 'a>,
+    pub printer: Box<dyn OutputPrinter>,
 }
 
 pub trait Command<D: Debugger> {

@@ -33,7 +33,7 @@ impl<D: Debugger> Command<D> for MemoryCommand {
     fn description(&self) -> &'static str {
         "Commands for operating on memory."
     }
-    fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Read { address, count } => {
@@ -56,13 +56,17 @@ impl<D: Debugger> Command<D> for MemoryCommand {
                     ));
                 }
                 for (offset, bytes) in memory[begin..end].chunks(chunk_size).enumerate() {
-                    print!("0x{:>08x}: ", begin + offset * chunk_size);
                     let bytes_str = bytes
                         .iter()
                         .map(|b| format!("{:>02x}", b))
                         .collect::<Vec<String>>();
-                    print!("{}", bytes_str.join(" "));
-                    println!(" {}", dump_memory_as_str(bytes));
+                    let output = format!(
+                        "0x{:>08x}: {} {}",
+                        begin + offset * chunk_size,
+                        bytes_str.join(" "),
+                        dump_memory_as_str(bytes)
+                    );
+                    context.printer.println(&output);
                 }
                 Ok(())
             }

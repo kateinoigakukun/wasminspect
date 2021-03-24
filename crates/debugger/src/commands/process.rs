@@ -28,14 +28,14 @@ impl<D: Debugger> Command<D> for ProcessCommand {
         "Commands for interacting with processes."
     }
 
-    fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Continue => match debugger.process()? {
                 Signal::Next => unreachable!(),
                 Signal::End => {}
                 Signal::Breakpoint => {
-                    println!("Hit breakpoint");
+                    context.printer.println("Hit breakpoint");
                 }
             },
         }

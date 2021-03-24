@@ -36,7 +36,8 @@ impl<D: Debugger> Command<D> for FrameCommand {
                 let current_inst = insts[current_index].clone();
                 let variable_names = context.subroutine.variable_name_list(current_inst.offset)?;
                 for variable in variable_names {
-                    println!("{}: {}", variable.name, variable.type_name);
+                    let output = format!("{}: {}", variable.name, variable.type_name);
+                    context.printer.println(&output);
                 }
                 Ok(())
             }

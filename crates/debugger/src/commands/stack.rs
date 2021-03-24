@@ -19,9 +19,10 @@ impl<D: Debugger> Command<D> for StackCommand {
         "Commands for operating stack."
     }
 
-    fn run(&self, debugger: &mut D, _context: &CommandContext, _args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
         for (index, value) in debugger.stack_values().iter().enumerate() {
-            println!("{}: {:?}", index, value)
+            let output = format!("{}: {:?}", index, value);
+            context.printer.println(&output);
         }
         Ok(())
     }

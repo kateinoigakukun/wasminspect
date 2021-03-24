@@ -53,7 +53,8 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
                 .get(idx as usize)
                 .ok_or(anyhow!("failed to get base local"))?,
         };
-        println!("frame_base is {:?}", frame_base);
+        let output = format!("frame_base is {:?}", frame_base);
+        context.printer.println(&output);
         let frame_base_value = match frame_base {
             WasmValue::I32(v) => v as u64,
             WasmValue::I64(v) => v as u64,

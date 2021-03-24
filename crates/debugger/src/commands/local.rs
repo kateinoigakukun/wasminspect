@@ -30,16 +30,18 @@ impl<D: Debugger> Command<D> for LocalCommand {
         "Commands for operating locals."
     }
 
-    fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Read { index: None } => {
                 for (index, value) in debugger.locals().iter().enumerate() {
-                    println!("{: <3}: {:?}", index, value);
+                    let output = format!("{: <3}: {:?}", index, value);
+                    context.printer.println(&output);
                 }
             }
             Opts::Read { index: Some(index) } => {
-                println!("{:?}", debugger.locals()[index]);
+                let output = format!("{:?}", debugger.locals()[index]);
+                context.printer.println(&output);
             }
         }
         Ok(())

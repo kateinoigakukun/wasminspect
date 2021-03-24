@@ -27,12 +27,23 @@ fn try_load_dwarf<'buffer>(
     Ok(())
 }
 
+struct ConsolePrinter {}
+impl commands::debugger::OutputPrinter for ConsolePrinter {
+    fn println(&self, output: &str) {
+        println!("{}", output);
+    }
+    fn eprintln(&self, output: &str) {
+        eprintln!("{}", output);
+    }
+}
+
 pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()> {
     let mut debugger = debugger::MainDebugger::new()?;
     let mut buffer = Vec::new();
     let mut context = commands::command::CommandContext {
         sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new()),
         subroutine: Box::new(commands::subroutine::EmptySubroutineMap::new()),
+        printer: Box::new(ConsolePrinter {}),
     };
 
     if let Some(file) = file {

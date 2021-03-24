@@ -52,8 +52,9 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                 let current_index = if next_index == 0 { 0 } else { next_index - 1 };
                 let current_inst = insts[current_index].clone();
                 let code_offset = current_inst.offset;
-                if let Some(line_info) = context.sourcemap.find_line_info(code_offset) {
-                    println!(
+                let output = if let Some(line_info) = context.sourcemap.find_line_info(code_offset)
+                {
+                    format!(
                         "0x{:x} `{} at {}:{}:{}`",
                         code_offset,
                         frame_name,
@@ -63,14 +64,16 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                             .map(|l| format!("{}", l))
                             .unwrap_or("".to_string()),
                         Into::<u64>::into(line_info.column)
-                    );
+                    )
                 } else {
-                    println!("0x{:x} `{}`", code_offset, frame_name);
-                }
+                    format!("0x{:x} `{}`", code_offset, frame_name)
+                };
+                context.printer.println(&output);
             }
             Opts::Backtrace => {
                 for (index, frame) in debugger.frame().iter().rev().enumerate() {
-                    println!("{}: {}", index, demangle_symbol(frame));
+                    let output = format!("{}: {}", index, demangle_symbol(frame));
+                    context.printer.println(&output);
                 }
             }
             Opts::StepIn | Opts::StepOver => {
@@ -87,12 +90,12 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                         && initial_line_info.line == line_info.line
                 } {}
                 let line_info = next_line_info(debugger, &context.sourcemap)?;
-                display_source(line_info)?;
+                display_source(line_info, context.printer.as_ref())?;
             }
             Opts::StepOut => {
                 debugger.step(StepStyle::StepOut)?;
                 let line_info = next_line_info(debugger, &context.sourcemap)?;
-                display_source(line_info)?;
+                display_source(line_info, context.printer.as_ref())?;
             }
             Opts::StepInstIn | Opts::StepInstOver => {
                 let style = match opts {
@@ -101,7 +104,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                     _ => panic!(),
                 };
                 debugger.step(style)?;
-                display_asm(debugger, Some(4), true)?;
+                display_asm(debugger, context.printer.as_ref(), Some(4), true)?;
             }
         }
         Ok(())

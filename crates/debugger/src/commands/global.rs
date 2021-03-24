@@ -30,7 +30,7 @@ impl<D: Debugger> Command<D> for GlobalCommand {
         "Commands for operating globals."
     }
 
-    fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
         let opts = Opts::from_iter_safe(args)?;
         use wasminspect_vm::*;
         match opts {
@@ -41,7 +41,8 @@ impl<D: Debugger> Command<D> for GlobalCommand {
                     None => return Err(anyhow!("function frame not found")),
                 };
                 let global = store.global(GlobalAddr::new_unsafe(mod_index, index));
-                println!("{:?}", global.borrow().value());
+                let output = format!("{:?}", global.borrow().value());
+                context.printer.println(&output);
                 Ok(())
             }
         }
