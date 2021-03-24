@@ -10,7 +10,7 @@ documentation = "https://github.com/kateinoigakukun/wasminspect/blob/master/docs
 
 [[bin]]
 name = "wasminspect"
-path = "src/main.rs"
+path = "src/bin/wasminspect.rs"
 
 [dependencies]
 wasminspect-debugger = { path = "crates/debugger" }
