@@ -956,13 +956,13 @@ dependencies = [
  "clap",
  "env_logger",
  "structopt",
- "wasminspect-cli",
+ "wasminspect-debugger",
  "wasminspect-vm",
  "wast-spec",
 ]
 
 [[package]]
-name = "wasminspect-cli"
+name = "wasminspect-debugger"
 version = "0.2.0"
 dependencies = [
  "anyhow",
