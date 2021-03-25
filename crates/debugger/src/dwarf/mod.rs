@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use gimli::{
     AttributeValue, CompilationUnitHeader, DebugAbbrev, DebugAddr, DebugInfo, DebugInfoOffset,
     DebugLine, DebugLineStr, DebugLoc, DebugLocLists, DebugRanges, DebugRngLists, DebugStr,
-    DebugStrOffsets, DebugTypes, DebuggingInformationEntry, EndianSlice, EntriesTree, LineRow,
+    DebugStrOffsets, DebugTypes, DebuggingInformationEntry, EndianSlice, LineRow,
     LittleEndian, LocationLists, RangeLists, Unit, UnitOffset,
 };
 use log::trace;
@@ -466,7 +466,7 @@ impl sourcemap::SourceMap for DwarfSourceMap {
 }
 
 use super::commands::subroutine;
-use types::*;
+
 pub struct DwarfSubroutineMap {
     pub subroutines: Vec<Subroutine<usize>>,
     buffer: Vec<u8>,

@@ -1,14 +1,14 @@
 mod rpc;
-use bytes::Buf;
+
 use hyper::{
     service::{make_service_fn, service_fn},
     Method, Request, StatusCode,
 };
-use hyper::{Body, Error, Response, Server};
+use hyper::{Body, Response, Server};
 use tokio;
 use wasminspect_debugger::*;
 
-use rpc::{DebuggerRequest, DebuggerResponse};
+
 use std::{
     cell::{RefCell, RefMut},
     net::SocketAddr,

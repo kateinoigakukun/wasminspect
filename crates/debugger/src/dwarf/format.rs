@@ -1,7 +1,7 @@
 use super::types::*;
 use super::utils::*;
 use super::Reader;
-use super::{evaluate_variable_location, FrameBase};
+
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
@@ -79,7 +79,7 @@ pub fn type_name<'input>(
 pub fn format_object<R: gimli::Reader>(
     node: gimli::EntriesTreeNode<R>,
     memory: &[u8],
-    encoding: gimli::Encoding,
+    _encoding: gimli::Encoding,
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R>,
 ) -> Result<String> {
