@@ -8,13 +8,7 @@ use hyper::{Body, Response, Server};
 use tokio;
 use wasminspect_debugger::*;
 
-
-use std::{
-    cell::{RefCell, RefMut},
-    net::SocketAddr,
-    rc::Rc,
-    thread,
-};
+use std::{cell::RefCell, net::SocketAddr, rc::Rc};
 
 static VERSION: &str = "0.1.0";
 
@@ -43,6 +37,7 @@ async fn remote_api(
         (&Method::POST, "/init") => {
             let body = hyper::body::to_bytes(req.into_body()).await?;
             let wasm_bytes = body.to_vec();
+            context.process.borrow_mut().debugger.reset_store();
             context
                 .process
                 .borrow_mut()
@@ -67,6 +62,13 @@ fn init_process(context: &Context) -> anyhow::Result<()> {
         .run_loop(&context.dbg_context.borrow())
 }
 
+async fn shutdown_signal() {
+    // Wait for the CTRL+C signal
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to install CTRL+C signal handler");
+}
+
 async fn run(addr: SocketAddr) {
     let (process, dbg_context) = { wasminspect_debugger::start_debugger(None).unwrap() };
     let context = Rc::new(Context {
@@ -78,17 +80,18 @@ async fn run(addr: SocketAddr) {
         Ok(_) => {}
         Err(err) => eprintln!("{}", err),
     }
-
+    let ctx = context.clone();
     let make_service = make_service_fn(move |_| {
-        let ctx = context.clone();
+        let ctx = ctx.clone();
         async move { Ok::<_, anyhow::Error>(service_fn(move |req| remote_api(req, ctx.clone()))) }
     });
 
     let server = Server::bind(&addr).executor(LocalExec).serve(make_service);
 
     println!("Listening on http://{}", addr);
+    let graceful = server.with_graceful_shutdown(shutdown_signal());
 
-    if let Err(e) = server.await {
+    if let Err(e) = graceful.await {
         eprintln!("server error: {}", e);
     }
 }

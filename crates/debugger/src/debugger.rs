@@ -37,6 +37,10 @@ impl MainDebugger {
         })
     }
 
+    pub fn reset_store(&mut self) {
+        self.store = Self::instantiate_store();
+    }
+
     fn instantiate_store() -> Store {
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
         let (_, wasi_unstable) = instantiate_wasi();
