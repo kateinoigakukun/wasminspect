@@ -20,3 +20,4 @@ log = "0.4.8"
 [features]
 default = []
 swift-extension = ["wasminspect-swift-runtime"]
+remote-api = []

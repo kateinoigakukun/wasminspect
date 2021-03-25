@@ -257,7 +257,7 @@ impl Store {
     fn load_module_internal(
         &mut self,
         name: Option<String>,
-        reader: &mut [u8],
+        reader: &[u8],
         module_index: ModuleIndex,
     ) -> Result<ModuleIndex> {
         let mut types = Vec::new();
@@ -393,7 +393,7 @@ impl Store {
 
         Ok(module_index)
     }
-    pub fn load_module(&mut self, name: Option<String>, reader: &mut [u8]) -> Result<ModuleIndex> {
+    pub fn load_module(&mut self, name: Option<String>, reader: &[u8]) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
         let result: Result<ModuleIndex> =

@@ -4,9 +4,11 @@ mod dwarf;
 mod process;
 
 use anyhow::{anyhow, Result};
+use commands::command;
 use log::warn;
 use std::env;
-use std::io::Read;
+
+pub fn all_commands() {}
 
 fn history_file_path() -> String {
     format!(
@@ -37,27 +39,24 @@ impl commands::debugger::OutputPrinter for ConsolePrinter {
     }
 }
 
-pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()> {
+pub fn start_debugger<'a>(bytes: &'a Option<Vec<u8>>) -> Result<(process::Process<debugger::MainDebugger>, command::CommandContext<'a>)> {
     let mut debugger = debugger::MainDebugger::new()?;
-    let mut buffer = Vec::new();
     let mut context = commands::command::CommandContext {
         sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new()),
         subroutine: Box::new(commands::subroutine::EmptySubroutineMap::new()),
         printer: Box::new(ConsolePrinter {}),
     };
 
-    if let Some(file) = file {
-        let mut f = ::std::fs::File::open(file)?;
-        f.read_to_end(&mut buffer)?;
-        debugger.load_module(&mut buffer)?;
-        match try_load_dwarf(&buffer, &mut context) {
+    if let Some(ref bytes) = bytes {
+        debugger.load_module(bytes)?;
+        match try_load_dwarf(bytes, &mut context) {
             Ok(_) => (),
             Err(err) => {
                 warn!("Failed to load dwarf info: {}", err);
             }
         }
     }
-    let mut process = process::Process::new(
+    let process = process::Process::new(
         debugger,
         vec![
             Box::new(commands::run::RunCommand::new()),
@@ -77,6 +76,11 @@ pub fn run_loop(file: Option<String>, init_source: Option<String>) -> Result<()>
         vec![Box::new(commands::backtrace::BacktraceCommand::new())],
         &history_file_path(),
     )?;
+    Ok((process, context))
+}
+
+pub fn run_loop(bytes: Option<Vec<u8>>, init_source: Option<String>) -> Result<()> {
+    let (mut process, context) = start_debugger(&bytes)?;
 
     {
         let is_default = init_source.is_none();

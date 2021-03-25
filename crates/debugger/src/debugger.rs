@@ -20,7 +20,7 @@ pub struct MainDebugger {
 }
 
 impl MainDebugger {
-    pub fn load_module(&mut self, module: &mut [u8]) -> Result<()> {
+    pub fn load_module(&mut self, module: &[u8]) -> Result<()> {
         if let Err(err) = wasmparser::validate(module) {
             warn!("{}", err);
         }

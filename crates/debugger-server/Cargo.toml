@@ -1,0 +1,15 @@
+[package]
+name = "wasminspect-debugger-server"
+version = "0.2.0"
+authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+wasminspect-debugger = { path = "../debugger" }
+anyhow = "1.0.26"
+warp = "0.3.0"
+serde = { version = "1.0.0", features = ["derive"] }
+serde_derive = "1.0"
+rmp-serde = "0.15.0"
+bytes = "1"
+log = "0.4.8"

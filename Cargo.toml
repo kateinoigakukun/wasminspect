@@ -12,13 +12,21 @@ documentation = "https://github.com/kateinoigakukun/wasminspect/blob/master/docs
 name = "wasminspect"
 path = "src/bin/wasminspect.rs"
 
+[[bin]]
+name = "wasminspect-server"
+path = "src/bin/wasminspect_server.rs"
+required-features = ["remote-api"]
+
 [dependencies]
 wasminspect-debugger = { path = "crates/debugger" }
 wasminspect-vm = { path = "crates/vm" }
+wasminspect-debugger-server = { path = "crates/debugger-server", optional = true }
 wast-spec = { path = "crates/wast-spec" }
 clap = "2.33.0"
 structopt = "0.3"
 env_logger = "0.7.1"
+anyhow = "1.0.26"
+tokio = { version = "1", features = ["full"], optional = true }
 
 [workspace]
 members = [
@@ -31,3 +39,4 @@ members = [
 [features]
 default = []
 swift-extension = ["wasminspect-debugger/swift-extension"]
+remote-api = ["wasminspect-debugger-server", "tokio"]

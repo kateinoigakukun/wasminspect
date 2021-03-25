@@ -1,4 +1,5 @@
 use env_logger;
+use std::io::Read;
 use structopt::StructOpt;
 use wasminspect_debugger;
 
@@ -12,12 +13,21 @@ struct Opts {
     source: Option<String>,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("warn"));
 
     let opts = Opts::from_args();
-    match wasminspect_debugger::run_loop(opts.filepath, opts.source) {
+    let buffer = match opts.filepath {
+        Some(filepath) => {
+            let mut buffer = Vec::new();
+            let mut f = std::fs::File::open(filepath)?;
+            f.read_to_end(&mut buffer)?;
+            Some(buffer)
+        }
+        None => None,
+    };
+    Ok(match wasminspect_debugger::run_loop(buffer, opts.source) {
         Err(err) => println!("{:?}", err),
         _ => {}
-    }
+    })
 }
