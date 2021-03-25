@@ -32,17 +32,6 @@ pub(crate) fn custom_reject(error: impl Into<anyhow::Error>) -> warp::Rejection 
     warp::reject::custom(CustomReject(error.into()))
 }
 
-#[derive(Debug)]
-pub(crate) struct MessagePackError(rmp_serde::decode::Error);
-
-impl ::std::fmt::Display for MessagePackError {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "Request body read error: {}", self.0)
-    }
-}
-
-impl warp::reject::Reject for MessagePackError {}
-
 async fn handle_request(
     req: DebuggerRequest,
 ) -> std::result::Result<impl warp::Reply, warp::Rejection> {
@@ -78,14 +67,13 @@ async fn handle_init(
 }
 
 struct Context {
-    bytes: Vec<u8>,
-    // debugger: Option<(Process<MainDebugger>, Vec<u8>)>,
+    debugger: Option<(Process<MainDebugger>, Vec<u8>)>,
     // context: CommandContext<'buffer>,
 }
 
 pub async fn start(addr: SocketAddr) {
     // let bytes: Vec<u8> = vec![];
-    let context = Arc::new(Mutex::new(Context { bytes: vec![] }));// debugger: None }));
+    let context = Arc::new(Mutex::new(Context { debugger: None }));
     let endpoint = warp::path::path("version")
         .and(warp::get())
         .and_then(handle_version);
