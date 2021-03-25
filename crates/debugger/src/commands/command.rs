@@ -3,9 +3,9 @@ use super::sourcemap::SourceMap;
 use super::subroutine::SubroutineMap;
 use anyhow::Result;
 
-pub struct CommandContext<'a> {
+pub struct CommandContext {
     pub sourcemap: Box<dyn SourceMap>,
-    pub subroutine: Box<dyn SubroutineMap + 'a>,
+    pub subroutine: Box<dyn SubroutineMap>,
     pub printer: Box<dyn OutputPrinter>,
 }
 

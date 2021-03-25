@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::io;
 
 pub struct Process<D: Debugger> {
-    interface: Interface<DefaultTerminal>,
-    debugger: D,
+    pub interface: Interface<DefaultTerminal>,
+    pub debugger: D,
     commands: HashMap<String, Box<dyn Command<D>>>,
     aliases: HashMap<String, Box<dyn AliasCommand>>,
 
@@ -48,15 +48,20 @@ impl<D: Debugger> Process<D> {
         })
     }
 
-    pub fn run_loop(&mut self, context: command::CommandContext) -> Result<()> {
+    pub fn run_loop(&mut self, context: &command::CommandContext) -> Result<()> {
         let mut last_line: Option<String> = None;
         while let ReadResult::Input(line) = self.interface.read_line()? {
-            if !line.trim().is_empty() {
+            let should_end = if !line.trim().is_empty() {
                 self.interface.add_history_unique(line.clone());
                 last_line = Some(line.clone());
-                self.dispatch_command(line, &context)?;
+                self.dispatch_command(line, context)?
             } else if let Some(last_line) = last_line.as_ref() {
-                self.dispatch_command(last_line.clone(), &context)?;
+                self.dispatch_command(last_line.clone(), context)?
+            } else {
+                false
+            };
+            if should_end {
+                return Ok(());
             }
         }
         Ok(())
@@ -66,7 +71,7 @@ impl<D: Debugger> Process<D> {
         &mut self,
         line: String,
         context: &command::CommandContext,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let cmd_name = extract_command_name(&line);
         let args = line.split_whitespace().collect();
         if let Some(cmd) = self.commands.get(cmd_name) {
@@ -78,16 +83,18 @@ impl<D: Debugger> Process<D> {
             }
         } else if let Some(alias) = self.aliases.get(cmd_name) {
             let line = alias.run(args)?.clone();
-            self.dispatch_command(line, context)?
+            return self.dispatch_command(line, context);
         } else if cmd_name == "help" {
             println!("Available commands:");
             for (_, command) in &self.commands {
                 println!("  {} -- {}", command.name(), command.description());
             }
+        } else if cfg!(feature = "remote-api") && cmd_name == "start-server" {
+            return Ok(true);
         } else {
             eprintln!("'{}' is not a valid command.", cmd_name);
         }
-        Ok(())
+        Ok(false)
     }
 }
 

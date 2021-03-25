@@ -1,91 +1,106 @@
 mod rpc;
 use bytes::Buf;
-use warp::{reply, Filter};
+use hyper::{
+    service::{make_service_fn, service_fn},
+    Method, Request, StatusCode,
+};
+use hyper::{Body, Error, Response, Server};
+use tokio;
 use wasminspect_debugger::*;
 
 use rpc::{DebuggerRequest, DebuggerResponse};
 use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
+    cell::{RefCell, RefMut},
     net::SocketAddr,
     rc::Rc,
-    sync::{Arc, Mutex},
+    thread,
 };
 
 static VERSION: &str = "0.1.0";
 
-async fn handle_rpc(req: DebuggerRequest) -> anyhow::Result<DebuggerResponse> {
-    match req {
-        DebuggerRequest::Version => Ok(DebuggerResponse::Version {
-            value: VERSION.to_string(),
-        }),
-        DebuggerRequest::Init { bytes } => Ok(DebuggerResponse::Init),
+struct Context {
+    process: RefCell<Process<MainDebugger>>,
+    dbg_context: RefCell<CommandContext>,
+}
+
+pub fn start(addr: SocketAddr) {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build runtime");
+
+    let local = tokio::task::LocalSet::new();
+    local.block_on(&rt, run(addr));
+}
+
+// let mut data: DebuggerRequest = serde_json::from_reader(body.reader())?;
+async fn remote_api(
+    req: Request<Body>,
+    context: Rc<Context>,
+) -> Result<Response<Body>, anyhow::Error> {
+    match (req.method(), req.uri().path()) {
+        (&Method::GET, "/version") => Ok(Response::new(VERSION.into())),
+        (&Method::POST, "/init") => {
+            let body = hyper::body::to_bytes(req.into_body()).await?;
+            let wasm_bytes = body.to_vec();
+            context
+                .process
+                .borrow_mut()
+                .debugger
+                .load_module(&wasm_bytes)?;
+            Ok(Response::new(Body::from("Hello")))
+        }
+        _ => {
+            // Return 404 not found response.
+            Ok(Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(hyper::body::Body::empty())
+                .unwrap())
+        }
     }
 }
 
-#[derive(Debug)]
-struct CustomReject(anyhow::Error);
-
-impl warp::reject::Reject for CustomReject {}
-
-pub(crate) fn custom_reject(error: impl Into<anyhow::Error>) -> warp::Rejection {
-    warp::reject::custom(CustomReject(error.into()))
+fn init_process(context: &Context) -> anyhow::Result<()> {
+    context
+        .process
+        .borrow_mut()
+        .run_loop(&context.dbg_context.borrow())
 }
 
-async fn handle_request(
-    req: DebuggerRequest,
-) -> std::result::Result<impl warp::Reply, warp::Rejection> {
-    let response = match handle_rpc(req).await {
-        Ok(res) => res,
-        Err(err) => {
-            return Err(custom_reject(err));
-        }
-    };
-    Ok(warp::reply::json(&response))
+async fn run(addr: SocketAddr) {
+    let (process, dbg_context) = { wasminspect_debugger::start_debugger(None).unwrap() };
+    let context = Rc::new(Context {
+        process: RefCell::new(process),
+        dbg_context: RefCell::new(dbg_context),
+    });
+
+    match init_process(context.as_ref()) {
+        Ok(_) => {}
+        Err(err) => eprintln!("{}", err),
+    }
+
+    let make_service = make_service_fn(move |_| {
+        let ctx = context.clone();
+        async move { Ok::<_, anyhow::Error>(service_fn(move |req| remote_api(req, ctx.clone()))) }
+    });
+
+    let server = Server::bind(&addr).executor(LocalExec).serve(make_service);
+
+    println!("Listening on http://{}", addr);
+
+    if let Err(e) = server.await {
+        eprintln!("server error: {}", e);
+    }
 }
 
-async fn handle_version() -> std::result::Result<impl warp::Reply, warp::Rejection> {
-    let res = DebuggerResponse::Version {
-        value: VERSION.to_string(),
-    };
-    Ok(warp::reply::json(&res))
-}
+#[derive(Clone, Copy, Debug)]
+struct LocalExec;
 
-async fn handle_init(
-    bytes: bytes::Bytes,
-    context: Arc<Mutex<Context>>,
-) -> std::result::Result<impl warp::Reply, warp::Rejection> {
-    let res = DebuggerResponse::Init;
-    let bytes = bytes.to_vec();
-    // context.lock().unwrap().bytes = bytes;
-    // let (process, dbg_context) = {
-    //     let bytes = Some(&context.lock().unwrap().bytes);
-    //     wasminspect_debugger::start_debugger(bytes).unwrap()
-    // };
-    // context.lock().unwrap().debugger = Some((process, bytes));
-    Ok(warp::reply::json(&res))
-}
-
-struct Context {
-    debugger: Option<(Process<MainDebugger>, Vec<u8>)>,
-    // context: CommandContext<'buffer>,
-}
-
-pub async fn start(addr: SocketAddr) {
-    // let bytes: Vec<u8> = vec![];
-    let context = Arc::new(Mutex::new(Context { debugger: None }));
-    let endpoint = warp::path::path("version")
-        .and(warp::get())
-        .and_then(handle_version);
-
-    let ctx0 = Arc::clone(&context);
-    let init = warp::path::path("init")
-        .and(warp::post())
-        .and(warp::body::bytes())
-        .and_then(move |req| handle_init(req, ctx0.clone()));
-    // let init = warp::path::path("init")
-    //     .and(warp::post())
-    //     .and(warp::body::bytes())
-    //     .and_then(|req| handle_init(req, context.clone()));
-    // warp::serve(endpoint.or(init)).run(addr).await;
+impl<F> hyper::rt::Executor<F> for LocalExec
+where
+    F: std::future::Future + 'static,
+{
+    fn execute(&self, fut: F) {
+        tokio::task::spawn_local(fut);
+    }
 }

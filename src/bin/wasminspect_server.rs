@@ -12,12 +12,11 @@ struct Opts {
     listen_addr: String,
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("warn"));
 
     let opts = Opts::from_args();
     let addr = SocketAddr::from_str(&opts.listen_addr)?;
-    wasminspect_debugger_server::start(addr).await;
+    wasminspect_debugger_server::start(addr);
     Ok(())
 }

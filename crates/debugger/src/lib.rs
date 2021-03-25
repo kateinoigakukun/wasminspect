@@ -19,9 +19,9 @@ fn history_file_path() -> String {
     )
 }
 
-fn try_load_dwarf<'buffer>(
-    buffer: &'buffer Vec<u8>,
-    context: &mut commands::command::CommandContext<'buffer>,
+pub fn try_load_dwarf(
+    buffer: &Vec<u8>,
+    context: &mut commands::command::CommandContext,
 ) -> Result<()> {
     use dwarf::transform_dwarf;
     let debug_info = transform_dwarf(&buffer)?;
@@ -44,7 +44,7 @@ pub fn start_debugger<'a>(
     bytes: Option<&'a Vec<u8>>,
 ) -> Result<(
     process::Process<debugger::MainDebugger>,
-    command::CommandContext<'a>,
+    command::CommandContext,
 )> {
     let mut debugger = debugger::MainDebugger::new()?;
     let mut context = commands::command::CommandContext {
@@ -109,6 +109,6 @@ pub fn run_loop(bytes: Option<Vec<u8>>, init_source: Option<String>) -> Result<(
             process.dispatch_command(line, &context)?;
         }
     }
-    process.run_loop(context)?;
+    process.run_loop(&context)?;
     Ok(())
 }

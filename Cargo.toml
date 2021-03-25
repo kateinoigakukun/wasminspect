@@ -39,4 +39,8 @@ members = [
 [features]
 default = []
 swift-extension = ["wasminspect-debugger/swift-extension"]
-remote-api = ["wasminspect-debugger-server", "tokio"]
+remote-api = [
+  "wasminspect-debugger-server",
+  "wasminspect-debugger/remote-api",
+  "tokio",
+]
