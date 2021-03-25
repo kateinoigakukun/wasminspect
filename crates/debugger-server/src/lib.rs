@@ -1,6 +1,7 @@
 mod rpc;
 use bytes::Buf;
 use warp::{reply, Filter};
+use wasminspect_debugger::*;
 
 use rpc::{DebuggerRequest, DebuggerResponse};
 use std::{
@@ -66,18 +67,25 @@ async fn handle_init(
     context: Arc<Mutex<Context>>,
 ) -> std::result::Result<impl warp::Reply, warp::Rejection> {
     let res = DebuggerResponse::Init;
-    context.lock().unwrap().bytes = bytes.to_vec();
-    let bytes = Some(bytes.to_vec());
-    let (process, context) = wasminspect_debugger::start_debugger(&bytes).unwrap();
+    let bytes = bytes.to_vec();
+    // context.lock().unwrap().bytes = bytes;
+    // let (process, dbg_context) = {
+    //     let bytes = Some(&context.lock().unwrap().bytes);
+    //     wasminspect_debugger::start_debugger(bytes).unwrap()
+    // };
+    // context.lock().unwrap().debugger = Some((process, bytes));
     Ok(warp::reply::json(&res))
 }
 
 struct Context {
     bytes: Vec<u8>,
+    // debugger: Option<(Process<MainDebugger>, Vec<u8>)>,
+    // context: CommandContext<'buffer>,
 }
 
 pub async fn start(addr: SocketAddr) {
-    let context = Arc::new(Mutex::new(Context { bytes: vec![] }));
+    // let bytes: Vec<u8> = vec![];
+    let context = Arc::new(Mutex::new(Context { bytes: vec![] }));// debugger: None }));
     let endpoint = warp::path::path("version")
         .and(warp::get())
         .and_then(handle_version);
@@ -91,5 +99,5 @@ pub async fn start(addr: SocketAddr) {
     //     .and(warp::post())
     //     .and(warp::body::bytes())
     //     .and_then(|req| handle_init(req, context.clone()));
-    warp::serve(endpoint.or(init)).run(addr).await;
+    // warp::serve(endpoint.or(init)).run(addr).await;
 }

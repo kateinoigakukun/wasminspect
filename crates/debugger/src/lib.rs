@@ -3,12 +3,14 @@ mod debugger;
 mod dwarf;
 mod process;
 
+pub use commands::command::CommandContext;
+pub use debugger::MainDebugger;
+pub use process::Process;
+
 use anyhow::{anyhow, Result};
 use commands::command;
 use log::warn;
 use std::env;
-
-pub fn all_commands() {}
 
 fn history_file_path() -> String {
     format!(
@@ -21,9 +23,8 @@ fn try_load_dwarf<'buffer>(
     buffer: &'buffer Vec<u8>,
     context: &mut commands::command::CommandContext<'buffer>,
 ) -> Result<()> {
-    use dwarf::{parse_dwarf, transform_dwarf};
-    let dwarf = parse_dwarf(buffer)?;
-    let debug_info = transform_dwarf(dwarf)?;
+    use dwarf::transform_dwarf;
+    let debug_info = transform_dwarf(&buffer)?;
     context.sourcemap = Box::new(debug_info.sourcemap);
     context.subroutine = Box::new(debug_info.subroutine);
     Ok(())
@@ -39,7 +40,12 @@ impl commands::debugger::OutputPrinter for ConsolePrinter {
     }
 }
 
-pub fn start_debugger<'a>(bytes: &'a Option<Vec<u8>>) -> Result<(process::Process<debugger::MainDebugger>, command::CommandContext<'a>)> {
+pub fn start_debugger<'a>(
+    bytes: Option<&'a Vec<u8>>,
+) -> Result<(
+    process::Process<debugger::MainDebugger>,
+    command::CommandContext<'a>,
+)> {
     let mut debugger = debugger::MainDebugger::new()?;
     let mut context = commands::command::CommandContext {
         sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new()),
@@ -80,7 +86,7 @@ pub fn start_debugger<'a>(bytes: &'a Option<Vec<u8>>) -> Result<(process::Proces
 }
 
 pub fn run_loop(bytes: Option<Vec<u8>>, init_source: Option<String>) -> Result<()> {
-    let (mut process, context) = start_debugger(&bytes)?;
+    let (mut process, context) = start_debugger(bytes.as_ref())?;
 
     {
         let is_default = init_source.is_none();

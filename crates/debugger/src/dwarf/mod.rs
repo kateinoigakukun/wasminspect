@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Result};
 use gimli::{
-    AttributeValue, DebugAbbrev, DebugAddr, DebugInfo, DebugLine, DebugLineStr, DebugLoc,
-    DebugLocLists, DebugRanges, DebugRngLists, DebugStr, DebugStrOffsets, DebugTypes,
-    DebuggingInformationEntry, EndianSlice, LineRow, LittleEndian, LocationLists, RangeLists, Unit,
+    AttributeValue, CompilationUnitHeader, DebugAbbrev, DebugAddr, DebugInfo, DebugInfoOffset,
+    DebugLine, DebugLineStr, DebugLoc, DebugLocLists, DebugRanges, DebugRngLists, DebugStr,
+    DebugStrOffsets, DebugTypes, DebuggingInformationEntry, EndianSlice, LineRow, LittleEndian,
+    LocationLists, RangeLists, Unit, UnitOffset,
 };
 use log::trace;
 use std::collections::{BTreeMap, HashMap};
@@ -74,7 +75,8 @@ pub struct DwarfDebugInfo<'a> {
     pub sourcemap: DwarfSourceMap,
     pub subroutine: DwarfSubroutineMap<'a>,
 }
-pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
+pub fn transform_dwarf<'a>(buffer: &'a [u8]) -> Result<DwarfDebugInfo<'a>> {
+    let dwarf = parse_dwarf(buffer)?;
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
@@ -93,7 +95,7 @@ pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
             &dwarf,
             &dwarf.debug_line,
         )?);
-        subroutines.append(&mut transform_subprogram(&dwarf, &unit)?);
+        subroutines.append(&mut transform_subprogram(&dwarf, &unit, header.offset())?);
         get_types(&dwarf, &unit, &mut type_hash)?;
     }
     Ok(DwarfDebugInfo {
@@ -101,6 +103,7 @@ pub fn transform_dwarf<'a>(dwarf: Dwarf<'a>) -> Result<DwarfDebugInfo<'a>> {
         subroutine: DwarfSubroutineMap {
             subroutines,
             type_hash,
+            buffer: buffer.to_vec(),
         },
     })
 }
@@ -122,10 +125,12 @@ enum VariableContent<R: gimli::Reader> {
     Unknown { debug_info: String },
 }
 
-pub struct Subroutine<R: gimli::Reader> {
+#[derive(Debug)]
+pub struct Subroutine<Offset> {
     pub name: Option<String>,
     pub pc: std::ops::Range<u64>,
-    pub variables: Vec<SymbolVariable<R>>,
+    pub entry_offset: UnitOffset<Offset>,
+    pub unit_offset: DebugInfoOffset<Offset>,
     pub encoding: gimli::Encoding,
     pub frame_base: Option<WasmLoc>,
 }
@@ -133,11 +138,12 @@ pub struct Subroutine<R: gimli::Reader> {
 pub fn transform_subprogram<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
-) -> Result<Vec<Subroutine<R>>> {
+    unit_offset: DebugInfoOffset<R::Offset>,
+) -> Result<Vec<Subroutine<R::Offset>>> {
     let mut tree = unit.entries_tree(None)?;
     let root = tree.root()?;
     let mut subroutines = vec![];
-    transform_subprogram_rec(root, dwarf, unit, &mut subroutines)?;
+    transform_subprogram_rec(root, dwarf, unit, unit_offset, &mut subroutines)?;
     Ok(subroutines)
 }
 
@@ -146,7 +152,7 @@ enum DwAtWasm {
     DW_OP_WASM_location = 0xed,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum WasmLoc {
     Local(u64),
     Global(u64),
@@ -182,7 +188,8 @@ fn read_subprogram_header<R: gimli::Reader>(
     node: &gimli::EntriesTreeNode<R>,
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
-) -> Result<Option<Subroutine<R>>> {
+    unit_offset: DebugInfoOffset<R::Offset>,
+) -> Result<Option<Subroutine<R::Offset>>> {
     match node.entry().tag() {
         gimli::DW_TAG_subprogram | gimli::DW_TAG_lexical_block => (),
         _ => return Ok(None),
@@ -215,7 +222,8 @@ fn read_subprogram_header<R: gimli::Reader>(
             pc: low_pc..high_pc,
             name,
             encoding: unit.encoding(),
-            variables: vec![],
+            entry_offset: node.entry().offset(),
+            unit_offset: unit_offset,
             frame_base: frame_base,
         }
     } else {
@@ -228,20 +236,18 @@ pub fn transform_subprogram_rec<R: gimli::Reader>(
     node: gimli::EntriesTreeNode<R>,
     dwarf: &gimli::Dwarf<R>,
     unit: &Unit<R, R::Offset>,
-    out_subroutines: &mut Vec<Subroutine<R>>,
+    unit_offset: DebugInfoOffset<R::Offset>,
+    out_subroutines: &mut Vec<Subroutine<R::Offset>>,
 ) -> Result<()> {
-    let mut subroutine = read_subprogram_header(&node, dwarf, unit)?;
+    let mut subroutine = read_subprogram_header(&node, dwarf, unit, unit_offset)?;
     let mut children = node.children();
     while let Some(child) = children.next()? {
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
-                let var = transform_variable(dwarf, unit, child.entry())?;
-                if let Some(current) = subroutine.as_mut() {
-                    current.variables.push(var)
-                }
+                continue;
             }
             _ => {
-                transform_subprogram_rec(child, dwarf, unit, out_subroutines)?;
+                transform_subprogram_rec(child, dwarf, unit, unit_offset, out_subroutines)?;
             }
         }
     }
@@ -299,13 +305,22 @@ fn transform_variable<R: gimli::Reader>(
     })
 }
 
+#[derive(Debug)]
+pub enum FrameBase {
+    WasmFrameBase(u64),
+    RBP(u64),
+}
+
 use gimli::Expression;
 fn evaluate_variable_location<R: gimli::Reader>(
     encoding: gimli::Encoding,
-    frame_base: u64,
+    base: FrameBase,
     expr: Expression<R>,
 ) -> Result<Vec<gimli::Piece<R>>> {
     let mut evaluation = expr.evaluation(encoding);
+    if let FrameBase::RBP(base) = base {
+        evaluation.set_initial_value(base);
+    }
     let mut result = evaluation.evaluate()?;
     use gimli::EvaluationResult;
     loop {
@@ -314,7 +329,11 @@ fn evaluate_variable_location<R: gimli::Reader>(
         }
         match result {
             EvaluationResult::RequiresFrameBase => {
-                result = evaluation.resume_with_frame_base(frame_base)?;
+                if let FrameBase::WasmFrameBase(base) = base {
+                    result = evaluation.resume_with_frame_base(base)?;
+                } else {
+                    return Err(anyhow!("unexpected occurrence of DW_AT_frame_base"));
+                }
             }
             ref x => Err(anyhow!("{:?}", x))?,
         }
@@ -452,8 +471,52 @@ impl sourcemap::SourceMap for DwarfSourceMap {
 use super::commands::subroutine;
 use types::*;
 pub struct DwarfSubroutineMap<'input> {
-    pub subroutines: Vec<Subroutine<Reader<'input>>>,
+    pub subroutines: Vec<Subroutine<usize>>,
     type_hash: HashMap<usize, TypeInfo<Reader<'input>>>,
+    buffer: Vec<u8>,
+}
+
+fn header_from_offset<R: gimli::Reader>(
+    dwarf: &gimli::Dwarf<R>,
+    offset: DebugInfoOffset<R::Offset>,
+) -> Result<Option<CompilationUnitHeader<R>>> {
+    let mut headers = dwarf.units();
+    while let Some(header) = headers.next()? {
+        if header.offset() == offset {
+            return Ok(Some(header));
+        } else {
+            continue;
+        }
+    }
+    return Ok(None);
+}
+
+fn subroutine_variables<R: gimli::Reader>(
+    dwarf: &gimli::Dwarf<R>,
+    subroutine: &Subroutine<R::Offset>,
+) -> Result<Vec<SymbolVariable<R>>> {
+    let header = match header_from_offset(dwarf, subroutine.unit_offset)? {
+        Some(header) => header,
+        None => {
+            return Ok(vec![]);
+        }
+    };
+
+    let unit = dwarf.unit(header)?;
+    let mut tree = unit.entries_tree(Some(subroutine.entry_offset))?;
+    let root = tree.root()?;
+    let mut children = root.children();
+    let mut variables = vec![];
+    while let Some(child) = children.next()? {
+        match child.entry().tag() {
+            gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
+                let var = transform_variable(&dwarf, &unit, child.entry())?;
+                variables.push(var);
+            }
+            _ => continue,
+        }
+    }
+    Ok(variables)
 }
 
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
@@ -468,8 +531,10 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
-        Ok(subroutine
-            .variables
+        let dwarf = parse_dwarf(&self.buffer)?;
+        let variables = subroutine_variables(&dwarf, &subroutine)?;
+
+        Ok(variables
             .iter()
             .map(|var| {
                 let mut v = subroutine::Variable {
@@ -488,7 +553,7 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             .collect())
     }
 
-    fn get_frame_base(&self, code_offset: usize) -> Result<WasmLoc> {
+    fn get_frame_base(&self, code_offset: usize) -> Result<Option<WasmLoc>> {
         let offset = &(code_offset as u64);
         let subroutine = match self
             .subroutines
@@ -499,12 +564,12 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
-        return Ok(subroutine.frame_base.clone().unwrap());
+        return Ok(subroutine.frame_base.clone());
     }
     fn display_variable(
         &self,
         code_offset: usize,
-        frame_base: u64,
+        frame_base: FrameBase,
         memory: &[u8],
         name: String,
     ) -> Result<()> {
@@ -518,8 +583,10 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
-        let var = match subroutine
-            .variables
+        let dwarf = parse_dwarf(&self.buffer)?;
+        let variables = subroutine_variables(&dwarf, &subroutine)?;
+
+        let var = match variables
             .iter()
             .filter(|v| {
                 if let Some(vname) = v.name.clone() {

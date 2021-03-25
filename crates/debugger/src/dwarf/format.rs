@@ -1,4 +1,4 @@
-use super::evaluate_variable_location;
+use super::{evaluate_variable_location, FrameBase};
 use super::types::*;
 use super::Reader;
 use std::collections::HashMap;
@@ -134,7 +134,8 @@ pub fn format_object<'input>(
                 let offset: usize = match member.location {
                     MemberLocation::ConstOffset(offset) => offset as usize,
                     MemberLocation::LocationDescription(expr) => {
-                        let pieces = evaluate_variable_location(encoding, 0, expr)?;
+                        // FIXME
+                        let pieces = evaluate_variable_location(encoding, FrameBase::RBP(0), expr)?;
                         let piece = match pieces.iter().next() {
                             Some(p) => p,
                             None => panic!(),
