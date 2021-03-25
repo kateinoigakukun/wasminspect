@@ -41,7 +41,12 @@ impl<D: Debugger> Command<D> for DisassembleCommand {
     }
 }
 
-pub fn display_asm<D: Debugger>(debugger: &D, printer: &dyn OutputPrinter, count: Option<usize>, pc_rel: bool) -> Result<()> {
+pub fn display_asm<D: Debugger>(
+    debugger: &D,
+    printer: &dyn OutputPrinter,
+    count: Option<usize>,
+    pc_rel: bool,
+) -> Result<()> {
     let (insts, inst_index) = debugger.instructions()?;
     let begin = if pc_rel { inst_index } else { 0 };
     let end = if let Some(count) = count {

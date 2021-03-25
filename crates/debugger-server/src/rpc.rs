@@ -12,4 +12,3 @@ pub enum DebuggerResponse {
     Version { value: String },
     Init,
 }
-

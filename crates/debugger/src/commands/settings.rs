@@ -45,7 +45,7 @@ impl<D: Debugger> Command<D> for SettingsCommand {
                 _ => {
                     let output = format!("'{}' is not valid key", key);
                     context.printer.eprintln(&output);
-                },
+                }
             },
         }
         Ok(())

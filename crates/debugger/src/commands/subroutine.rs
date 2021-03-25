@@ -1,4 +1,4 @@
-use super::super::dwarf::{WasmLoc, FrameBase};
+use super::super::dwarf::{FrameBase, WasmLoc};
 use anyhow::Result;
 
 pub struct Variable {
