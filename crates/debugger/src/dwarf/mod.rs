@@ -71,17 +71,16 @@ pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
     })
 }
 
-pub struct DwarfDebugInfo<'a> {
+pub struct DwarfDebugInfo {
     pub sourcemap: DwarfSourceMap,
-    pub subroutine: DwarfSubroutineMap<'a>,
+    pub subroutine: DwarfSubroutineMap,
 }
-pub fn transform_dwarf<'a>(buffer: &'a [u8]) -> Result<DwarfDebugInfo<'a>> {
+pub fn transform_dwarf<'a>(buffer: &'a [u8]) -> Result<DwarfDebugInfo> {
     let dwarf = parse_dwarf(buffer)?;
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
     let mut subroutines = Vec::new();
 
-    let mut type_hash = HashMap::new();
     while let Some(header) = headers.next()? {
         let unit = dwarf.unit(header)?;
         let mut entries = unit.entries();
@@ -96,13 +95,11 @@ pub fn transform_dwarf<'a>(buffer: &'a [u8]) -> Result<DwarfDebugInfo<'a>> {
             &dwarf.debug_line,
         )?);
         subroutines.append(&mut transform_subprogram(&dwarf, &unit, header.offset())?);
-        get_types(&dwarf, &unit, &mut type_hash)?;
     }
     Ok(DwarfDebugInfo {
         sourcemap: DwarfSourceMap::new(sourcemaps),
         subroutine: DwarfSubroutineMap {
             subroutines,
-            type_hash,
             buffer: buffer.to_vec(),
         },
     })
@@ -470,9 +467,8 @@ impl sourcemap::SourceMap for DwarfSourceMap {
 
 use super::commands::subroutine;
 use types::*;
-pub struct DwarfSubroutineMap<'input> {
+pub struct DwarfSubroutineMap {
     pub subroutines: Vec<Subroutine<usize>>,
-    type_hash: HashMap<usize, TypeInfo<Reader<'input>>>,
     buffer: Vec<u8>,
 }
 
@@ -532,7 +528,7 @@ fn unit_type_name<R: gimli::Reader>(
     }
 }
 
-impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
+impl subroutine::SubroutineMap for DwarfSubroutineMap {
     fn variable_name_list(&self, code_offset: usize) -> Result<Vec<subroutine::Variable>> {
         let offset = &(code_offset as u64);
         let subroutine = match self
