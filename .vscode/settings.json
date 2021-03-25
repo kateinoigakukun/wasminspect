@@ -2,5 +2,4 @@
     "lldb.executable": "rust-lldb",
     "rust-analyzer.displayInlayHints": false,
     "rust-analyzer.cargo.allFeatures": true,
-    "rust-analyzer.inlayHints.typeHints": false,
 }

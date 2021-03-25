@@ -16,6 +16,7 @@ anyhow = "1.0.26"
 wasmparser = "0.76.0"
 gimli = "0.21.0"
 log = "0.4.8"
+num-bigint = "0.4"
 
 [features]
 default = []

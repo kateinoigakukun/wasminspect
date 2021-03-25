@@ -1,9 +1,12 @@
-use super::{evaluate_variable_location, FrameBase};
 use super::types::*;
+use super::utils::*;
 use super::Reader;
+use super::{evaluate_variable_location, FrameBase};
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
+use gimli::Unit;
+use num_bigint::{BigInt, BigUint, Sign};
 
 pub fn type_name<'input>(
     ty_offset: Option<usize>,
@@ -73,189 +76,72 @@ pub fn type_name<'input>(
     Ok(result)
 }
 
-pub fn format_object<'input>(
-    ty_offset: usize,
+pub fn format_object<R: gimli::Reader>(
+    node: gimli::EntriesTreeNode<R>,
     memory: &[u8],
     encoding: gimli::Encoding,
-    type_hash: &HashMap<usize, TypeInfo<Reader<'input>>>,
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R>,
 ) -> Result<String> {
-    let ty = type_hash
-        .get(&ty_offset)
-        .ok_or(anyhow!("Failed to get type from offset '{}'", ty_offset))?;
-    match ty {
-        TypeInfo::BaseType(base_type) => {
-            let type_name: &str = &base_type.name;
-            match type_name {
-                "int" => {
-                    let mut bytes: [u8; 4] = Default::default();
-                    bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
-                    Ok(format!("{}({})", base_type.name, i32::from_le_bytes(bytes)))
+    match node.entry().tag() {
+        gimli::DW_TAG_base_type => {
+            let entry = node.entry();
+            let name = match entry.attr_value(gimli::DW_AT_name)? {
+                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+                None => "<no type name>".to_string(),
+            };
+            let byte_size = entry
+                .attr_value(gimli::DW_AT_byte_size)?
+                .and_then(|attr| attr.udata_value())
+                .ok_or(anyhow!("Failed to get byte_size"))?;
+            let encoding = entry
+                .attr_value(gimli::DW_AT_encoding)?
+                .and_then(|attr| match attr {
+                    gimli::AttributeValue::Encoding(encoding) => Some(encoding),
+                    _ => None,
+                })
+                .ok_or(anyhow!("Failed to get type encoding"))?;
+            let mut bytes = Vec::with_capacity(8);
+            bytes.copy_from_slice(&memory[0..(byte_size as usize)]);
+
+            match encoding {
+                gimli::DW_ATE_signed => {
+                    let value = BigInt::from_bytes_le(Sign::NoSign, &bytes);
+                    Ok(format!("{}({})", name, value))
                 }
-                "long unsigned int" => {
-                    let mut bytes: [u8; 4] = Default::default();
-                    bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
-                    Ok(format!("{}({})", base_type.name, u32::from_le_bytes(bytes)))
+                gimli::DW_ATE_unsigned => {
+                    let value = BigUint::from_bytes_le(&bytes);
+                    Ok(format!("{}({})", name, value))
                 }
-                "long long unsigned int" => {
-                    let mut bytes: [u8; 8] = Default::default();
-                    bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
-                    Ok(format!("{}({})", base_type.name, u64::from_le_bytes(bytes)))
-                }
-                "unsigned __int128" => {
-                    let mut bytes: [u8; 16] = Default::default();
-                    bytes.copy_from_slice(&memory[0..(base_type.byte_size as usize)]);
-                    Ok(format!(
-                        "{}({})",
-                        base_type.name,
-                        u128::from_le_bytes(bytes)
-                    ))
-                }
-                "char" => Ok(String::from_utf8(vec![memory[0]])
-                    .unwrap_or("<<invalid utf8 char>>".to_string())),
                 _ => unimplemented!(),
             }
         }
-        TypeInfo::StructType(struct_type) => {
-            if let Some(type_name) = struct_type.name.clone() {
-                let type_name: &str = &type_name;
-                // For Swift Support
-                match type_name {
-                    "UnsafeRawPointer" | "UnsafeMutableRawPointer" => {
-                        let mut bytes: [u8; 4] = Default::default();
-                        bytes.copy_from_slice(&memory[0..4]);
-                        return Ok(format!("{} (0x{:x})", type_name, u32::from_le_bytes(bytes)));
-                    }
-                    _ => (),
-                }
-            }
-
-            let mut members_str = vec![];
-            for member in &struct_type.members {
-                let offset: usize = match member.location {
-                    MemberLocation::ConstOffset(offset) => offset as usize,
-                    MemberLocation::LocationDescription(expr) => {
-                        // FIXME
-                        let pieces = evaluate_variable_location(encoding, FrameBase::RBP(0), expr)?;
-                        let piece = match pieces.iter().next() {
-                            Some(p) => p,
-                            None => panic!(),
+        gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
+            let entry = node.entry();
+            let type_name = match entry.attr_value(gimli::DW_AT_name)? {
+                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+                None => "<no type name>".to_string(),
+            };
+            let mut children = node.children();
+            let mut members = vec![];
+            while let Some(child) = children.next()? {
+                match child.entry().tag() {
+                    gimli::DW_TAG_member => {
+                        let name = match child.entry().attr_value(gimli::DW_AT_name)? {
+                            Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
+                            None => "<no member name>".to_string(),
                         };
-                        match piece.location {
-                            gimli::Location::Address { address } => address as usize,
-                            _ => unimplemented!(),
-                        }
+                        // let ty = match entry.attr_value(gimli::DW_AT_type)? {
+                        //     Some(gimli::AttributeValue::UnitRef(ref offset)) => offset.0,
+                        //     _ => return Err(anyhow!("Failed to get type offset")),
+                        // };
+                        members.push(name);
                     }
-                };
-                members_str.push(format!(
-                    "{}: {}",
-                    member
-                        .name
-                        .clone()
-                        .unwrap_or("<<not parsed yet>>".to_string()),
-                    format_object(member.ty, &memory[offset..], encoding, type_hash)?
-                ))
-            }
-            Ok(format!(
-                "{} {{\n{}\n}}",
-                struct_type
-                    .name
-                    .clone()
-                    .unwrap_or("<<not parsed yet>>".to_string()),
-                members_str.join(",\n"),
-            ))
-        }
-        TypeInfo::EnumerationType(enum_type) => {
-            if let Some(offset) = enum_type.ty {
-                match type_hash.get(&offset) {
-                    Some(TypeInfo::BaseType(base_ty)) => {
-                        if base_ty.name != "int" {
-                            return Err(anyhow!(
-                                "{} is not supported as enum content type",
-                                base_ty.name
-                            ));
-                        }
-                    }
-                    Some(_) => {
-                        return Err(anyhow!(
-                            "enum content type '{}' should be base type",
-                            type_name(Some(offset), type_hash)?
-                        ))
-                    }
-                    None => return Err(anyhow!("failed to get enum content type")),
+                    _ => continue,
                 }
             }
-            let mut bytes: [u8; 4] = Default::default();
-            bytes.copy_from_slice(&memory[0..4]);
-            let value = i32::from_le_bytes(bytes);
-            for enumerator in &enum_type.enumerators {
-                if let Some(const_value) = enumerator.value {
-                    if (const_value as i32) == value {
-                        return Ok(format!(
-                            "{} ({})",
-                            enum_type
-                                .name
-                                .clone()
-                                .unwrap_or("<<not parsed yet>>".to_string()),
-                            enumerator
-                                .name
-                                .clone()
-                                .unwrap_or("<<not parsed yet>>".to_string())
-                        ));
-                    }
-                }
-            }
-            Err(anyhow!("Failed to find enumerator case for '{}'"))
+            Ok(format!("{} {{\n{}\n}}", type_name, members.join(",\n")))
         }
-        TypeInfo::TypeDef(type_def) => {
-            if let Some(ty_offset) = type_def.ty {
-                Ok(format!(
-                    "typedef {} {}",
-                    type_def
-                        .name
-                        .clone()
-                        .unwrap_or("<<not parsed yet>>".to_string()),
-                    format_object(ty_offset, &memory, encoding, type_hash)?
-                ))
-            } else {
-                Ok(format!(
-                    "typedef {} <<not parsed yet>>",
-                    type_def
-                        .name
-                        .clone()
-                        .unwrap_or("<<not parsed yet>>".to_string())
-                ))
-            }
-        }
-        TypeInfo::ModifiedType(mod_type) => match mod_type.kind {
-            ModifierKind::Pointer | ModifierKind::Reference => {
-                let modifier = match mod_type.kind {
-                    ModifierKind::Pointer => "*",
-                    ModifierKind::Reference => "&",
-                    _ => unreachable!(),
-                };
-                let mut bytes: [u8; 4] = Default::default();
-                bytes.copy_from_slice(&memory[0..4]);
-                Ok(format!(
-                    "{}{} (0x{:x})",
-                    type_name(mod_type.content_ty_offset, type_hash)?,
-                    modifier,
-                    u32::from_le_bytes(bytes)
-                ))
-            }
-            _ => {
-                if let Some(offset) = mod_type.content_ty_offset {
-                    return Ok(format!(
-                        "{}({})",
-                        type_name(Some(ty_offset), type_hash)?,
-                        format_object(offset, memory, encoding, type_hash)?
-                    ));
-                } else {
-                    return Ok(format!(
-                        "{}(unknown)",
-                        type_name(Some(ty_offset), type_hash)?,
-                    ));
-                }
-            }
-        },
+        _ => Err(anyhow!("unsupported DIE type")),
     }
 }

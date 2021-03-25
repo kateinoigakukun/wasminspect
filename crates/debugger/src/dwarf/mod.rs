@@ -1,9 +1,9 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use gimli::{
     AttributeValue, CompilationUnitHeader, DebugAbbrev, DebugAddr, DebugInfo, DebugInfoOffset,
     DebugLine, DebugLineStr, DebugLoc, DebugLocLists, DebugRanges, DebugRngLists, DebugStr,
-    DebugStrOffsets, DebugTypes, DebuggingInformationEntry, EndianSlice, LineRow, LittleEndian,
-    LocationLists, RangeLists, Unit, UnitOffset,
+    DebugStrOffsets, DebugTypes, DebuggingInformationEntry, EndianSlice, EntriesTree, LineRow,
+    LittleEndian, LocationLists, RangeLists, Unit, UnitOffset,
 };
 use log::trace;
 use std::collections::{BTreeMap, HashMap};
@@ -493,16 +493,9 @@ fn header_from_offset<R: gimli::Reader>(
 
 fn subroutine_variables<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R>,
     subroutine: &Subroutine<R::Offset>,
 ) -> Result<Vec<SymbolVariable<R>>> {
-    let header = match header_from_offset(dwarf, subroutine.unit_offset)? {
-        Some(header) => header,
-        None => {
-            return Ok(vec![]);
-        }
-    };
-
-    let unit = dwarf.unit(header)?;
     let mut tree = unit.entries_tree(Some(subroutine.entry_offset))?;
     let root = tree.root()?;
     let mut children = root.children();
@@ -519,6 +512,26 @@ fn subroutine_variables<R: gimli::Reader>(
     Ok(variables)
 }
 
+fn unit_type_name<R: gimli::Reader>(
+    dwarf: &gimli::Dwarf<R>,
+    unit: &Unit<R>,
+    type_offset: Option<R::Offset>,
+) -> Result<String> {
+    let type_offset = match type_offset {
+        Some(offset) => offset,
+        None => {
+            return Ok("void".to_string());
+        }
+    };
+    let mut tree = unit.entries_tree(Some(UnitOffset::<R::Offset>(type_offset)))?;
+    let root = tree.root()?;
+    if let Some(attr) = root.entry().attr_value(gimli::DW_AT_name)? {
+        clone_string_attribute(dwarf, unit, attr)
+    } else {
+        Err(anyhow!(format!("failed to seek at {:?}", type_offset)))
+    }
+}
+
 impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
     fn variable_name_list(&self, code_offset: usize) -> Result<Vec<subroutine::Variable>> {
         let offset = &(code_offset as u64);
@@ -532,7 +545,15 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             None => return Err(anyhow!("failed to determine subroutine")),
         };
         let dwarf = parse_dwarf(&self.buffer)?;
-        let variables = subroutine_variables(&dwarf, &subroutine)?;
+        let header = match header_from_offset(&dwarf, subroutine.unit_offset)? {
+            Some(header) => header,
+            None => {
+                return Ok(vec![]);
+            }
+        };
+
+        let unit = dwarf.unit(header)?;
+        let variables = subroutine_variables(&dwarf, &unit, &subroutine)?;
 
         Ok(variables
             .iter()
@@ -544,8 +565,7 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
                 if let Some(name) = var.name.clone() {
                     v.name = name;
                 }
-                use format::type_name;
-                if let Ok(ty_name) = type_name(var.ty_offset, &self.type_hash) {
+                if let Ok(ty_name) = unit_type_name(&dwarf, &unit, var.ty_offset) {
                     v.type_name = ty_name;
                 }
                 v
@@ -584,7 +604,15 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             None => return Err(anyhow!("failed to determine subroutine")),
         };
         let dwarf = parse_dwarf(&self.buffer)?;
-        let variables = subroutine_variables(&dwarf, &subroutine)?;
+        let header = match header_from_offset(&dwarf, subroutine.unit_offset)? {
+            Some(header) => header,
+            None => {
+                return Ok(());
+            }
+        };
+
+        let unit = dwarf.unit(header)?;
+        let variables = subroutine_variables(&dwarf, &unit, &subroutine)?;
 
         let var = match variables
             .iter()
@@ -628,13 +656,16 @@ impl<'input> subroutine::SubroutineMap for DwarfSubroutineMap<'input> {
             use format::format_object;
             match piece.location {
                 gimli::Location::Address { address } => {
+                    let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
+                    let root = tree.root()?;
                     println!(
                         "{}",
                         format_object(
-                            offset,
+                            root,
                             &memory[(address as usize)..],
                             subroutine.encoding,
-                            &self.type_hash
+                            &dwarf,
+                            &unit
                         )?
                     );
                 }
