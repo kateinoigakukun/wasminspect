@@ -1,9 +1,17 @@
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum DebuggerRequest {
+pub enum TextRequest {
     Version,
-    Init { bytes: Vec<u8> },
+}
+
+pub struct BinaryRequest<'a> {
+    kind: BinaryRequestKind,
+    bytes: &'a [u8],
+}
+#[repr(u8)]
+pub enum BinaryRequestKind {
+    Init,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
