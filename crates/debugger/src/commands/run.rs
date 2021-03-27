@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::{Debugger, RunResult};
 use std::io::Write;
 
@@ -27,7 +27,7 @@ impl<D: Debugger> Command<D> for RunCommand {
     fn description(&self) -> &'static str {
         "Launch the executable in the debugger."
     }
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         if debugger.is_running() {
             print!("There is a running process, kill it and restart?: [Y/n] ");
@@ -36,13 +36,14 @@ impl<D: Debugger> Command<D> for RunCommand {
             let mut input = String::new();
             stdin.read_line(&mut input).unwrap();
             if input != "Y\n" {
-                return Ok(());
+                return Ok(None);
             }
         }
         match debugger.run(opts.name.as_ref().map(String::as_str)) {
             Ok(RunResult::Finish(values)) => {
                 let output = format!("{:?}", values);
                 context.printer.println(&output);
+                return Ok(Some(CommandResult::ProcessFinish(values)));
             }
             Ok(RunResult::Breakpoint) => {
                 context.printer.println("Hit breakpoint");
@@ -52,6 +53,6 @@ impl<D: Debugger> Command<D> for RunCommand {
                 context.printer.eprintln(&output);
             }
         }
-        Ok(())
+        Ok(None)
     }
 }

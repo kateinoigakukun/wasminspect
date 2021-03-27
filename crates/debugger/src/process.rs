@@ -1,4 +1,4 @@
-use super::commands::command::{self, AliasCommand, Command};
+use super::commands::command::{self, AliasCommand, Command, CommandResult};
 use super::commands::debugger::Debugger;
 use anyhow::Result;
 use linefeed::{DefaultTerminal, Interface, ReadResult};
@@ -48,53 +48,55 @@ impl<D: Debugger> Process<D> {
         })
     }
 
-    pub fn run_loop(&mut self, context: &command::CommandContext) -> Result<()> {
+    pub fn run_loop(&mut self, context: &command::CommandContext) -> Result<CommandResult> {
         let mut last_line: Option<String> = None;
         while let ReadResult::Input(line) = self.interface.read_line()? {
-            let should_end = if !line.trim().is_empty() {
+            let result = if !line.trim().is_empty() {
                 self.interface.add_history_unique(line.clone());
                 last_line = Some(line.clone());
-                self.dispatch_command(line, context)?
+                self.dispatch_command(&line, context)?
             } else if let Some(last_line) = last_line.as_ref() {
-                self.dispatch_command(last_line.clone(), context)?
+                self.dispatch_command(last_line, context)?
             } else {
-                false
+                None
             };
-            if should_end {
-                return Ok(());
+            if let Some(result) = result {
+                return Ok(result);
             }
         }
-        Ok(())
+        Ok(CommandResult::Exit)
     }
 
     pub fn dispatch_command(
         &mut self,
-        line: String,
+        line: &str,
         context: &command::CommandContext,
-    ) -> Result<bool> {
+    ) -> Result<Option<CommandResult>> {
         let cmd_name = extract_command_name(&line);
         let args = line.split_whitespace().collect();
         if let Some(cmd) = self.commands.get(cmd_name) {
             match cmd.run(&mut self.debugger, &context, args) {
-                Ok(()) => (),
+                Ok(result) => Ok(result),
                 Err(err) => {
                     eprintln!("{}", err);
+                    Ok(None)
                 }
             }
         } else if let Some(alias) = self.aliases.get(cmd_name) {
-            let line = alias.run(args)?.clone();
-            return self.dispatch_command(line, context);
+            let line = alias.run(args)?;
+            return self.dispatch_command(&line, context);
         } else if cmd_name == "help" {
             println!("Available commands:");
             for (_, command) in &self.commands {
                 println!("  {} -- {}", command.name(), command.description());
             }
+            Ok(None)
         } else if cfg!(feature = "remote-api") && cmd_name == "start-server" {
-            return Ok(true);
+            Ok(Some(CommandResult::Exit))
         } else {
             eprintln!("'{}' is not a valid command.", cmd_name);
+            Ok(None)
         }
-        Ok(false)
     }
 }
 

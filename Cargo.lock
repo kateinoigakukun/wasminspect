@@ -1717,6 +1717,7 @@ dependencies = [
  "tokio-tungstenite",
  "tower-service",
  "wasminspect-debugger",
+ "wasminspect-vm",
 ]
 
 [[package]]

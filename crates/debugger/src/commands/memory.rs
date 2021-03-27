@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
 use anyhow::{anyhow, Result};
 
@@ -33,7 +33,7 @@ impl<D: Debugger> Command<D> for MemoryCommand {
     fn description(&self) -> &'static str {
         "Commands for operating on memory."
     }
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Read { address, count } => {
@@ -68,13 +68,13 @@ impl<D: Debugger> Command<D> for MemoryCommand {
                     );
                     context.printer.println(&output);
                 }
-                Ok(())
+                Ok(None)
             }
             Opts::EnableWatch => {
                 let mut opts = debugger.get_opts();
                 opts.watch_memory = true;
                 debugger.set_opts(opts);
-                Ok(())
+                Ok(None)
             }
         }
     }

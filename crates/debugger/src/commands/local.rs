@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
 use anyhow::Result;
 
@@ -30,7 +30,7 @@ impl<D: Debugger> Command<D> for LocalCommand {
         "Commands for operating locals."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Read { index: None } => {
@@ -44,6 +44,6 @@ impl<D: Debugger> Command<D> for LocalCommand {
                 context.printer.println(&output);
             }
         }
-        Ok(())
+        Ok(None)
     }
 }

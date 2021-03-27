@@ -1,7 +1,8 @@
-use super::command::{Command, CommandContext};
+use crate::RunResult;
+
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
 use anyhow::Result;
-use wasminspect_vm::Signal;
 
 use structopt::StructOpt;
 
@@ -28,17 +29,18 @@ impl<D: Debugger> Command<D> for ProcessCommand {
         "Commands for interacting with processes."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Continue => match debugger.process()? {
-                Signal::Next => unreachable!(),
-                Signal::End => {}
-                Signal::Breakpoint => {
+                RunResult::Finish(result) => {
+                    return Ok(Some(CommandResult::ProcessFinish(result)));
+                }
+                RunResult::Breakpoint => {
                     context.printer.println("Hit breakpoint");
                 }
             },
         }
-        Ok(())
+        Ok(None)
     }
 }

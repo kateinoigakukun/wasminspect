@@ -87,6 +87,14 @@ pub enum ReturnValError {
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
 
+impl std::error::Error for ReturnValError {}
+
+impl std::fmt::Display for ReturnValError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 pub struct Executor {
     pub pc: ProgramCounter,
     pub stack: Stack,

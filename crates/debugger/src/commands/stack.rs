@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
 use anyhow::Result;
 
@@ -19,11 +19,11 @@ impl<D: Debugger> Command<D> for StackCommand {
         "Commands for operating stack."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<Option<CommandResult>> {
         for (index, value) in debugger.stack_values().iter().enumerate() {
             let output = format!("{}: {:?}", index, value);
             context.printer.println(&output);
         }
-        Ok(())
+        Ok(None)
     }
 }

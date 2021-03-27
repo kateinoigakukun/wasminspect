@@ -1,4 +1,4 @@
-use crate::commands::debugger::{self, Debugger, DebuggerOpts};
+use crate::commands::debugger::{self, Debugger, DebuggerOpts, RunResult};
 use anyhow::{anyhow, Result};
 use log::{debug, trace, warn};
 use std::collections::HashMap;
@@ -90,21 +90,7 @@ impl MainDebugger {
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                 let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
                 self.executor = Some(executor.clone());
-                let result = self.process()?;
-                match result {
-                    Signal::Next => unreachable!(),
-                    Signal::Breakpoint => return Ok(debugger::RunResult::Breakpoint),
-                    Signal::End => match executor.borrow_mut().pop_result(ret_types.to_vec()) {
-                        Ok(values) => {
-                            self.executor = None;
-                            return Ok(debugger::RunResult::Finish(values));
-                        }
-                        Err(err) => {
-                            self.executor = None;
-                            return Err(anyhow!("Return value failure {:?}", err));
-                        }
-                    },
-                }
+                return Ok(self.process()?);
             }
         }
     }
@@ -243,7 +229,7 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
-    fn process(&self) -> Result<Signal> {
+    fn process(&self) -> Result<RunResult> {
         let executor = match &self.executor {
             Some(executor) => executor,
             None => return Err(anyhow!("No execution context")),
@@ -252,7 +238,15 @@ impl debugger::Debugger for MainDebugger {
             let result = executor.borrow_mut().execute_step(&self.store, self);
             match result {
                 Ok(Signal::Next) => continue,
-                Ok(Signal::Breakpoint) | Ok(Signal::End) => return Ok(result.ok().unwrap()),
+                Ok(Signal::Breakpoint) => return Ok(RunResult::Breakpoint),
+                Ok(Signal::End) => {
+                    let pc = executor.borrow().pc;
+                    let func = self.store.func_global(pc.exec_addr());
+                    let results = executor
+                        .borrow_mut()
+                        .pop_result(func.ty().returns.to_vec())?;
+                    return Ok(RunResult::Finish(results));
+                }
                 Err(err) => return Err(anyhow!("Function exec failure {}", err)),
             }
         }

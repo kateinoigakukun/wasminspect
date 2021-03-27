@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
 use anyhow::Result;
 
@@ -27,7 +27,7 @@ impl<D: Debugger> Command<D> for FrameCommand {
         "Commands for selecting current stack frame."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Variable => {
@@ -39,7 +39,7 @@ impl<D: Debugger> Command<D> for FrameCommand {
                     let output = format!("{}: {}", variable.name, variable.type_name);
                     context.printer.println(&output);
                 }
-                Ok(())
+                Ok(None)
             }
         }
     }

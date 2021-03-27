@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::{Debugger, StepStyle};
 use super::symbol::demangle_symbol;
 
@@ -42,7 +42,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
         "Commands for operating the thread."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args.clone())?;
         match opts {
             Opts::Info => {
@@ -107,6 +107,6 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                 display_asm(debugger, context.printer.as_ref(), Some(4), true)?;
             }
         }
-        Ok(())
+        Ok(None)
     }
 }

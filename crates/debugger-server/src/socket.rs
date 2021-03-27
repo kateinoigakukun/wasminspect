@@ -2,7 +2,7 @@ use std::thread;
 
 use anyhow::anyhow;
 use futures::{channel::oneshot, Sink, SinkExt, StreamExt};
-use wasminspect_debugger::{MainDebugger, Process};
+use wasminspect_debugger::{CommandContext, MainDebugger, Process};
 
 use crate::debugger_proxy;
 use crate::rpc;
@@ -112,12 +112,13 @@ fn serialize_response(response: rpc::Response) -> Message {
 async fn handle_incoming_message<S: Sink<Message> + Unpin>(
     message: Message,
     process: &mut Process<MainDebugger>,
+    context: &CommandContext,
     tx: &mut S,
     _rx: &mpsc::Receiver<Option<Message>>,
 ) -> Result<(), S::Error> {
     match deserialize_request(&message) {
         Ok(req) => {
-            let res = debugger_proxy::handle_request(req, process);
+            let res = debugger_proxy::handle_request(req, process, context);
             let msg = serialize_response(res);
             tx.send(msg).await?;
             return Ok(());
@@ -144,7 +145,9 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
         rt.block_on(async move {
             log::debug!("Start debugger thread");
             let (mut process, dbg_context) = wasminspect_debugger::start_debugger(None).unwrap();
-            init_tx.send(process.run_loop(&dbg_context)).unwrap();
+            init_tx
+                .send(process.run_loop(&dbg_context).map(|_| ()))
+                .unwrap();
             log::debug!("Start receiving messages");
 
             loop {
@@ -157,7 +160,9 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
                     }
                 };
                 log::debug!("Received message: {}", msg);
-                match handle_incoming_message(msg, &mut process, &mut tx, &request_rx).await {
+                match handle_incoming_message(msg, &mut process, &dbg_context, &mut tx, &request_rx)
+                    .await
+                {
                     Ok(()) => continue,
                     Err(err) => {
                         log::error!("Sink error: {}", err);

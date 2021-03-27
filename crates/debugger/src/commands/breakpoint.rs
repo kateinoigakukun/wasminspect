@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::{Breakpoint, Debugger};
 use anyhow::Result;
 use structopt::StructOpt;
@@ -30,13 +30,13 @@ impl<D: Debugger> Command<D> for BreakpointCommand {
         "Commands for operating on breakpoints."
     }
 
-    fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, debugger: &mut D, _context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Set { name } => {
                 let breakpoint = Breakpoint::Function { name };
                 debugger.set_breakpoint(breakpoint);
-                Ok(())
+                Ok(None)
             }
         }
     }

@@ -1,4 +1,4 @@
-use super::command::{Command, CommandContext};
+use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
 use anyhow::Result;
 
@@ -31,7 +31,7 @@ impl<D: Debugger> Command<D> for SettingsCommand {
         "Commands for setting environment"
     }
 
-    fn run(&self, _debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<()> {
+    fn run(&self, _debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Set {
@@ -48,6 +48,6 @@ impl<D: Debugger> Command<D> for SettingsCommand {
                 }
             },
         }
-        Ok(())
+        Ok(None)
     }
 }

@@ -66,7 +66,7 @@ pub enum Request<'a> {
 pub enum TextResponse {
     Version { value: String },
     Init,
-    CallResult { value: WasmValue },
+    CallResult { values: Vec<WasmValue> },
     Error { message: String },
 }
 #[derive(Debug)]

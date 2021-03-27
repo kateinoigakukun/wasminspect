@@ -4,6 +4,8 @@ mod dwarf;
 mod process;
 
 pub use commands::command::CommandContext;
+pub use commands::command::CommandResult;
+pub use commands::debugger::RunResult;
 pub use debugger::MainDebugger;
 pub use process::Process;
 
@@ -106,9 +108,14 @@ pub fn run_loop(bytes: Option<Vec<u8>>, init_source: Option<String>) -> Result<(
             }
         };
         for line in lines {
-            process.dispatch_command(line, &context)?;
+            process.dispatch_command(&line, &context)?;
         }
     }
-    process.run_loop(&context)?;
+    loop {
+        match process.run_loop(&context)? {
+            CommandResult::ProcessFinish(_) => {}
+            CommandResult::Exit => break,
+        }
+    }
     Ok(())
 }
