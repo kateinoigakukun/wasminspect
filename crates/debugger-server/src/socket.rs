@@ -1,6 +1,9 @@
-use anyhow::anyhow;
-use futures::StreamExt;
+use std::thread;
 
+use anyhow::anyhow;
+use futures::{channel::oneshot, stream::SplitSink, Sink, SinkExt, StreamExt};
+
+use crate::rpc;
 use headers::{
     Connection, Header, HeaderMapExt, SecWebsocketAccept, SecWebsocketKey, SecWebsocketVersion,
     Upgrade,
@@ -8,6 +11,7 @@ use headers::{
 use hyper::{upgrade::Upgraded, Body, Response};
 use hyper::{Request, StatusCode};
 
+use std::sync::mpsc;
 use tokio_tungstenite::tungstenite::{protocol, Message};
 use tokio_tungstenite::WebSocketStream;
 
@@ -74,39 +78,77 @@ where
     Ok(res)
 }
 
-async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
-    let mut ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
-    use std::sync::mpsc::{self, Receiver, Sender};
-    let (request_tx, _request_rx): (Sender<Option<Message>>, Receiver<Option<Message>>) =
-        mpsc::channel();
-
-    // tokio::task::spawn(async move {
-    //     let (process, dbg_context) = wasminspect_debugger::start_debugger(None).unwrap();
-    //     let context = Rc::new(Context {
-    //         process: RefCell::new(process),
-    //         dbg_context: RefCell::new(dbg_context),
-    //     });
-
-    //     match init_process(context.as_ref()) {
-    //         Ok(_) => {}
-    //         Err(err) => eprintln!("{}", err),
-    //     }
-    //     loop {
-    //         let msg = match request_rx.recv() {
-    //             Ok(Some(msg)) => msg,
-    //             Ok(None) => break,
-    //             Err(err) => {
-    //                 log::error!("Receiving error: {}", err);
-    //                 break;
-    //             }
-    //         };
-    //     }
-    // });
-    while let Some(msg) = ws.next().await {
-        request_tx.send(Some(msg?))?;
+fn handle_incoming_message<S: Sink<Message>>(
+    message: Message,
+    tx: &mut S,
+    rx: &mpsc::Receiver<Option<Message>>,
+) -> Result<(), S::Error> {
+    match message {
+        Message::Binary(bytes) => {
+            let req = match rpc::BinaryRequest::from_bytes(&bytes) {
+                Some(req) => req,
+                None => return Ok(()),
+            };
+        }
+        Message::Text(text) => {}
+        _ => {}
     }
-    request_tx.send(None)?;
+    Ok(())
+}
 
+pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
+    let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
+    let (mut tx, mut rx) = ws.split();
+    let (request_tx, request_rx) = mpsc::channel::<Option<Message>>();
+    let (init_tx, init_rx) = oneshot::channel();
+
+    thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            log::debug!("Start debugger thread");
+            let (mut process, dbg_context) = wasminspect_debugger::start_debugger(None).unwrap();
+            init_tx.send(process.run_loop(&dbg_context)).unwrap();
+            log::debug!("Start receiving messages");
+
+            loop {
+                let msg = match request_rx.recv() {
+                    Ok(Some(msg)) => msg,
+                    Ok(None) => break,
+                    Err(err) => {
+                        log::error!("Receiving error: {}", err);
+                        break;
+                    }
+                };
+                log::debug!("Received message: {}", msg);
+                match handle_incoming_message(msg, &mut tx, &request_rx) {
+                    Ok(()) => continue,
+                    Err(err) => {
+                        log::error!("Sink error: {}", err);
+                        break;
+                    }
+                }
+            }
+        });
+    });
+
+    log::debug!("Waiting of debugger init");
+    init_rx.await??;
+    log::debug!("End of debugger init");
+
+    while let Some(msg) = rx.next().await {
+        match msg {
+            Ok(msg) => {
+                request_tx.send(Some(msg))?;
+            }
+            Err(e) => {
+                request_tx.send(None).unwrap();
+                return Err(e.into());
+            }
+        }
+    }
+
+    log::debug!("End of socket");
+    request_tx.send(None).unwrap();
     Ok(())
 }
 
