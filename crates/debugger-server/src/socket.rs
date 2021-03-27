@@ -1,25 +1,15 @@
 use anyhow::anyhow;
-use futures::{FutureExt, SinkExt, StreamExt};
+use futures::StreamExt;
 
 use headers::{
     Connection, Header, HeaderMapExt, SecWebsocketAccept, SecWebsocketKey, SecWebsocketVersion,
     Upgrade,
 };
-use hyper::{
-    header::{self, AsHeaderName, HeaderName, ToStrError},
-    upgrade::OnUpgrade,
-    upgrade::Upgraded,
-    Body, Response, Server,
-};
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Method, Request, StatusCode,
-};
+use hyper::{upgrade::Upgraded, Body, Response};
+use hyper::{Request, StatusCode};
 
 use tokio_tungstenite::tungstenite::{protocol, Message};
 use tokio_tungstenite::WebSocketStream;
-
-use std::{cell::RefCell, net::SocketAddr, rc::Rc};
 
 pub async fn socket_handshake<F, Fut>(
     req: Request<Body>,
@@ -87,7 +77,7 @@ where
 async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
     let mut ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
     use std::sync::mpsc::{self, Receiver, Sender};
-    let (request_tx, request_rx): (Sender<Option<Message>>, Receiver<Option<Message>>) =
+    let (request_tx, _request_rx): (Sender<Option<Message>>, Receiver<Option<Message>>) =
         mpsc::channel();
 
     // tokio::task::spawn(async move {
@@ -120,61 +110,63 @@ async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[cfg(test)]
 mod tests {
-    use std::{pin::Pin, sync::Arc, task::Poll, thread::sleep, time::Duration};
-
-    use futures::{channel::oneshot, TryFutureExt};
-    use futures::{task, Future};
-    use hyper::{server::conn::Http, Uri};
-    use tokio::net::{TcpListener, TcpStream as TkTcpStream};
-    use tokio_tungstenite::tungstenite::{protocol, Message};
-    use tokio_tungstenite::WebSocketStream;
-
     use super::*;
-
-    #[derive(Clone)]
-    struct AddrConnect(SocketAddr);
-
-    impl tower_service::Service<hyper::http::Uri> for AddrConnect {
-        type Response = ::tokio::net::TcpStream;
-        type Error = ::std::io::Error;
-        type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-        fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn call(&mut self, _: hyper::http::Uri) -> Self::Future {
-            Box::pin(tokio::net::TcpStream::connect(self.0))
-        }
-    }
-
-    fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
-        use std::net::TcpListener as StdTcpListener;
-        let std_listener = StdTcpListener::bind(addr).unwrap();
-        std_listener.set_nonblocking(true).unwrap();
-        TcpListener::from_std(std_listener)
-    }
-
-    async fn echo(upgraded: Upgraded) -> anyhow::Result<()> {
-        let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
-        let (tx, rx) = ws.split();
-        rx.inspect(|i| log::debug!("ws recv: {:?}", i))
-            .forward(tx)
-            .await?;
-        Ok(())
-    }
 
     #[tokio::test]
     async fn test_socket_handshake() {
+        use hyper::server::conn::Http;
+        use std::{pin::Pin, task::Poll};
+
+        use futures::SinkExt;
+        use futures::{task, Future};
+        use std::net::SocketAddr;
+        use tokio::net::TcpListener;
+        use tokio_tungstenite::tungstenite::protocol;
+        use tokio_tungstenite::WebSocketStream;
+
+        #[derive(Clone)]
+        struct AddrConnect(SocketAddr);
+
+        impl tower_service::Service<hyper::http::Uri> for AddrConnect {
+            type Response = ::tokio::net::TcpStream;
+            type Error = ::std::io::Error;
+            type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+            fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+                Poll::Ready(Ok(()))
+            }
+
+            fn call(&mut self, _: hyper::http::Uri) -> Self::Future {
+                Box::pin(tokio::net::TcpStream::connect(self.0))
+            }
+        }
+
+        fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
+            use std::net::TcpListener as StdTcpListener;
+            let std_listener = StdTcpListener::bind(addr).unwrap();
+            std_listener.set_nonblocking(true).unwrap();
+            TcpListener::from_std(std_listener)
+        }
+
+        async fn echo(upgraded: Upgraded) -> anyhow::Result<()> {
+            let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
+            let (tx, rx) = ws.split();
+            rx.inspect(|i| log::debug!("ws recv: {:?}", i))
+                .forward(tx)
+                .await?;
+            Ok(())
+        }
+
         let _ = env_logger::try_init();
 
         let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
         let addr = listener.local_addr().unwrap();
-        let (upgraded_tx, upgraded_rx) = oneshot::channel::<Upgraded>();
+        let (upgraded_tx, upgraded_rx) = futures::channel::oneshot::channel::<Upgraded>();
 
         tokio::spawn(async move {
-            let uri: Uri = format!("http://{}", addr).parse().expect("valid URI");
+            let uri: hyper::Uri = format!("http://{}", addr).parse().expect("valid URI");
             let req = Request::builder()
                 .uri(uri)
                 .header("connection", "upgrade")
@@ -183,10 +175,12 @@ mod tests {
                 .header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
                 .body(Body::empty())
                 .expect("connection req");
-            let upgrade = ::hyper::Client::builder()
+            let res = ::hyper::Client::builder()
                 .build(AddrConnect(addr))
                 .request(req)
-                .and_then(|res| hyper::upgrade::on(res));
+                .await
+                .expect("hello res");
+            let upgrade = hyper::upgrade::on(res);
             match upgrade.await {
                 Ok(up) => upgraded_tx.send(up).expect("send upgraded"),
                 Err(err) => {
@@ -194,7 +188,7 @@ mod tests {
                 }
             };
         });
-        let svc = service_fn(|req| socket_handshake(req, echo));
+        let svc = hyper::service::service_fn(|req| socket_handshake(req, echo));
         let (socket, _) = listener.accept().await.unwrap();
         Http::new()
             .serve_connection(socket, svc)

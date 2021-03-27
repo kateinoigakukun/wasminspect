@@ -1,13 +1,8 @@
 mod rpc;
 mod socket;
 
-use headers::{
-    Connection, Header, HeaderMapExt, SecWebsocketAccept, SecWebsocketKey, SecWebsocketVersion,
-    Upgrade,
-};
 use hyper::{
-    header::{self, AsHeaderName, HeaderName, ToStrError},
-    upgrade::Upgraded,
+    header::{self},
     Body, Response, Server,
 };
 use hyper::{
@@ -49,7 +44,9 @@ async fn remote_api(
                 .load_module(&wasm_bytes)?;
             Ok(Response::new(Body::empty()))
         }
-        (&Method::GET, "debug") => socket::socket_handshake(req, |upgraded| async { Ok(()) }).await,
+        (&Method::GET, "debug") => {
+            socket::socket_handshake(req, |_upgraded| async { Ok(()) }).await
+        }
         _ => {
             // Return 404 not found response.
             Ok(Response::builder()
