@@ -1,5 +1,7 @@
-use crate::rpc::{self, TextResponse};
+use crate::rpc;
 use wasminspect_debugger::{MainDebugger, Process};
+
+static VERSION: &str = "0.1.0";
 
 pub fn handle_request(req: rpc::Request, process: &mut Process<MainDebugger>) -> rpc::Response {
     match _handle_request(req, process) {
@@ -18,6 +20,8 @@ fn _handle_request(
     use rpc::BinaryRequestKind::*;
     use rpc::Request::*;
     use rpc::TextRequest::*;
+    use rpc::*;
+
     match req {
         Binary(req) => match req.kind {
             Init => {
@@ -25,6 +29,9 @@ fn _handle_request(
                 return Ok(rpc::Response::Text(TextResponse::Init));
             }
         },
+        Text(Version) => {
+            return Ok(TextResponse::Version { value: VERSION.to_string() }.into());
+        }
         Text(CallExported { name: _, args: _ }) => {
             unimplemented!()
         }

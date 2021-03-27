@@ -28,6 +28,7 @@ impl std::error::Error for RequestError {}
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum TextRequest {
+    Version,
     CallExported { name: String, args: Vec<WasmValue> },
 }
 
@@ -63,6 +64,7 @@ pub enum Request<'a> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum TextResponse {
+    Version { value: String },
     Init,
     CallResult { value: WasmValue },
     Error { message: String },

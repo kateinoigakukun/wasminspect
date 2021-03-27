@@ -11,8 +11,6 @@ use tokio;
 
 use std::net::SocketAddr;
 
-static VERSION: &str = "0.1.0";
-
 pub async fn start(addr: SocketAddr) {
     run(addr).await;
 }
@@ -21,7 +19,6 @@ pub async fn start(addr: SocketAddr) {
 
 async fn remote_api(req: Request<Body>) -> Result<Response<Body>, anyhow::Error> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/version") => Ok(Response::new(VERSION.into())),
         (&Method::GET, "/debugger") => {
             let res =
                 socket::socket_handshake(req, |upgraded| socket::establish_connection(upgraded))
