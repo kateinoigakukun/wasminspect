@@ -41,6 +41,7 @@ pub enum Trap {
     },
     UndefinedFunc(usize),
     NoMoreInstruction,
+    HostFunctionError(Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl std::error::Error for Trap {}

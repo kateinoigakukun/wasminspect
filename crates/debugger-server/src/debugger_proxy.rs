@@ -10,7 +10,7 @@ use wasmparser::FuncType;
 use crate::rpc::{self};
 use crate::serialization;
 use wasminspect_debugger::{CommandContext, CommandResult, MainDebugger, Process};
-use wasminspect_vm::{HostFuncBody, HostValue, WasmValue};
+use wasminspect_vm::{HostFuncBody, HostValue, Trap, WasmValue};
 
 static VERSION: &str = "0.1.0";
 
@@ -51,6 +51,15 @@ fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     }
 }
 
+#[derive(Debug)]
+struct RemoteCallError(String);
+impl std::fmt::Display for RemoteCallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl std::error::Error for RemoteCallError {}
+
 fn remote_call_fn<S: futures::Sink<Message> + Unpin + Send + 'static>(
     field_name: String,
     module_name: String,
@@ -68,13 +77,14 @@ where
         let tx = tx.clone();
         let field_name = field_name.clone();
         let module_name = module_name.clone();
+        let args = args.iter().map(from_vm_wasm_value).collect();
         let call_handle = thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async move {
                 let call = rpc::TextResponse::CallHost {
                     module: module_name,
                     field: field_name,
-                    args: vec![],
+                    args: args,
                 };
                 tx.lock()
                     .unwrap()
@@ -83,9 +93,20 @@ where
                     .unwrap();
             });
         });
-        call_handle.join().unwrap();
-        let message = rx.recv().expect("receive call result from client").unwrap();
-        let res = match serialization::deserialize_request(&message).unwrap() {
+
+        call_handle.join().map_err(|e| {
+            let e = RemoteCallError(format!("{:?}", e));
+            Trap::HostFunctionError(Box::new(e))
+        })?;
+
+        let message = rx
+            .recv()
+            .map_err(|e| Trap::HostFunctionError(Box::new(e)))?
+            .ok_or(RemoteCallError("unexpected end of message".to_owned()))
+            .map_err(|e| Trap::HostFunctionError(Box::new(e)))?;
+        let res = match serialization::deserialize_request(&message)
+            .map_err(|e| Trap::HostFunctionError(Box::new(e)))?
+        {
             rpc::Request::Text(rpc::TextRequest::CallResult { values }) => values,
             _ => unreachable!(),
         };

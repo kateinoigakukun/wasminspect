@@ -22,7 +22,7 @@ pub enum WasmImport {
 #[derive(Debug)]
 pub enum RequestError {
     InvalidBinaryRequestKind(u8),
-    InvalidTextRequestJSON(Box<dyn std::error::Error>),
+    InvalidTextRequestJSON(Box<dyn std::error::Error + Send + Sync>),
     InvalidMessageType(String),
 }
 
