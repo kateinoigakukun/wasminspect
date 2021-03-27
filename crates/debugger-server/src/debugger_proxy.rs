@@ -25,7 +25,7 @@ fn _handle_request(
                 return Ok(rpc::Response::Text(TextResponse::Init));
             }
         },
-        Text(CallExported { name, args }) => {
+        Text(CallExported { name: _, args: _ }) => {
             unimplemented!()
         }
     }

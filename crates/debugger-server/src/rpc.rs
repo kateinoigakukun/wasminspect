@@ -1,5 +1,5 @@
-use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_derive::{FromPrimitive};
+use num_traits::{FromPrimitive};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]

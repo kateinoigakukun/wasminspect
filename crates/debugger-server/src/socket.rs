@@ -1,7 +1,7 @@
 use std::thread;
 
 use anyhow::anyhow;
-use futures::{channel::oneshot, stream::SplitSink, Sink, SinkExt, StreamExt};
+use futures::{channel::oneshot, Sink, SinkExt, StreamExt};
 use wasminspect_debugger::{MainDebugger, Process};
 
 use crate::debugger_proxy;
@@ -113,7 +113,7 @@ async fn handle_incoming_message<S: Sink<Message> + Unpin>(
     message: Message,
     process: &mut Process<MainDebugger>,
     tx: &mut S,
-    rx: &mpsc::Receiver<Option<Message>>,
+    _rx: &mpsc::Receiver<Option<Message>>,
 ) -> Result<(), S::Error> {
     match deserialize_request(&message) {
         Ok(req) => {
