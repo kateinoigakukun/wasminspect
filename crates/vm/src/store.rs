@@ -62,7 +62,7 @@ impl Store {
         field: &str,
     ) -> Option<Rc<RefCell<GlobalInstance>>> {
         let module = self.module(module_index).defined().unwrap();
-        let global_addr = module.exported_global(field.to_string()).ok().unwrap();
+        let global_addr = module.exported_global(field).ok().unwrap();
         global_addr.map(|addr| self.global(addr))
     }
 
@@ -473,7 +473,7 @@ impl Store {
         let exec_addr = match module {
             ModuleInstance::Defined(defined) => {
                 let func_addr = defined
-                    .exported_func(name.clone())
+                    .exported_func(&name)
                     .map_err(StoreError::InvalidImport)?
                     .ok_or_else(err)?;
                 self.funcs.resolve(func_addr).ok_or_else(err)?.clone()
@@ -514,7 +514,7 @@ impl Store {
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
                 let addr = defined
-                    .exported_memory(name.clone())
+                    .exported_memory(&name)
                     .map_err(StoreError::InvalidImport)?
                     .ok_or(err())?
                     .clone();
@@ -572,7 +572,7 @@ impl Store {
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
                 let addr = defined
-                    .exported_table(name.clone())
+                    .exported_table(&name)
                     .map_err(StoreError::InvalidImport)?
                     .ok_or_else(err)?;
                 self.tables.resolve(addr).ok_or_else(err)?.clone()
@@ -622,7 +622,7 @@ impl Store {
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
                 let addr = defined
-                    .exported_global(name)
+                    .exported_global(&name)
                     .map_err(StoreError::InvalidImport)?
                     .ok_or(err())?;
                 self.globals.resolve(addr).ok_or_else(err)?.clone()

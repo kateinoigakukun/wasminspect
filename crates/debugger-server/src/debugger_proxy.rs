@@ -30,7 +30,10 @@ fn _handle_request(
             }
         },
         Text(Version) => {
-            return Ok(TextResponse::Version { value: VERSION.to_string() }.into());
+            return Ok(TextResponse::Version {
+                value: VERSION.to_string(),
+            }
+            .into());
         }
         Text(CallExported { name: _, args: _ }) => {
             unimplemented!()

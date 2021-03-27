@@ -63,11 +63,11 @@ impl DefinedModuleInstance {
         }
     }
 
-    pub fn exported_by_name(&self, name: String) -> Option<&ExportInstance> {
+    pub fn exported_by_name(&self, name: &str) -> Option<&ExportInstance> {
         self.exports.iter().filter(|e| *e.name() == name).next()
     }
 
-    pub fn exported_global(&self, name: String) -> DefinedModuleResult<Option<GlobalAddr>> {
+    pub fn exported_global(&self, name: &str) -> DefinedModuleResult<Option<GlobalAddr>> {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {
@@ -81,7 +81,7 @@ impl DefinedModuleInstance {
         }
     }
 
-    pub fn exported_func(&self, name: String) -> DefinedModuleResult<Option<FuncAddr>> {
+    pub fn exported_func(&self, name: &str) -> DefinedModuleResult<Option<FuncAddr>> {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {
@@ -95,7 +95,7 @@ impl DefinedModuleInstance {
         }
     }
 
-    pub fn exported_table(&self, name: String) -> DefinedModuleResult<Option<TableAddr>> {
+    pub fn exported_table(&self, name: &str) -> DefinedModuleResult<Option<TableAddr>> {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {
@@ -109,7 +109,7 @@ impl DefinedModuleInstance {
         }
     }
 
-    pub fn exported_memory(&self, name: String) -> DefinedModuleResult<Option<MemoryAddr>> {
+    pub fn exported_memory(&self, name: &str) -> DefinedModuleResult<Option<MemoryAddr>> {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {

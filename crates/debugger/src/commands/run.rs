@@ -39,7 +39,7 @@ impl<D: Debugger> Command<D> for RunCommand {
                 return Ok(());
             }
         }
-        match debugger.run(opts.name) {
+        match debugger.run(opts.name.as_ref().map(String::as_str)) {
             Ok(RunResult::Finish(values)) => {
                 let output = format!("{:?}", values);
                 context.printer.println(&output);

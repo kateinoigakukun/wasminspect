@@ -51,7 +51,24 @@ impl MainDebugger {
         store
     }
 
-    fn execute_func(&mut self, func_addr: FuncAddr) -> Result<debugger::RunResult> {
+    pub fn lookup_func(&self, name: &str) -> Result<FuncAddr> {
+        let module_index = match self.module_index {
+            Some(idx) => idx,
+            None => return Err(anyhow!("No module loaded")),
+        };
+        let module = self.store.module(module_index).defined().unwrap();
+        if let Some(Some(func_addr)) = module.exported_func(name).ok() {
+            Ok(func_addr)
+        } else {
+            Err(anyhow!("Entry function {} not found", name))
+        }
+    }
+
+    pub fn execute_func(
+        &mut self,
+        func_addr: FuncAddr,
+        args: Vec<WasmValue>,
+    ) -> Result<debugger::RunResult> {
         let func = self
             .store
             .func(func_addr)
@@ -61,7 +78,7 @@ impl MainDebugger {
                 let mut results = Vec::new();
                 match host
                     .code()
-                    .call(&vec![], &mut results, &self.store, func_addr.module_index())
+                    .call(&args, &mut results, &self.store, func_addr.module_index())
                 {
                     Ok(_) => return Ok(debugger::RunResult::Finish(results)),
                     Err(_) => return Err(anyhow!("Failed to execute host func")),
@@ -69,7 +86,7 @@ impl MainDebugger {
             }
             (FunctionInstance::Defined(func), exec_addr) => {
                 let ret_types = &func.ty().returns;
-                let frame = CallFrame::new_from_func(exec_addr, func, vec![], None);
+                let frame = CallFrame::new_from_func(exec_addr, func, args, None);
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                 let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
                 self.executor = Some(executor.clone());
@@ -241,7 +258,7 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
-    fn run(&mut self, name: Option<String>) -> Result<debugger::RunResult> {
+    fn run(&mut self, name: Option<&str>) -> Result<debugger::RunResult> {
         if self.is_running() {
             self.store = Self::instantiate_store();
         }
@@ -249,28 +266,21 @@ impl debugger::Debugger for MainDebugger {
             Some(idx) => idx,
             None => return Err(anyhow!("No module loaded")),
         };
-        {
+        let start_func_addr = {
             let module = self.store.module(module_index).defined().unwrap();
-            if let Some(start_func_addr) = *module.start_func_addr() {
-                return self.execute_func(start_func_addr);
-            }
-        }
-
-        let module = self.store.module(module_index).defined().unwrap();
-        let func_addr = if let Some(func_name) = name {
-            if let Some(Some(func_addr)) = module.exported_func(func_name.clone()).ok() {
-                func_addr
+            *module.start_func_addr()
+        };
+        let func_addr = {
+            if let Some(name) = name {
+                self.lookup_func(&name)?
+            } else if let Some(start_func_addr) = start_func_addr {
+                start_func_addr
             } else {
-                return Err(anyhow!("Entry function {} not found", func_name));
-            }
-        } else {
-            if let Some(Some(func_addr)) = module.exported_func("_start".to_string()).ok() {
-                func_addr
-            } else {
-                return Err(anyhow!("Entry function _start not found"));
+                self.lookup_func("_start")?
             }
         };
-        self.execute_func(func_addr)
+
+        self.execute_func(func_addr, vec![])
     }
 }
 

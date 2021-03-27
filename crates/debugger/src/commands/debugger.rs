@@ -35,7 +35,7 @@ pub trait OutputPrinter {
 pub trait Debugger {
     fn get_opts(&self) -> DebuggerOpts;
     fn set_opts(&mut self, opts: DebuggerOpts);
-    fn run(&mut self, name: Option<String>) -> Result<RunResult>;
+    fn run(&mut self, name: Option<&str>) -> Result<RunResult>;
     fn is_running(&self) -> bool;
     fn frame(&self) -> Vec<String>;
     fn current_frame(&self) -> Option<FunctionFrame>;
