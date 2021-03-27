@@ -33,6 +33,20 @@ where
     }
 }
 
+fn from_js_number(value: rpc::JSNumber, ty: &wasmparser::Type) -> WasmValue {
+    match ty {
+        wasmparser::Type::I32 => wasminspect_vm::WasmValue::I32(value as i32),
+        wasmparser::Type::I64 => wasminspect_vm::WasmValue::I64(value as i64),
+        wasmparser::Type::F32 => {
+            wasminspect_vm::WasmValue::F32(u32::from_le_bytes((value as f32).to_le_bytes()))
+        }
+        wasmparser::Type::F64 => {
+            wasminspect_vm::WasmValue::F64(u64::from_le_bytes((value as f64).to_le_bytes()))
+        }
+        _ => unreachable!(),
+    }
+}
+
 fn to_vm_wasm_value(value: &rpc::WasmValue) -> WasmValue {
     match value {
         rpc::WasmValue::F32 { value } => WasmValue::F32(*value),
@@ -110,7 +124,11 @@ where
             rpc::Request::Text(rpc::TextRequest::CallResult { values }) => values,
             _ => unreachable!(),
         };
-        *results = res.iter().map(to_vm_wasm_value).collect::<Vec<WasmValue>>();
+        *results = res
+            .iter()
+            .zip(ty.params.iter())
+            .map(|(arg, ty)| from_js_number(*arg, ty))
+            .collect::<Vec<WasmValue>>();
         Ok(())
     })
 }
@@ -210,7 +228,15 @@ where
         Text(CallExported { name, args }) => {
             use wasminspect_debugger::RunResult;
             let func = process.debugger.lookup_func(&name)?;
-            let args = args.iter().map(to_vm_wasm_value).collect();
+            let func_ty = process.debugger.func_type(func)?;
+            if func_ty.params.len() != args.len() {
+                return Err(RequestError::CallArgumentLengthMismatch.into());
+            }
+            let args = args
+                .iter()
+                .zip(func_ty.params.iter())
+                .map(|(arg, ty)| from_js_number(*arg, ty))
+                .collect();
             match process.debugger.execute_func(func, args) {
                 Ok(RunResult::Finish(values)) => {
                     let values = values.iter().map(from_vm_wasm_value).collect();

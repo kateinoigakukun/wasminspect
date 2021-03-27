@@ -58,6 +58,13 @@ impl MainDebugger {
         store
     }
 
+    pub fn func_type(&self, func_addr: FuncAddr) -> Result<wasmparser::FuncType> {
+        let (func, _) = self
+            .store
+            .func(func_addr)
+            .ok_or(anyhow!("Function not found"))?;
+        return Ok(func.ty().clone());
+    }
     pub fn lookup_func(&self, name: &str) -> Result<FuncAddr> {
         let module_index = match self.module_index {
             Some(idx) => idx,

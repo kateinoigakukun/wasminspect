@@ -11,6 +11,8 @@ pub enum WasmValue {
     F64 { value: u64 },
 }
 
+pub type JSNumber = f64;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WasmImport {
     Func { name: String },
@@ -24,6 +26,7 @@ pub enum RequestError {
     InvalidBinaryRequestKind(u8),
     InvalidTextRequestJSON(Box<dyn std::error::Error + Send + Sync>),
     InvalidMessageType(String),
+    CallArgumentLengthMismatch,
 }
 
 impl std::fmt::Display for RequestError {
@@ -37,9 +40,9 @@ impl std::error::Error for RequestError {}
 #[serde(tag = "type")]
 pub enum TextRequest {
     Version,
-    CallExported { name: String, args: Vec<WasmValue> },
+    CallExported { name: String, args: Vec<JSNumber> },
     CallResult {
-        values: Vec<WasmValue>,
+        values: Vec<JSNumber>,
     },
 }
 
