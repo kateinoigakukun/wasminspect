@@ -1,3 +1,6 @@
+// FIXME: Cleanup after refactoring
+#![allow(dead_code)]
+
 use anyhow::{anyhow, Result};
 use gimli;
 use log::debug;
