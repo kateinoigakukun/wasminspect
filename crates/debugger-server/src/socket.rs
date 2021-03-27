@@ -2,7 +2,9 @@ use std::thread;
 
 use anyhow::anyhow;
 use futures::{channel::oneshot, stream::SplitSink, Sink, SinkExt, StreamExt};
+use wasminspect_debugger::{MainDebugger, Process};
 
+use crate::debugger_proxy;
 use crate::rpc;
 use headers::{
     Connection, Header, HeaderMapExt, SecWebsocketAccept, SecWebsocketKey, SecWebsocketVersion,
@@ -78,22 +80,57 @@ where
     Ok(res)
 }
 
-fn handle_incoming_message<S: Sink<Message>>(
+fn deserialize_request(message: &Message) -> Result<rpc::Request, rpc::RequestError> {
+    match message {
+        Message::Binary(bytes) => rpc::BinaryRequest::from_bytes(bytes).map(rpc::Request::Binary),
+        Message::Text(text) => match serde_json::from_str::<rpc::TextRequest>(&text) {
+            Ok(req) => Ok(rpc::Request::Text(req)),
+            Err(e) => Err(rpc::RequestError::InvalidTextRequestJSON(Box::new(e))),
+        },
+        msg => Err(rpc::RequestError::InvalidMessageType(format!("{:?}", msg))),
+    }
+}
+fn serialize_response(response: rpc::Response) -> Message {
+    match response {
+        rpc::Response::Text(response) => {
+            let json = match serde_json::to_string(&response) {
+                Ok(json) => json,
+                Err(e) => {
+                    log::error!("Failed to serialize error response: {}", e);
+                    return Message::Close(None);
+                }
+            };
+            Message::Text(json)
+        }
+        rpc::Response::Binary { kind, bytes } => {
+            let mut bin = vec![kind as u8];
+            bin.extend(bytes);
+            Message::binary(bin)
+        }
+    }
+}
+async fn handle_incoming_message<S: Sink<Message> + Unpin>(
     message: Message,
+    process: &mut Process<MainDebugger>,
     tx: &mut S,
     rx: &mpsc::Receiver<Option<Message>>,
 ) -> Result<(), S::Error> {
-    match message {
-        Message::Binary(bytes) => {
-            let req = match rpc::BinaryRequest::from_bytes(&bytes) {
-                Some(req) => req,
-                None => return Ok(()),
-            };
+    match deserialize_request(&message) {
+        Ok(req) => {
+            let res = debugger_proxy::handle_request(req, process);
+            let msg = serialize_response(res);
+            tx.send(msg).await?;
+            return Ok(());
         }
-        Message::Text(text) => {}
-        _ => {}
+        Err(e) => {
+            let response = rpc::TextResponse::Error {
+                message: e.to_string(),
+            };
+            let msg = serialize_response(response.into());
+            tx.send(msg).await?;
+            return Ok(());
+        }
     }
-    Ok(())
 }
 
 pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
@@ -120,7 +157,7 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
                     }
                 };
                 log::debug!("Received message: {}", msg);
-                match handle_incoming_message(msg, &mut tx, &request_rx) {
+                match handle_incoming_message(msg, &mut process, &mut tx, &request_rx).await {
                     Ok(()) => continue,
                     Err(err) => {
                         log::error!("Sink error: {}", err);

@@ -1,3 +1,4 @@
+mod debugger_proxy;
 mod rpc;
 mod socket;
 
@@ -7,16 +8,10 @@ use hyper::{
 };
 use hyper::{Body, Response, Server};
 use tokio;
-use wasminspect_debugger::*;
 
-use std::{cell::RefCell, net::SocketAddr};
+use std::net::SocketAddr;
 
 static VERSION: &str = "0.1.0";
-
-struct Context {
-    process: RefCell<Process<MainDebugger>>,
-    dbg_context: RefCell<CommandContext>,
-}
 
 pub async fn start(addr: SocketAddr) {
     run(addr).await;
