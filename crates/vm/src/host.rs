@@ -20,7 +20,7 @@ pub struct HostContext<'a> {
 
 pub enum HostValue {
     Func(HostFuncBody),
-    Global(Rc<RefCell<GlobalInstance>>),
+    Global(Rc<RefCell<dyn GlobalInstance>>),
     Mem(Ref<MemoryInstance>),
     Table(Ref<TableInstance>),
 }

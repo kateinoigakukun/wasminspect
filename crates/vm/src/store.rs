@@ -1,13 +1,13 @@
+use crate::module::DefaultHostModuleInstance;
+
 use super::address::*;
 use super::executor::eval_const_expr;
 use super::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
-use super::global::GlobalInstance;
+use super::global::{DefaultGlobalInstance, GlobalInstance};
 use super::host::HostValue;
 use super::linker::LinkableCollection;
 use super::memory::{self, MemoryInstance};
-use super::module::{
-    self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
-};
+use super::module::{self, DefinedModuleInstance, HostExport, ModuleIndex, ModuleInstance};
 use super::table::{self, TableInstance};
 use super::value::Value;
 use anyhow::{Context, Result};
@@ -24,7 +24,7 @@ pub struct Store {
     funcs: LinkableCollection<FunctionInstance>,
     tables: LinkableCollection<Rc<RefCell<TableInstance>>>,
     mems: LinkableCollection<Rc<RefCell<MemoryInstance>>>,
-    globals: LinkableCollection<Rc<RefCell<GlobalInstance>>>,
+    globals: LinkableCollection<Rc<RefCell<dyn GlobalInstance>>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 
@@ -52,7 +52,7 @@ impl Store {
         self.funcs.get(addr)
     }
 
-    pub fn global(&self, addr: GlobalAddr) -> Rc<RefCell<GlobalInstance>> {
+    pub fn global(&self, addr: GlobalAddr) -> Rc<RefCell<dyn GlobalInstance>> {
         self.globals.get(addr).unwrap().0.clone()
     }
 
@@ -60,7 +60,7 @@ impl Store {
         &self,
         module_index: ModuleIndex,
         field: &str,
-    ) -> Option<Rc<RefCell<GlobalInstance>>> {
+    ) -> Option<Rc<RefCell<dyn GlobalInstance>>> {
         let module = self.module(module_index).defined().unwrap();
         let global_addr = module.exported_global(field).ok().unwrap();
         global_addr.map(|addr| self.global(addr))
@@ -121,8 +121,8 @@ impl Store {
                 }
             }
         }
-        let instance = HostModuleInstance::new(values);
-        self.modules.push(ModuleInstance::Host(instance));
+        let instance = DefaultHostModuleInstance::new(values);
+        self.modules.push(ModuleInstance::Host(Box::new(instance)));
         self.module_index_by_name.insert(name, module_index);
     }
 
@@ -686,7 +686,7 @@ impl Store {
     fn load_globals(&mut self, globals: Vec<Global>, module_index: ModuleIndex) -> Result<()> {
         for entry in globals {
             let value = eval_const_expr(&entry.init_expr, &self, module_index)?;
-            let instance = GlobalInstance::new(value, entry.ty.clone());
+            let instance = DefaultGlobalInstance::new(value, entry.ty.clone());
             self.globals
                 .push(module_index, Rc::new(RefCell::new(instance)));
         }

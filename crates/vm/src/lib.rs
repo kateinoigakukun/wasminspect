@@ -21,7 +21,7 @@ pub use self::address::*;
 pub use self::executor::{simple_invoke_func, Executor, Signal};
 pub use self::executor::{Trap, WasmError};
 pub use self::func::{FunctionInstance, InstIndex};
-pub use self::global::GlobalInstance as HostGlobal;
+pub use self::global::DefaultGlobalInstance;
 pub use self::host::{HostContext, HostFuncBody, HostValue};
 pub use self::inst::{Instruction, InstructionKind};
 pub use self::instance::WasmInstance;

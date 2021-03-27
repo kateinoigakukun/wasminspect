@@ -1,6 +1,8 @@
-use crate::rpc;
+use std::collections::HashMap;
+
+use crate::rpc::{self, WasmImportModule};
 use wasminspect_debugger::{CommandContext, CommandResult, MainDebugger, Process};
-use wasminspect_vm::WasmValue;
+use wasminspect_vm::{HostValue, WasmValue};
 
 static VERSION: &str = "0.1.0";
 
@@ -36,6 +38,16 @@ fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     }
 }
 
+fn remote_import_module(import_modules: Vec<WasmImportModule>) -> anyhow::Result<()> {
+    let mut modules: HashMap<String, HashMap<String, HostValue>> = HashMap::new();
+    for module in import_modules {
+        for import in module.imports {
+        }
+        // modules.entry(import.module).or_default().insert(import.field, v)
+    }
+    Ok(())
+}
+
 fn _handle_request(
     req: rpc::Request,
     process: &mut Process<MainDebugger>,
@@ -47,6 +59,9 @@ fn _handle_request(
     use rpc::*;
 
     match req {
+        Text(Import { modules }) => {
+            unimplemented!()
+        }
         Binary(req) => match req.kind {
             Init => {
                 process.debugger.reset_store();

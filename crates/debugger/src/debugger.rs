@@ -41,13 +41,17 @@ impl MainDebugger {
         self.store = Self::instantiate_store();
     }
 
-    fn instantiate_store() -> Store {
+    pub fn load_wasi_module(&mut self) {
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
         let (_, wasi_unstable) = instantiate_wasi();
-        let mut store = Store::new();
-        store.add_embed_context(Box::new(ctx));
-        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+        self.store.add_embed_context(Box::new(ctx));
+        self.store
+            .load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        self.store
+            .load_host_module("wasi_unstable".to_string(), wasi_unstable);
+    }
+    fn instantiate_store() -> Store {
+        let store = Store::new();
         store
     }
 

@@ -9,7 +9,7 @@ pub struct ModuleIndex(pub u32);
 
 pub enum ModuleInstance {
     Defined(DefinedModuleInstance),
-    Host(HostModuleInstance),
+    Host(Box<dyn HostModuleInstance>),
 }
 
 impl ModuleInstance {
@@ -132,7 +132,14 @@ impl DefinedModuleInstance {
     }
 }
 
-pub struct HostModuleInstance {
+pub trait HostModuleInstance {
+    fn global_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedGlobalAddr>>;
+    fn func_by_name(&self, name: String) -> HostModuleResult<Option<&ExecutableFuncAddr>>;
+    fn table_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedTableAddr>>;
+    fn memory_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedMemoryAddr>>;
+}
+
+pub struct DefaultHostModuleInstance {
     values: HashMap<String, HostExport>,
 }
 
@@ -172,20 +179,21 @@ impl HostExport {
         }
     }
 }
-
-impl HostModuleInstance {
+impl DefaultHostModuleInstance {
     pub fn new(values: HashMap<String, HostExport>) -> Self {
         Self { values }
     }
+}
 
-    pub fn global_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
+impl HostModuleInstance for DefaultHostModuleInstance {
+    fn global_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Global(global)) => Ok(Some(global)),
             Some(v) => Err(HostModuleError::TypeMismatch("global", v.ty().to_string())),
             _ => Ok(None),
         }
     }
-    pub fn func_by_name(&self, name: String) -> HostModuleResult<Option<&ExecutableFuncAddr>> {
+    fn func_by_name(&self, name: String) -> HostModuleResult<Option<&ExecutableFuncAddr>> {
         match self.values.get(&name) {
             Some(HostExport::Func(ref func)) => Ok(Some(func)),
             Some(v) => Err(HostModuleError::TypeMismatch(
@@ -196,7 +204,7 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn table_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedTableAddr>> {
+    fn table_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedTableAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Table(table)) => Ok(Some(table)),
             Some(v) => Err(HostModuleError::TypeMismatch("table", v.ty().to_string())),
@@ -204,7 +212,7 @@ impl HostModuleInstance {
         }
     }
 
-    pub fn memory_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
+    fn memory_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Mem(mem)) => Ok(Some(mem)),
             Some(v) => Err(HostModuleError::TypeMismatch("memory", v.ty().to_string())),

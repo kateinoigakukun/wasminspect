@@ -75,7 +75,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     }));
     module.insert("print_f64_f64".to_string(), func);
 
-    let create_glbal = |value, ty| Rc::new(RefCell::new(HostGlobal::new(value, ty)));
+    let create_glbal = |value, ty| Rc::new(RefCell::new(DefaultGlobalInstance::new(value, ty)));
     module.insert(
         "global_i32".to_string(),
         HostValue::Global(create_glbal(

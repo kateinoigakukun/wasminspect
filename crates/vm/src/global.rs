@@ -1,30 +1,40 @@
 use super::value::Value;
 use wasmparser::GlobalType;
 
-pub struct GlobalInstance {
+pub trait GlobalInstance {
+    fn value(&self) -> Value;
+    fn set_value(&mut self, value: Value);
+    fn is_mutable(&self) -> bool;
+    fn ty(&self) -> &GlobalType;
+}
+
+pub struct DefaultGlobalInstance {
     ty: GlobalType,
     value: Value,
 }
 
-impl GlobalInstance {
+impl DefaultGlobalInstance {
     pub fn new(value: Value, ty: GlobalType) -> Self {
         Self { value, ty }
     }
+}
 
-    pub fn value(&self) -> Value {
+impl GlobalInstance for DefaultGlobalInstance {
+
+    fn value(&self) -> Value {
         self.value
     }
 
-    pub fn set_value(&mut self, value: Value) {
+    fn set_value(&mut self, value: Value) {
         assert!(self.is_mutable());
         self.value = value
     }
 
-    pub fn is_mutable(&self) -> bool {
+    fn is_mutable(&self) -> bool {
         self.ty.mutable
     }
 
-    pub fn ty(&self) -> &GlobalType {
+    fn ty(&self) -> &GlobalType {
         &self.ty
     }
 }
