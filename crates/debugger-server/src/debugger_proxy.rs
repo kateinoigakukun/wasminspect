@@ -1,17 +1,30 @@
-use std::collections::HashMap;
+use futures::SinkExt;
+use std::{collections::HashMap, sync::mpsc};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
+use tokio_tungstenite::tungstenite::Message;
+use wasmparser::FuncType;
 
 use crate::rpc::{self};
+use crate::serialization;
 use wasminspect_debugger::{CommandContext, CommandResult, MainDebugger, Process};
 use wasminspect_vm::{HostFuncBody, HostValue, WasmValue};
 
 static VERSION: &str = "0.1.0";
 
-pub fn handle_request(
+pub fn handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
     req: rpc::Request,
     process: &mut Process<MainDebugger>,
     context: &CommandContext,
-) -> rpc::Response {
-    match _handle_request(req, process, context) {
+    tx: Arc<Mutex<S>>,
+    rx: Arc<mpsc::Receiver<Option<Message>>>,
+) -> rpc::Response
+where
+    S::Error: std::error::Error,
+{
+    match _handle_request(req, process, context, tx, rx) {
         Ok(res) => res,
         Err(err) => rpc::TextResponse::Error {
             message: err.to_string(),
@@ -38,9 +51,57 @@ fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     }
 }
 
-fn remote_import_module(
+fn remote_call_fn<S: futures::Sink<Message> + Unpin + Send + 'static>(
+    field_name: String,
+    module_name: String,
+    ty: FuncType,
+    tx: Arc<Mutex<S>>,
+    rx: Arc<mpsc::Receiver<Option<Message>>>,
+) -> HostFuncBody
+where
+    S::Error: std::error::Error,
+{
+    let tx = tx.clone();
+    let rx = rx.clone();
+
+    HostFuncBody::new(ty.clone(), move |args, results, _, _| {
+        let tx = tx.clone();
+        let field_name = field_name.clone();
+        let module_name = module_name.clone();
+        let call_handle = thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async move {
+                let call = rpc::TextResponse::CallHost {
+                    module: module_name,
+                    field: field_name,
+                    args: vec![],
+                };
+                tx.lock()
+                    .unwrap()
+                    .send(serialization::serialize_response(call.into()))
+                    .await
+                    .unwrap();
+            });
+        });
+        call_handle.join().unwrap();
+        let message = rx.recv().expect("receive call result from client").unwrap();
+        let res = match serialization::deserialize_request(&message).unwrap() {
+            rpc::Request::Text(rpc::TextRequest::CallResult { values }) => values,
+            _ => unreachable!(),
+        };
+        *results = res.iter().map(to_vm_wasm_value).collect::<Vec<WasmValue>>();
+        Ok(())
+    })
+}
+
+fn remote_import_module<S: futures::Sink<Message> + Unpin + Send + 'static>(
     bytes: &[u8],
-) -> anyhow::Result<HashMap<String, HashMap<String, HostValue>>> {
+    tx: Arc<Mutex<S>>,
+    rx: Arc<mpsc::Receiver<Option<Message>>>,
+) -> anyhow::Result<HashMap<String, HashMap<String, HostValue>>>
+where
+    S::Error: std::error::Error,
+{
     let parser = wasmparser::Parser::new(0);
     let mut types = HashMap::new();
     let mut module_imports = HashMap::new();
@@ -71,16 +132,18 @@ fn remote_import_module(
                         Some(field_name) => field_name,
                         None => continue,
                     };
-                    let field_name0 = field_name.to_string().clone();
-                    let field_name1 = field_name.to_string();
-                    let f = HostFuncBody::new(ty.clone(), move |args, results, _, _| {
-                        println!("{}", field_name0);
-                        Ok(())
-                    });
+
+                    let func = remote_call_fn(
+                        field_name.to_string(),
+                        import.module.to_string(),
+                        ty.clone(),
+                        tx.clone(),
+                        rx.clone(),
+                    );
                     modules
                         .entry(import.module.to_string())
                         .or_default()
-                        .insert(field_name1, HostValue::Func(f));
+                        .insert(field_name.to_string(), HostValue::Func(func));
                 }
             }
             _ => continue,
@@ -89,11 +152,16 @@ fn remote_import_module(
     Ok(modules)
 }
 
-fn _handle_request(
+fn _handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
     req: rpc::Request,
     process: &mut Process<MainDebugger>,
     context: &CommandContext,
-) -> Result<rpc::Response, anyhow::Error> {
+    tx: Arc<Mutex<S>>,
+    rx: Arc<mpsc::Receiver<Option<Message>>>,
+) -> Result<rpc::Response, anyhow::Error>
+where
+    S::Error: std::error::Error,
+{
     use rpc::BinaryRequestKind::*;
     use rpc::Request::*;
     use rpc::TextRequest::*;
@@ -103,7 +171,7 @@ fn _handle_request(
         Binary(req) => match req.kind {
             Init => {
                 process.debugger.reset_store();
-                let imports = remote_import_module(req.bytes)?;
+                let imports = remote_import_module(req.bytes, tx, rx)?;
                 for (name, module) in imports {
                     process.debugger.load_host_module(name, module);
                 }
@@ -117,6 +185,7 @@ fn _handle_request(
             }
             .into());
         }
+        Text(CallResult { .. }) => unreachable!(),
         Text(CallExported { name, args }) => {
             use wasminspect_debugger::RunResult;
             let func = process.debugger.lookup_func(&name)?;

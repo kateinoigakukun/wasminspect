@@ -1,11 +1,14 @@
-use std::thread;
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
 
 use anyhow::anyhow;
 use futures::{channel::oneshot, Sink, SinkExt, StreamExt};
 use wasminspect_debugger::{CommandContext, MainDebugger, Process};
 
-use crate::debugger_proxy;
 use crate::rpc;
+use crate::{debugger_proxy, serialization};
 use headers::{
     Connection, Header, HeaderMapExt, SecWebsocketAccept, SecWebsocketKey, SecWebsocketVersion,
     Upgrade,
@@ -80,55 +83,29 @@ where
     Ok(res)
 }
 
-fn deserialize_request(message: &Message) -> Result<rpc::Request, rpc::RequestError> {
-    match message {
-        Message::Binary(bytes) => rpc::BinaryRequest::from_bytes(bytes).map(rpc::Request::Binary),
-        Message::Text(text) => match serde_json::from_str::<rpc::TextRequest>(&text) {
-            Ok(req) => Ok(rpc::Request::Text(req)),
-            Err(e) => Err(rpc::RequestError::InvalidTextRequestJSON(Box::new(e))),
-        },
-        msg => Err(rpc::RequestError::InvalidMessageType(format!("{:?}", msg))),
-    }
-}
-fn serialize_response(response: rpc::Response) -> Message {
-    match response {
-        rpc::Response::Text(response) => {
-            let json = match serde_json::to_string(&response) {
-                Ok(json) => json,
-                Err(e) => {
-                    log::error!("Failed to serialize error response: {}", e);
-                    return Message::Close(None);
-                }
-            };
-            Message::Text(json)
-        }
-        rpc::Response::Binary { kind, bytes } => {
-            let mut bin = vec![kind as u8];
-            bin.extend(bytes);
-            Message::binary(bin)
-        }
-    }
-}
-async fn handle_incoming_message<S: Sink<Message> + Unpin>(
+async fn handle_incoming_message<S: Sink<Message> + Unpin + Send + 'static>(
     message: Message,
     process: &mut Process<MainDebugger>,
     context: &CommandContext,
-    tx: &mut S,
-    _rx: &mpsc::Receiver<Option<Message>>,
-) -> Result<(), S::Error> {
-    match deserialize_request(&message) {
+    tx: Arc<Mutex<S>>,
+    rx: Arc<mpsc::Receiver<Option<Message>>>,
+) -> Result<(), S::Error>
+where
+    S::Error: std::error::Error,
+{
+    match serialization::deserialize_request(&message) {
         Ok(req) => {
-            let res = debugger_proxy::handle_request(req, process, context);
-            let msg = serialize_response(res);
-            tx.send(msg).await?;
+            let res = debugger_proxy::handle_request(req, process, context, tx.clone(), rx);
+            let msg = serialization::serialize_response(res);
+            tx.lock().unwrap().send(msg).await?;
             return Ok(());
         }
         Err(e) => {
             let response = rpc::TextResponse::Error {
                 message: e.to_string(),
             };
-            let msg = serialize_response(response.into());
-            tx.send(msg).await?;
+            let msg = serialization::serialize_response(response.into());
+            tx.lock().unwrap().send(msg).await?;
             return Ok(());
         }
     }
@@ -136,7 +113,7 @@ async fn handle_incoming_message<S: Sink<Message> + Unpin>(
 
 pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
     let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
-    let (mut tx, mut rx) = ws.split();
+    let (tx, mut rx) = ws.split();
     let (request_tx, request_rx) = mpsc::channel::<Option<Message>>();
     let (init_tx, init_rx) = oneshot::channel();
 
@@ -150,6 +127,8 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
                 .unwrap();
             log::debug!("Start receiving messages");
 
+            let tx = Arc::new(Mutex::new(tx));
+            let request_rx = Arc::new(request_rx);
             loop {
                 let msg = match request_rx.recv() {
                     Ok(Some(msg)) => msg,
@@ -157,8 +136,14 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
                     Err(_) => break,
                 };
                 log::debug!("Received message: {}", msg);
-                match handle_incoming_message(msg, &mut process, &dbg_context, &mut tx, &request_rx)
-                    .await
+                match handle_incoming_message(
+                    msg,
+                    &mut process,
+                    &dbg_context,
+                    tx.clone(),
+                    request_rx.clone(),
+                )
+                .await
                 {
                     Ok(()) => continue,
                     Err(err) => {
