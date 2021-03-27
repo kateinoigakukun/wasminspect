@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum WasmValue {
-    I32(i32),
-    I64(i64),
-    F32(u32),
-    F64(u64),
+    I32 { value: i32 },
+    I64 { value: i64 },
+    F32 { value: u32 },
+    F64 { value: u64 },
 }
 
 #[derive(Debug)]
@@ -37,6 +37,8 @@ pub enum BinaryRequestKind {
     Init = 0,
 }
 
+const WASM_MAGIC: [u8; 4] = [0x00, 0x61, 0x73, 0x6d];
+
 #[derive(Debug)]
 pub struct BinaryRequest<'a> {
     pub kind: BinaryRequestKind,
@@ -45,7 +47,12 @@ pub struct BinaryRequest<'a> {
 
 impl<'a> BinaryRequest<'a> {
     pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, RequestError> {
-        if let Some(kind) = FromPrimitive::from_u8(bytes[0]) {
+        if bytes.len() >= 4 && bytes[0..4].eq(&WASM_MAGIC) {
+            Ok(Self {
+                kind: BinaryRequestKind::Init,
+                bytes,
+            })
+        } else if let Some(kind) = FromPrimitive::from_u8(bytes[0]) {
             Ok(Self {
                 kind,
                 bytes: &bytes[1..],

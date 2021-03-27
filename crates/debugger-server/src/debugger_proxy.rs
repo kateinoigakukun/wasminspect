@@ -20,19 +20,19 @@ pub fn handle_request(
 
 fn to_vm_wasm_value(value: &rpc::WasmValue) -> WasmValue {
     match value {
-        rpc::WasmValue::F32(v) => WasmValue::F32(*v),
-        rpc::WasmValue::F64(v) => WasmValue::F64(*v),
-        rpc::WasmValue::I32(v) => WasmValue::I32(*v),
-        rpc::WasmValue::I64(v) => WasmValue::I64(*v),
+        rpc::WasmValue::F32 { value } => WasmValue::F32(*value),
+        rpc::WasmValue::F64 { value } => WasmValue::F64(*value),
+        rpc::WasmValue::I32 { value } => WasmValue::I32(*value),
+        rpc::WasmValue::I64 { value } => WasmValue::I64(*value),
     }
 }
 
 fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     match value {
-        WasmValue::F32(v) => rpc::WasmValue::F32(*v),
-        WasmValue::F64(v) => rpc::WasmValue::F64(*v),
-        WasmValue::I32(v) => rpc::WasmValue::I32(*v),
-        WasmValue::I64(v) => rpc::WasmValue::I64(*v),
+        WasmValue::F32(v) => rpc::WasmValue::F32 { value: *v },
+        WasmValue::F64(v) => rpc::WasmValue::F64 { value: *v },
+        WasmValue::I32(v) => rpc::WasmValue::I32 { value: *v },
+        WasmValue::I64(v) => rpc::WasmValue::I64 { value: *v },
     }
 }
 
@@ -77,9 +77,7 @@ fn _handle_request(
                                 return Ok(TextResponse::CallResult { values }.into());
                             }
                             CommandResult::Exit => {
-                                match process
-                                    .dispatch_command("process continue", context)?
-                                {
+                                match process.dispatch_command("process continue", context)? {
                                     Some(r) => {
                                         result = r;
                                     }
