@@ -154,10 +154,7 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
                 let msg = match request_rx.recv() {
                     Ok(Some(msg)) => msg,
                     Ok(None) => break,
-                    Err(err) => {
-                        log::error!("Receiving error: {}", err);
-                        break;
-                    }
+                    Err(_) => break,
                 };
                 log::debug!("Received message: {}", msg);
                 match handle_incoming_message(msg, &mut process, &dbg_context, &mut tx, &request_rx)

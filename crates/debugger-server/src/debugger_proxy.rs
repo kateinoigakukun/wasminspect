@@ -49,6 +49,7 @@ fn _handle_request(
     match req {
         Binary(req) => match req.kind {
             Init => {
+                process.debugger.reset_store();
                 process.debugger.load_module(req.bytes)?;
                 return Ok(rpc::Response::Text(TextResponse::Init));
             }
