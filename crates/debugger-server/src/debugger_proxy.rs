@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::rpc::{self, WasmImportModule};
+use crate::rpc::{self};
 use wasminspect_debugger::{CommandContext, CommandResult, MainDebugger, Process};
-use wasminspect_vm::{HostValue, WasmValue};
+use wasminspect_vm::{HostFuncBody, HostValue, WasmValue};
 
 static VERSION: &str = "0.1.0";
 
@@ -38,14 +38,55 @@ fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     }
 }
 
-fn remote_import_module(import_modules: Vec<WasmImportModule>) -> anyhow::Result<()> {
+fn remote_import_module(
+    bytes: &[u8],
+) -> anyhow::Result<HashMap<String, HashMap<String, HostValue>>> {
+    let parser = wasmparser::Parser::new(0);
+    let mut types = HashMap::new();
+    let mut module_imports = HashMap::new();
     let mut modules: HashMap<String, HashMap<String, HostValue>> = HashMap::new();
-    for module in import_modules {
-        for import in module.imports {
+
+    for payload in parser.parse_all(bytes) {
+        match payload? {
+            wasmparser::Payload::TypeSection(mut iter) => {
+                for idx in 0..iter.get_count() {
+                    let ty = iter.read()?;
+                    types.insert(idx, ty);
+                }
+            }
+            wasmparser::Payload::ImportSection(iter) => {
+                for import in iter {
+                    let import = import?;
+                    module_imports.insert((import.module, import.field), import);
+
+                    let ty_idx = match import.ty {
+                        wasmparser::ImportSectionEntryType::Function(ty_idx) => ty_idx,
+                        _ => continue,
+                    };
+                    let ty = match types.get(&ty_idx) {
+                        Some(wasmparser::TypeDef::Func(ty)) => ty,
+                        _ => continue,
+                    };
+                    let field_name = match import.field {
+                        Some(field_name) => field_name,
+                        None => continue,
+                    };
+                    let field_name0 = field_name.to_string().clone();
+                    let field_name1 = field_name.to_string();
+                    let f = HostFuncBody::new(ty.clone(), move |args, results, _, _| {
+                        println!("{}", field_name0);
+                        Ok(())
+                    });
+                    modules
+                        .entry(import.module.to_string())
+                        .or_default()
+                        .insert(field_name1, HostValue::Func(f));
+                }
+            }
+            _ => continue,
         }
-        // modules.entry(import.module).or_default().insert(import.field, v)
     }
-    Ok(())
+    Ok(modules)
 }
 
 fn _handle_request(
@@ -59,12 +100,13 @@ fn _handle_request(
     use rpc::*;
 
     match req {
-        Text(Import { modules }) => {
-            unimplemented!()
-        }
         Binary(req) => match req.kind {
             Init => {
                 process.debugger.reset_store();
+                let imports = remote_import_module(req.bytes)?;
+                for (name, module) in imports {
+                    process.debugger.load_host_module(name, module);
+                }
                 process.debugger.load_module(req.bytes)?;
                 return Ok(rpc::Response::Text(TextResponse::Init));
             }

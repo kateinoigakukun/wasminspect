@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
 use wasminspect_vm::{
-    CallFrame, Executor, FuncAddr, FunctionInstance, InstIndex, Instruction, Interceptor,
-    MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
+    CallFrame, Executor, FuncAddr, FunctionInstance, HostValue, InstIndex, Instruction,
+    Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
@@ -41,6 +41,9 @@ impl MainDebugger {
         self.store = Self::instantiate_store();
     }
 
+    pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
+        self.store.load_host_module(name, module);
+    }
     pub fn load_wasi_module(&mut self) {
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
         let (_, wasi_unstable) = instantiate_wasi();

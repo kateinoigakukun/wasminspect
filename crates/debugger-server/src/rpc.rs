@@ -19,12 +19,6 @@ pub enum WasmImport {
     Table { name: String },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct WasmImportModule {
-    pub name: String,
-    pub imports: Vec<WasmImport>,
-}
-
 #[derive(Debug)]
 pub enum RequestError {
     InvalidBinaryRequestKind(u8),
@@ -43,7 +37,6 @@ impl std::error::Error for RequestError {}
 #[serde(tag = "type")]
 pub enum TextRequest {
     Version,
-    Import { modules: Vec<WasmImportModule> },
     CallExported { name: String, args: Vec<WasmValue> },
 }
 

@@ -1718,6 +1718,7 @@ dependencies = [
  "tower-service",
  "wasminspect-debugger",
  "wasminspect-vm",
+ "wasmparser",
 ]
 
 [[package]]
