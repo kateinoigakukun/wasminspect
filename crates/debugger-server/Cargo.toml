@@ -17,7 +17,7 @@ headers = "0.3"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.13", default-features = false }
+tower-service = "0.3"
 
 [dev-dependencies]
-tower-service = "0.3"
 env_logger = "0.7.1"
