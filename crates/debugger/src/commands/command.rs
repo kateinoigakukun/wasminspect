@@ -10,6 +10,7 @@ pub struct CommandContext {
     pub printer: Box<dyn OutputPrinter>,
 }
 
+#[derive(Debug)]
 pub enum CommandResult {
     ProcessFinish(Vec<WasmValue>),
     Exit,

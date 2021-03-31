@@ -1,7 +1,11 @@
-use std::{sync::{
+use std::{
+    sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
-    }, thread, time::Duration};
+    },
+    thread,
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use futures::{Sink, SinkExt, StreamExt};
@@ -128,11 +132,21 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
             let step_timeout = Duration::from_millis(500);
             loop {
                 if connection_finished_reader.load(Ordering::Relaxed) {
+                    process.interface.cancel_read_line().unwrap();
                     log::debug!("Debugger thread interrupted");
-                    return;
-                }
-                if let Some(_) = process.run_step(&dbg_context, &mut last_line, Some(step_timeout)).unwrap() {
                     break;
+                }
+                let result = process.run_step(&dbg_context, &mut last_line, Some(step_timeout));
+                match result {
+                    Ok(Some(wasminspect_debugger::CommandResult::Exit)) => {
+                        break;
+                    },
+                    Ok(Some(_)) => unreachable!("unexpected run_step result"),
+                    Ok(None) => continue,
+                    Err(e) => {
+                        log::error!("catch error in run_step: {:?}", e);
+                        break;
+                    }
                 }
             }
             log::debug!("Start receiving messages");
