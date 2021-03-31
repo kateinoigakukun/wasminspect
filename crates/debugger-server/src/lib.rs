@@ -16,14 +16,14 @@ pub async fn start(addr: SocketAddr) {
     run(addr).await;
 }
 
-// let mut data: DebuggerRequest = serde_json::from_reader(body.reader())?;
-
 async fn remote_api(req: Request<Body>) -> Result<Response<Body>, anyhow::Error> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/debugger") => {
             let res =
-                socket::socket_handshake(req, |upgraded| socket::establish_connection(upgraded))
-                    .await;
+                socket::socket_handshake(req, |upgraded| {
+                    socket::establish_connection(upgraded)
+                })
+                .await;
             match res {
                 Ok(res) => Ok(res),
                 Err(e) => Ok(Response::builder()

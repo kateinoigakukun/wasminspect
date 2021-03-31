@@ -2,7 +2,7 @@ use super::commands::command::{self, AliasCommand, Command, CommandResult};
 use super::commands::debugger::Debugger;
 use anyhow::Result;
 use linefeed::{DefaultTerminal, Interface, ReadResult};
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use std::io;
 
 pub struct Process<D: Debugger> {
@@ -48,23 +48,36 @@ impl<D: Debugger> Process<D> {
         })
     }
 
+    pub fn run_step(
+        &mut self,
+        context: &command::CommandContext,
+        last_line: &mut Option<String>,
+        timeout: Option<Duration>,
+    ) -> Result<Option<CommandResult>> {
+        let line = match self.interface.read_line_step(timeout)? {
+            Some(ReadResult::Input(line)) => line,
+            Some(_) => return Ok(Some(CommandResult::Exit)),
+            None => return Ok(None),
+        };
+        let result = if !line.trim().is_empty() {
+            self.interface.add_history_unique(line.clone());
+            *last_line = Some(line.clone());
+            self.dispatch_command(&line, context)?
+        } else if let Some(last_line) = last_line.as_ref() {
+            self.dispatch_command(last_line, context)?
+        } else {
+            None
+        };
+        Ok(result)
+    }
+
     pub fn run_loop(&mut self, context: &command::CommandContext) -> Result<CommandResult> {
         let mut last_line: Option<String> = None;
-        while let ReadResult::Input(line) = self.interface.read_line()? {
-            let result = if !line.trim().is_empty() {
-                self.interface.add_history_unique(line.clone());
-                last_line = Some(line.clone());
-                self.dispatch_command(&line, context)?
-            } else if let Some(last_line) = last_line.as_ref() {
-                self.dispatch_command(last_line, context)?
-            } else {
-                None
-            };
-            if let Some(result) = result {
+        loop {
+            if let Some(result) = self.run_step(context, &mut last_line, None)? {
                 return Ok(result);
             }
         }
-        Ok(CommandResult::Exit)
     }
 
     pub fn dispatch_command(

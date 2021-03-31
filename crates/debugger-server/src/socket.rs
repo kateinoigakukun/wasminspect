@@ -1,10 +1,10 @@
-use std::{
-    sync::{Arc, Mutex},
-    thread,
-};
+use std::{sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    }, thread, time::Duration};
 
 use anyhow::anyhow;
-use futures::{channel::oneshot, Sink, SinkExt, StreamExt};
+use futures::{Sink, SinkExt, StreamExt};
 use wasminspect_debugger::{CommandContext, MainDebugger, Process};
 
 use crate::rpc;
@@ -115,16 +115,26 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
     let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
     let (tx, mut rx) = ws.split();
     let (request_tx, request_rx) = mpsc::channel::<Option<Message>>();
-    let (init_tx, init_rx) = oneshot::channel();
+    let connection_finished = Arc::new(AtomicBool::new(false));
+    let connection_finished_reader = connection_finished.clone();
 
-    thread::spawn(move || {
+    let handle = thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             log::debug!("Start debugger thread");
             let (mut process, dbg_context) = wasminspect_debugger::start_debugger(None).unwrap();
-            init_tx
-                .send(process.run_loop(&dbg_context).map(|_| ()))
-                .unwrap();
+
+            let mut last_line: Option<String> = None;
+            let step_timeout = Duration::from_millis(500);
+            loop {
+                if connection_finished_reader.load(Ordering::Relaxed) {
+                    log::debug!("Debugger thread interrupted");
+                    return;
+                }
+                if let Some(_) = process.run_step(&dbg_context, &mut last_line, Some(step_timeout)).unwrap() {
+                    break;
+                }
+            }
             log::debug!("Start receiving messages");
 
             let tx = Arc::new(Mutex::new(tx));
@@ -155,10 +165,6 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
         });
     });
 
-    log::debug!("Waiting of debugger init");
-    init_rx.await??;
-    log::debug!("End of debugger init");
-
     while let Some(msg) = rx.next().await {
         match msg {
             Ok(msg) => {
@@ -171,8 +177,11 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
         }
     }
 
-    log::debug!("End of socket");
+    log::debug!("Start epilogue of socket");
+    connection_finished.store(true, Ordering::Relaxed);
     request_tx.send(None).unwrap();
+    handle.join().unwrap();
+    log::debug!("End epilogue of socket");
     Ok(())
 }
 
