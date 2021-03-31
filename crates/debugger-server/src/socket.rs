@@ -9,6 +9,7 @@ use std::{
 
 use anyhow::anyhow;
 use futures::{Sink, SinkExt, StreamExt};
+use lazy_static::lazy_static;
 use wasminspect_debugger::{CommandContext, MainDebugger, Process};
 
 use crate::rpc;
@@ -115,7 +116,17 @@ where
     }
 }
 
+lazy_static! {
+    static ref CONNECTION_LOCK: Arc<tokio::sync::Mutex<bool>> = Arc::new(tokio::sync::Mutex::new(false));
+}
+
 pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
+    let _guard = CONNECTION_LOCK.lock().await;
+    let result = _establish_connection(upgraded).await;
+    result
+}
+
+async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
     let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
     let (tx, mut rx) = ws.split();
     let (request_tx, request_rx) = mpsc::channel::<Option<Message>>();

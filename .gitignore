@@ -2,3 +2,4 @@
 **/*.rs.bk
 .wabt
 .wasi-sdk
+/vendor

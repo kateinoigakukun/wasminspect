@@ -1707,6 +1707,7 @@ dependencies = [
  "futures",
  "headers",
  "hyper",
+ "lazy_static",
  "log",
  "num-derive",
  "num-traits",
