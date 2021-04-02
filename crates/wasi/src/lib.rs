@@ -1,35 +1,10 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use wasi_common::wasi::wasi_snapshot_preview1::*;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
 use wasminspect_vm::*;
-use wiggle::GuestMemory;
-mod def;
 
 pub struct WasiContext {
     ctx: RefCell<WasiCtx>,
-}
-
-struct WasiMemory {
-    mem: *mut u8,
-    mem_size: u32,
-}
-
-unsafe impl GuestMemory for WasiMemory {
-    fn base(&self) -> (*mut u8, u32) {
-        return (self.mem, self.mem_size);
-    }
-}
-
-struct WasiHostContext<'a>(&'a mut [u8]);
-
-impl<'a> WasiHostContext<'a> {
-    fn mem(self) -> WasiMemory {
-        WasiMemory {
-            mem: self.0.as_mut_ptr(),
-            mem_size: self.0.len() as u32,
-        }
-    }
 }
 
 pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {

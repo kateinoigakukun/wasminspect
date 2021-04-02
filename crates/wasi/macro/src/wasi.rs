@@ -77,6 +77,7 @@ fn emit_func_extern(
     params: &[Abi],
     returns: &[Abi],
     module_map_id: &Ident,
+    module_id: &Ident,
 ) -> TokenStream {
     let to_wasmparser_ty = |abi_ty: &Abi| match abi_ty {
         &Abi::I32 => quote! { ::wasmparser::Type::I32 },
@@ -131,10 +132,13 @@ fn emit_func_extern(
         let func = HostValue::Func(HostFuncBody::new(ty, move |args, ret, ctx, store| {
             let wasi_ctx = store.get_embed_context::<WasiContext>().unwrap();
             let mut wasi_ctx = wasi_ctx.ctx.borrow_mut();
-            let host_ctx = WasiHostContext(ctx.mem);
-            let result = #name_id(
+            let mem = WasiMemory {
+                mem: ctx.mem.as_mut_ptr(),
+                mem_size: ctx.mem.len() as u32,
+            };
+            let result = wasi_common::wasi::#module_id::#name_id(
                 &*wasi_ctx,
-                &host_ctx.mem(),
+                &mem,
                 #(#arg_values),*
             );
             #ret_value
@@ -147,8 +151,7 @@ fn emit_func_extern(
 pub fn define_wasi_fn_for_wasminspect(args: TokenStream) -> TokenStream {
     let mut args = args.into_iter();
     let module_map_id = witx_target_module_map_ident(args.next().unwrap());
-    // consume ","
-    args.next();
+    args.next(); // consume ","
     let module_map_id = Ident::new(&module_map_id, Span::call_site());
     let path = utils::witx_path_from_arg(args.next().unwrap());
     let doc = match witx::load(&[&path]) {
@@ -161,8 +164,8 @@ pub fn define_wasi_fn_for_wasminspect(args: TokenStream) -> TokenStream {
     let mut ctor_externs = Vec::new();
 
     for module in doc.modules() {
-        // let module_name = module.name.as_str();
-        // let module_id = Ident::new(module_name, Span::call_site());
+        let module_name = module.name.as_str();
+        let module_id = Ident::new(module_name, Span::call_site());
 
         for func in module.funcs() {
             let name = func.name.as_str();
@@ -192,10 +195,21 @@ pub fn define_wasi_fn_for_wasminspect(args: TokenStream) -> TokenStream {
                 params.push(Abi::I32);
             }
 
-            ctor_externs.push(emit_func_extern(name, &params, &returns, &module_map_id));
+            ctor_externs.push(emit_func_extern(name, &params, &returns, &module_map_id, &module_id));
         }
     }
     quote! {
+        struct WasiMemory {
+            mem: *mut u8,
+            mem_size: u32,
+        }
+
+        unsafe impl ::wiggle::GuestMemory for WasiMemory {
+            fn base(&self) -> (*mut u8, u32) {
+                return (self.mem, self.mem_size);
+            }
+        }
+
         #(#ctor_externs)*
     }
 }
