@@ -10,8 +10,8 @@ pub struct WasiContext {
 }
 
 pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
-    let builder = WasiCtxBuilder::new().inherit_stdio();
-    let wasi_ctx = builder.build().unwrap();
+    let mut builder = WasiCtxBuilder::new();
+    let wasi_ctx = builder.inherit_stdio().build().unwrap();
     let mut module: HashMap<String, HostValue> = HashMap::new();
 
     fn define_wasi_fn<

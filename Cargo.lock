@@ -118,19 +118,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "chrono"
-version = "0.4.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
-dependencies = [
- "libc",
- "num-integer",
- "num-traits",
- "time",
- "winapi",
-]
-
-[[package]]
 name = "clap"
 version = "2.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -226,19 +213,6 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aafcde04e90a5226a6443b7aabdb016ba2f8307c847d524724bd9b346dd1a2d3"
-dependencies = [
- "atty",
- "humantime",
- "log",
- "regex",
- "termcolor",
 ]
 
 [[package]]
@@ -924,17 +898,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
 
 [[package]]
-name = "pretty_env_logger"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "717ee476b1690853d222af4634056d830b5197ffd747726a9a1eee6da9f49074"
-dependencies = [
- "chrono",
- "env_logger 0.6.2",
- "log",
-]
-
-[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1565,9 +1528,9 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wasi-common"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27e845adafa8fee2ab957ce1bf855daf93e94d840be1515055df933a54b36eec"
+checksum = "48ef24b091654864321a22636433e792535b785ec2515e1bbdf1c7c6f803d563"
 dependencies = [
  "anyhow",
  "cfg-if 0.1.10",
@@ -1591,7 +1554,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
- "env_logger 0.7.1",
+ "env_logger",
  "structopt",
  "tokio",
  "wasminspect-debugger",
@@ -1624,7 +1587,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "bytes",
- "env_logger 0.7.1",
+ "env_logger",
  "futures",
  "headers",
  "hyper",
@@ -1673,18 +1636,18 @@ checksum = "755a9a4afe3f6cccbbe6d7e965eef44cf260b001f93e547eba84255c1d0187d8"
 
 [[package]]
 name = "wast"
-version = "3.0.4"
+version = "7.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233648f540f07fce9b972436f2fbcae8a750c1121b6d32d949e1a44b4d9fc7b1"
+checksum = "12a729d076deb29c8509fa71f2d427729f9394f9496844ed8fcab152f35d163d"
 dependencies = [
  "leb128",
 ]
 
 [[package]]
 name = "wast"
-version = "7.0.0"
+version = "22.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12a729d076deb29c8509fa71f2d427729f9394f9496844ed8fcab152f35d163d"
+checksum = "fe1220ed7f824992b426a76125a3403d048eaf0f627918e97ade0d9b9d510d20"
 dependencies = [
  "leb128",
 ]
@@ -1701,9 +1664,9 @@ dependencies = [
 
 [[package]]
 name = "wig"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27dd34865978ae8394dd61821718ab75a0b8ccb9a3fd96c53967ef98f66f5bc1"
+checksum = "a568ddecacabde7f8020cdd3ae78532f7c3d3f2735b2892036ff4ba6c43c89a7"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1744,9 +1707,9 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "winx"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e10b3e7ac7f2495da6acf423e21c6d88f15204b597b7d4903c9a990ce859a1e"
+checksum = "25e98237668b986b488ec95b7cbb2bea6da1c3c54184ecfa77c3473814f3809e"
 dependencies = [
  "bitflags",
  "cvt",
@@ -1755,22 +1718,21 @@ dependencies = [
 
 [[package]]
 name = "witx"
-version = "0.7.0"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6ee25990cb94f39b8d5637b8c7d9b9eaaed76795d95f45342a7ef3d2e574931"
+checksum = "1be02433ed9b7ddcebf9431066d96d7f62d0de3bfa3b9a2af4a239303da575e4"
 dependencies = [
- "clap",
+ "anyhow",
  "log",
- "pretty_env_logger",
  "thiserror",
- "wast 3.0.4",
+ "wast 22.0.0",
 ]
 
 [[package]]
 name = "yanix"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25d31a3d2022352bb26334399470ec8cf2d59b15a7f2b88c5b23b7d7c863905d"
+checksum = "d9a936d5291b6269cf230b50fb995c5d5ff6d775f8efaa75234b26b88e5e3e78"
 dependencies = [
  "bitflags",
  "cfg-if 0.1.10",
