@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use wasi_common::{WasiCtx, WasiCtxBuilder};
+use wasi_cap_std_sync::WasiCtxBuilder;
+use wasi_common::WasiCtx;
 use wasminspect_vm::*;
 mod borrow;
 
@@ -22,7 +23,7 @@ fn wasi_proc_exit(status: i32) -> Result<(), Trap> {
 }
 
 pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
-    let mut builder = WasiCtxBuilder::new();
+    let builder = WasiCtxBuilder::new();
     let wasi_ctx = builder.inherit_stdio().build().unwrap();
     let mut module: HashMap<String, HostValue> = HashMap::new();
 

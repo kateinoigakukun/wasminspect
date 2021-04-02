@@ -1,89 +1,21 @@
 use crate::utils;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
+use witx::WasmType;
 use utils::witx_target_module_map_ident;
-
-enum Abi {
-    I32,
-    I64,
-    F32,
-    F64,
-}
-
-fn translate_param_for_abi(param: &witx::TypeRef, params: &mut Vec<Abi>) {
-    let mut add_param = |abi_ty: Abi| {
-        params.push(abi_ty);
-    };
-    match &*param.type_() {
-        witx::Type::Int(e) => match e.repr {
-            witx::IntRepr::U64 => add_param(Abi::I64),
-            witx::IntRepr::U32 => add_param(Abi::I32),
-            _ => add_param(Abi::I32),
-        },
-
-        witx::Type::Enum(e) => match e.repr {
-            witx::IntRepr::U64 => add_param(Abi::I64),
-            witx::IntRepr::U32 => add_param(Abi::I32),
-            _ => add_param(Abi::I32),
-        },
-
-        witx::Type::Flags(f) => match f.repr {
-            witx::IntRepr::U64 => add_param(Abi::I64),
-            witx::IntRepr::U32 => add_param(Abi::I32),
-            _ => add_param(Abi::I32),
-        },
-
-        witx::Type::Builtin(witx::BuiltinType::Char8)
-        | witx::Type::Builtin(witx::BuiltinType::S8)
-        | witx::Type::Builtin(witx::BuiltinType::U8)
-        | witx::Type::Builtin(witx::BuiltinType::S16)
-        | witx::Type::Builtin(witx::BuiltinType::U16)
-        | witx::Type::Builtin(witx::BuiltinType::S32)
-        | witx::Type::Builtin(witx::BuiltinType::U32)
-        | witx::Type::Builtin(witx::BuiltinType::USize) => {
-            add_param(Abi::I32);
-        }
-
-        witx::Type::Builtin(witx::BuiltinType::S64)
-        | witx::Type::Builtin(witx::BuiltinType::U64) => {
-            add_param(Abi::I64);
-        }
-
-        witx::Type::Builtin(witx::BuiltinType::F32) => {
-            add_param(Abi::F32);
-        }
-
-        witx::Type::Builtin(witx::BuiltinType::F64) => {
-            add_param(Abi::F64);
-        }
-
-        witx::Type::Builtin(witx::BuiltinType::String) | witx::Type::Array(_) => {
-            add_param(Abi::I32); // ptr
-            add_param(Abi::I32); // len
-        }
-
-        witx::Type::ConstPointer(_) | witx::Type::Handle(_) | witx::Type::Pointer(_) => {
-            add_param(Abi::I32);
-        }
-
-        witx::Type::Struct(_) | witx::Type::Union(_) => {
-            panic!("unsupported argument type")
-        }
-    }
-}
 
 fn emit_func_extern(
     name: &str,
-    params: &[Abi],
-    returns: &[Abi],
+    params: &[WasmType],
+    returns: &[WasmType],
     module_map_id: &Ident,
     module_id: &Ident,
 ) -> TokenStream {
-    let to_wasmparser_ty = |abi_ty: &Abi| match abi_ty {
-        &Abi::I32 => quote! { ::wasmparser::Type::I32 },
-        &Abi::I64 => quote! { ::wasmparser::Type::I64 },
-        &Abi::F32 => quote! { ::wasmparser::Type::F32 },
-        &Abi::F64 => quote! { ::wasmparser::Type::F64 },
+    let to_wasmparser_ty = |abi_ty: &WasmType| match abi_ty {
+        &WasmType::I32 => quote! { ::wasmparser::Type::I32 },
+        &WasmType::I64 => quote! { ::wasmparser::Type::I64 },
+        &WasmType::F32 => quote! { ::wasmparser::Type::F32 },
+        &WasmType::F64 => quote! { ::wasmparser::Type::F64 },
     };
 
     let mut param_types = Vec::new();
@@ -95,10 +27,10 @@ fn emit_func_extern(
     let mut arg_values = Vec::new();
     for (idx, param) in params.iter().enumerate() {
         let cast_fn = match param {
-            &Abi::I32 => quote! { as_i32 },
-            &Abi::I64 => quote! { as_i64 },
-            &Abi::F32 => quote! { as_f32 },
-            &Abi::F64 => quote! { as_f64 },
+            &WasmType::I32 => quote! { as_i32 },
+            &WasmType::I64 => quote! { as_i64 },
+            &WasmType::F32 => quote! { as_f32 },
+            &WasmType::F64 => quote! { as_f64 },
         };
         let idx_lit = Literal::usize_unsuffixed(idx);
         arg_values.push(quote! { args[#idx_lit].#cast_fn().unwrap() });
@@ -114,10 +46,10 @@ fn emit_func_extern(
     if let Some(ret_ty) = returns.first() {
         assert!(returns.len() == 1);
         let (primitive_ty, ty_case) = match ret_ty {
-            &Abi::I32 => (quote! { i32 }, quote! { WasmValue::I32 }),
-            &Abi::I64 => (quote! { i64 }, quote! { WasmValue::I64 }),
-            &Abi::F32 => (quote! { f32 }, quote! { WasmValue::F32 }),
-            &Abi::F64 => (quote! { f64 }, quote! { WasmValue::F64 }),
+            &WasmType::I32 => (quote! { i32 }, quote! { WasmValue::I32 }),
+            &WasmType::I64 => (quote! { i64 }, quote! { WasmValue::I64 }),
+            &WasmType::F32 => (quote! { f32 }, quote! { WasmValue::F32 }),
+            &WasmType::F64 => (quote! { f64 }, quote! { WasmValue::F64 }),
         };
         ret_value = quote! { ret.push(#ty_case(result as #primitive_ty)); };
     }
@@ -132,13 +64,13 @@ fn emit_func_extern(
         }
     } else {
         quote! {
-            let result = match wasi_common::wasi::#module_id::#name_id(
+            let result = match wasi_common::snapshots::preview_1::#module_id::#name_id(
                 &*wasi_ctx,
                 &mem,
                 #(#arg_values),*
             ) {
                 Ok(result) => result,
-                Err(e) => return Err(Trap::HostFunctionError(Box::new(WasiError(e)))),
+                Err(e) => return Err(Trap::HostFunctionError(Box::new(WasiError(format!("{:?}", e))))),
             };
             #ret_value
         }
@@ -185,31 +117,7 @@ pub fn define_wasi_fn_for_wasminspect(args: TokenStream) -> TokenStream {
 
         for func in module.funcs() {
             let name = func.name.as_str();
-            let mut params = Vec::new();
-            let mut returns = Vec::new();
-
-            for param in func.params.iter() {
-                translate_param_for_abi(&param.tref, &mut params);
-            }
-            let mut results = func.results.iter();
-
-            // The first result is returned bare right now...
-            if let Some(ret) = results.next() {
-                match &*ret.tref.type_() {
-                    witx::Type::Enum(e) => match e.repr {
-                        witx::IntRepr::U16 => {
-                            returns.push(Abi::I32);
-                        }
-                        other => unreachable!("unhandled type: {:?}", other),
-                    },
-                    other => panic!("unsupported first return {:?}", other),
-                }
-            }
-
-            // ... and all remaining results are returned via out-poiners
-            for _ in results {
-                params.push(Abi::I32);
-            }
+            let (params, returns) = func.wasm_signature();
 
             ctor_externs.push(emit_func_extern(name, &params, &returns, &module_map_id, &module_id));
         }
