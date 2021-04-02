@@ -163,10 +163,10 @@ fn emit_func_extern(
 
 pub fn define_wasi_fn_for_wasminspect(args: TokenStream) -> TokenStream {
     let mut args = args.into_iter();
-    let module_map_id = witx_target_module_map_ident(args.next().unwrap());
+    let module_map_id = witx_target_module_map_ident(args.next().expect("module map id"));
     args.next(); // consume ","
     let module_map_id = Ident::new(&module_map_id, Span::call_site());
-    let path = utils::witx_path_from_arg(args.next().unwrap());
+    let path = utils::witx_path_from_arg(args.next().expect("witx path"));
     let doc = match witx::load(&[&path]) {
         Ok(doc) => doc,
         Err(e) => {

@@ -12,7 +12,7 @@ pub(crate) fn witx_path_from_arg(arg: TokenTree) -> PathBuf {
         panic!("arguments must be string literals");
     }
 
-    let root = PathBuf::from(std::env::var("WASI_ROOT").unwrap());
+    let root = PathBuf::from(std::env::var("WASI_ROOT").expect("WASI_ROOT"));
     return root.join(&string);
 }
 
