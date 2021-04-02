@@ -27,7 +27,12 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
         "Evaluate an expression on the process (only support variable name now)."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
+    fn run(
+        &self,
+        debugger: &mut D,
+        context: &CommandContext,
+        args: Vec<&str>,
+    ) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         let (insts, next_index) = debugger.instructions()?;
         let current_index = if next_index == 0 { 0 } else { next_index - 1 };

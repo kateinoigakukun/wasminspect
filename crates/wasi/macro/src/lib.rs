@@ -1,6 +1,6 @@
 extern crate proc_macro;
-mod wasi;
 mod utils;
+mod wasi;
 
 use proc_macro::TokenStream;
 

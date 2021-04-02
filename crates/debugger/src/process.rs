@@ -2,8 +2,8 @@ use super::commands::command::{self, AliasCommand, Command, CommandResult};
 use super::commands::debugger::Debugger;
 use anyhow::Result;
 use linefeed::{DefaultTerminal, Interface, ReadResult};
-use std::{collections::HashMap, time::Duration};
 use std::io;
+use std::{collections::HashMap, time::Duration};
 
 pub struct Process<D: Debugger> {
     pub interface: Interface<DefaultTerminal>,

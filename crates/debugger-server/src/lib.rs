@@ -1,7 +1,7 @@
 mod debugger_proxy;
 mod rpc;
-mod socket;
 mod serialization;
+mod socket;
 
 use hyper::{
     service::{make_service_fn, service_fn},
@@ -20,10 +20,8 @@ async fn remote_api(req: Request<Body>) -> Result<Response<Body>, anyhow::Error>
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/debugger") => {
             let res =
-                socket::socket_handshake(req, |upgraded| {
-                    socket::establish_connection(upgraded)
-                })
-                .await;
+                socket::socket_handshake(req, |upgraded| socket::establish_connection(upgraded))
+                    .await;
             match res {
                 Ok(res) => Ok(res),
                 Err(e) => Ok(Response::builder()

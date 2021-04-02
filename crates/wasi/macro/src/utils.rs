@@ -36,7 +36,6 @@ fn parse_string_literal(literal: Literal) -> String {
     trimmed
 }
 
-
 pub(crate) fn witx_target_module_map_ident(arg: TokenTree) -> String {
     if let TokenTree::Ident(id) = arg {
         return id.to_string();

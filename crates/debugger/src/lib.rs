@@ -7,8 +7,8 @@ pub use commands::command::CommandContext;
 pub use commands::command::CommandResult;
 pub use commands::debugger::RunResult;
 pub use debugger::MainDebugger;
-pub use process::Process;
 pub use linefeed;
+pub use process::Process;
 
 use anyhow::{anyhow, Result};
 use commands::command;

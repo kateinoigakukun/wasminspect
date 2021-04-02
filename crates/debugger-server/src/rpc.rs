@@ -43,9 +43,7 @@ impl std::error::Error for RequestError {}
 pub enum TextRequest {
     Version,
     CallExported { name: String, args: Vec<JSNumber> },
-    CallResult {
-        values: Vec<JSNumber>,
-    },
+    CallResult { values: Vec<JSNumber> },
 }
 
 #[derive(FromPrimitive, Debug)]

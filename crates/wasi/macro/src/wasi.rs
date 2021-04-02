@@ -1,8 +1,8 @@
 use crate::utils;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
-use witx::WasmType;
 use utils::witx_target_module_map_ident;
+use witx::WasmType;
 
 fn emit_func_extern(
     name: &str,
@@ -119,7 +119,13 @@ pub fn define_wasi_fn_for_wasminspect(args: TokenStream) -> TokenStream {
             let name = func.name.as_str();
             let (params, returns) = func.wasm_signature();
 
-            ctor_externs.push(emit_func_extern(name, &params, &returns, &module_map_id, &module_id));
+            ctor_externs.push(emit_func_extern(
+                name,
+                &params,
+                &returns,
+                &module_map_id,
+                &module_id,
+            ));
         }
     }
     quote! {

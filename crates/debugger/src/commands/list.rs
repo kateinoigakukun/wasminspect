@@ -20,7 +20,12 @@ impl<D: Debugger> Command<D> for ListCommand {
         "List relevant source code."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, _args: Vec<&str>) -> Result<Option<CommandResult>> {
+    fn run(
+        &self,
+        debugger: &mut D,
+        context: &CommandContext,
+        _args: Vec<&str>,
+    ) -> Result<Option<CommandResult>> {
         let line_info = next_line_info(debugger, &context.sourcemap)?;
         display_source(line_info, context.printer.as_ref())?;
         Ok(None)

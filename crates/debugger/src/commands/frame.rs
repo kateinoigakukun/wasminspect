@@ -27,7 +27,12 @@ impl<D: Debugger> Command<D> for FrameCommand {
         "Commands for selecting current stack frame."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
+    fn run(
+        &self,
+        debugger: &mut D,
+        context: &CommandContext,
+        args: Vec<&str>,
+    ) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
         match opts {
             Opts::Variable => {

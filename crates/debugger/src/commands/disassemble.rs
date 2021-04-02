@@ -30,7 +30,12 @@ impl<D: Debugger> Command<D> for DisassembleCommand {
         "Disassemble instructions in the current function."
     }
 
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>> {
+    fn run(
+        &self,
+        debugger: &mut D,
+        context: &CommandContext,
+        args: Vec<&str>,
+    ) -> Result<Option<CommandResult>> {
         let opts: Opts = Opts::from_iter_safe(args)?;
         let count = if opts.pc {
             Some(opts.count.unwrap_or(4))

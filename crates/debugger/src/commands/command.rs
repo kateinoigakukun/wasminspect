@@ -21,7 +21,12 @@ pub trait Command<D: Debugger> {
     fn description(&self) -> &'static str {
         "No description yet"
     }
-    fn run(&self, debugger: &mut D, context: &CommandContext, args: Vec<&str>) -> Result<Option<CommandResult>>;
+    fn run(
+        &self,
+        debugger: &mut D,
+        context: &CommandContext,
+        args: Vec<&str>,
+    ) -> Result<Option<CommandResult>>;
 }
 
 pub trait AliasCommand {

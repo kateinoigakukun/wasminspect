@@ -20,7 +20,6 @@ impl DefaultGlobalInstance {
 }
 
 impl GlobalInstance for DefaultGlobalInstance {
-
     fn value(&self) -> Value {
         self.value
     }

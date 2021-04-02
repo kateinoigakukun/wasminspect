@@ -1,6 +1,5 @@
 /// Taken from https://github.com/bytecodealliance/wasmtime/blob/main/crates/wiggle/borrow/src/lib.rs
 /// Wasmtime is distributed under Apache License
-
 use std::cell::RefCell;
 use std::collections::HashMap;
 use wiggle::{BorrowHandle, GuestError, Region};
