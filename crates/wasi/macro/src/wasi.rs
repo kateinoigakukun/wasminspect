@@ -124,6 +124,22 @@ fn emit_func_extern(
 
     let name_id = Ident::new(name, Span::call_site());
     let name_str = name;
+    let call_expr = if name == "proc_exit" {
+        quote! {
+            let result = crate::wasi_proc_exit(
+                #(#arg_values),*
+            );
+        }
+    } else {
+        quote! {
+            let result = wasi_common::wasi::#module_id::#name_id(
+                &*wasi_ctx,
+                &mem,
+                #(#arg_values),*
+            );
+            #ret_value
+        }
+    };
     quote! {
         let ty = ::wasmparser::FuncType {
             params: vec![#(#param_types),*].into_boxed_slice(),
@@ -132,16 +148,13 @@ fn emit_func_extern(
         let func = HostValue::Func(HostFuncBody::new(ty, move |args, ret, ctx, store| {
             let wasi_ctx = store.get_embed_context::<WasiContext>().unwrap();
             let mut wasi_ctx = wasi_ctx.ctx.borrow_mut();
+            let bc = unsafe { wiggle::BorrowChecker::new() };
             let mem = WasiMemory {
                 mem: ctx.mem.as_mut_ptr(),
                 mem_size: ctx.mem.len() as u32,
+                bc,
             };
-            let result = wasi_common::wasi::#module_id::#name_id(
-                &*wasi_ctx,
-                &mem,
-                #(#arg_values),*
-            );
-            #ret_value
+            #call_expr
             Ok(())
         }));
         #module_map_id.insert(#name_str.to_string(), func);
@@ -202,11 +215,15 @@ pub fn define_wasi_fn_for_wasminspect(args: TokenStream) -> TokenStream {
         struct WasiMemory {
             mem: *mut u8,
             mem_size: u32,
+            bc: wiggle::BorrowChecker,
         }
 
         unsafe impl ::wiggle::GuestMemory for WasiMemory {
             fn base(&self) -> (*mut u8, u32) {
                 return (self.mem, self.mem_size);
+            }
+            fn borrow_checker(&self) -> &::wiggle::BorrowChecker {
+                &self.bc
             }
         }
 

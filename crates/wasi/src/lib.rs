@@ -7,6 +7,10 @@ pub struct WasiContext {
     ctx: RefCell<WasiCtx>,
 }
 
+fn wasi_proc_exit(status: i32) -> Result<(), Trap> {
+    std::process::exit(status);
+}
+
 pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let mut builder = WasiCtxBuilder::new();
     let wasi_ctx = builder.inherit_stdio().build().unwrap();
