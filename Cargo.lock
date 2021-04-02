@@ -1536,12 +1536,12 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wasi-common"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c411d6c2d133953a492f546f8fba975abf2a5cf462ad4676781281e3e3fb8c5"
+checksum = "2b02e7034147dcfbfe1f45f648061bb6007419b62c2e0d9e9d4930bae0c772d0"
 dependencies = [
  "anyhow",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "cpu-time",
  "filetime",
  "getrandom 0.1.16",
@@ -1684,9 +1684,9 @@ dependencies = [
 
 [[package]]
 name = "wig"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "765a40393f114be86ee4194f503b1b17dba23a87da1cc44691d8f35331d6ee76"
+checksum = "1a41001cacf8d23e98d33d715477a9a19d4d34f75cf07110d25b96be73f4bf62"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1696,9 +1696,9 @@ dependencies = [
 
 [[package]]
 name = "wiggle"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b5604944e321f6041c52ab6371fe64e33a7a0d29c9efea79be42ce7cd76b7f5"
+checksum = "d884714a403aad1a568f4a0399216c7a35145a8f68ec8770305875282d211e97"
 dependencies = [
  "thiserror",
  "tracing",
@@ -1708,9 +1708,9 @@ dependencies = [
 
 [[package]]
 name = "wiggle-generate"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "325e221abe5a9fbcbb2d371e14594bced140cfebfead845efd2dc6ca27911a4e"
+checksum = "75911fa619340aac4735fd2e646d8fd421e955908a4b1795df2f9a1d4121f674"
 dependencies = [
  "anyhow",
  "heck",
@@ -1723,9 +1723,9 @@ dependencies = [
 
 [[package]]
 name = "wiggle-macro"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba4a7993c883a08c8280b9ce345a444ab1686b53336672a34904bc0947d82d1"
+checksum = "f3df990808f3e4ace81d172a95049a76be252f3886e1dc3484f2c06da33bcc26"
 dependencies = [
  "quote",
  "syn",
@@ -1766,9 +1766,9 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "winx"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b25e4ae373f2f2f7f5f187974ed315719ce74160859027c80deb1f68b3c0c966"
+checksum = "2bcaffab7dbdc695c5d1e8adc37247111444c44f2df159f730d7ac85dbc27b5f"
 dependencies = [
  "bitflags",
  "cvt",
@@ -1789,12 +1789,12 @@ dependencies = [
 
 [[package]]
 name = "yanix"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c507c0a2a8a3470686591bd0c706225676493db49b314fb10f03a9d9a5c48b3c"
+checksum = "d845725b158616b297eec5df1a39e5a4a30b35e9014cb863ad99e3380b398a70"
 dependencies = [
  "bitflags",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "filetime",
  "libc",
  "tracing",
