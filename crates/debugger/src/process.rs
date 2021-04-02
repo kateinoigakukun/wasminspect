@@ -1,17 +1,14 @@
 use super::commands::command::{self, AliasCommand, Command, CommandResult};
 use super::commands::debugger::Debugger;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use linefeed::{DefaultTerminal, Interface, ReadResult};
 use std::io;
 use std::{collections::HashMap, time::Duration};
 
 pub struct Process<D: Debugger> {
-    pub interface: Interface<DefaultTerminal>,
     pub debugger: D,
     commands: HashMap<String, Box<dyn Command<D>>>,
     aliases: HashMap<String, Box<dyn AliasCommand>>,
-
-    history_file: String,
 }
 
 impl<D: Debugger> Process<D> {
@@ -19,18 +16,7 @@ impl<D: Debugger> Process<D> {
         debugger: D,
         commands: Vec<Box<dyn Command<D>>>,
         aliases: Vec<Box<dyn AliasCommand>>,
-        history_file: &str,
-    ) -> io::Result<Self> {
-        let interface = Interface::new("wasminspect")?;
-
-        interface.set_prompt("(wasminspect) ")?;
-
-        if let Err(e) = interface.load_history(history_file) {
-            if e.kind() == io::ErrorKind::NotFound {
-            } else {
-                eprintln!("Could not load history file {}: {}", history_file, e);
-            }
-        }
+    ) -> anyhow::Result<Self> {
         let mut cmd_map = HashMap::new();
         for cmd in commands {
             cmd_map.insert(cmd.name().to_string().clone(), cmd);
@@ -40,44 +26,10 @@ impl<D: Debugger> Process<D> {
             alias_map.insert(cmd.name().to_string().clone(), cmd);
         }
         Ok(Self {
-            interface,
             debugger,
             commands: cmd_map,
             aliases: alias_map,
-            history_file: history_file.to_string(),
         })
-    }
-
-    pub fn run_step(
-        &mut self,
-        context: &command::CommandContext,
-        last_line: &mut Option<String>,
-        timeout: Option<Duration>,
-    ) -> Result<Option<CommandResult>> {
-        let line = match self.interface.read_line_step(timeout)? {
-            Some(ReadResult::Input(line)) => line,
-            Some(_) => return Ok(Some(CommandResult::Exit)),
-            None => return Ok(None),
-        };
-        let result = if !line.trim().is_empty() {
-            self.interface.add_history_unique(line.clone());
-            *last_line = Some(line.clone());
-            self.dispatch_command(&line, context)?
-        } else if let Some(last_line) = last_line.as_ref() {
-            self.dispatch_command(last_line, context)?
-        } else {
-            None
-        };
-        Ok(result)
-    }
-
-    pub fn run_loop(&mut self, context: &command::CommandContext) -> Result<CommandResult> {
-        let mut last_line: Option<String> = None;
-        loop {
-            if let Some(result) = self.run_step(context, &mut last_line, None)? {
-                return Ok(result);
-            }
-        }
     }
 
     pub fn dispatch_command(
@@ -113,6 +65,78 @@ impl<D: Debugger> Process<D> {
     }
 }
 
+pub struct Interactive {
+    pub interface: Interface<DefaultTerminal>,
+
+    history_file: String,
+}
+
+fn history_file_path() -> String {
+    format!(
+        "{}/.wasminspect-history",
+        std::env::var_os("HOME").unwrap().to_str().unwrap()
+    )
+}
+
+impl Interactive {
+    pub fn new_with_loading_history() -> anyhow::Result<Self> {
+        Self::new(&history_file_path())
+    }
+
+    pub fn new(history_file: &str) -> anyhow::Result<Self> {
+        let interface = Interface::new("wasminspect").with_context(|| "new Interface")?;
+        interface
+            .set_prompt("(wasminspect) ")
+            .with_context(|| "set prompt")?;
+        if let Err(e) = interface.load_history(history_file) {
+            if e.kind() == io::ErrorKind::NotFound {
+            } else {
+                eprintln!("Could not load history file {}: {}", history_file, e);
+            }
+        }
+        Ok(Self {
+            interface,
+            history_file: history_file.to_string(),
+        })
+    }
+    pub fn run_step<D: Debugger>(
+        &mut self,
+        context: &command::CommandContext,
+        process: &mut Process<D>,
+        last_line: &mut Option<String>,
+        timeout: Option<Duration>,
+    ) -> Result<Option<CommandResult>> {
+        let line = match self.interface.read_line_step(timeout)? {
+            Some(ReadResult::Input(line)) => line,
+            Some(_) => return Ok(Some(CommandResult::Exit)),
+            None => return Ok(None),
+        };
+        let result = if !line.trim().is_empty() {
+            self.interface.add_history_unique(line.clone());
+            *last_line = Some(line.clone());
+            process.dispatch_command(&line, context)?
+        } else if let Some(last_line) = last_line.as_ref() {
+            process.dispatch_command(last_line, context)?
+        } else {
+            None
+        };
+        Ok(result)
+    }
+
+    pub fn run_loop<D: Debugger>(
+        &mut self,
+        context: &command::CommandContext,
+        process: &mut Process<D>,
+    ) -> Result<CommandResult> {
+        let mut last_line: Option<String> = None;
+        loop {
+            if let Some(result) = self.run_step(context, process, &mut last_line, None)? {
+                return Ok(result);
+            }
+        }
+    }
+}
+
 fn extract_command_name(s: &str) -> &str {
     let s = s.trim();
 
@@ -122,7 +146,7 @@ fn extract_command_name(s: &str) -> &str {
     }
 }
 
-impl<'a, D: Debugger> Drop for Process<D> {
+impl Drop for Interactive {
     fn drop(&mut self) {
         if let Err(error) = self.interface.save_history(&self.history_file) {
             println!("Error while saving command history: {}", error);

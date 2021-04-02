@@ -9,7 +9,7 @@ use wasmparser::FuncType;
 
 use crate::rpc::{self};
 use crate::serialization;
-use wasminspect_debugger::{CommandContext, CommandResult, MainDebugger, Process};
+use wasminspect_debugger::{CommandContext, CommandResult, Interactive, MainDebugger, Process};
 use wasminspect_vm::{HostFuncBody, HostValue, Trap, WasmValue};
 
 static VERSION: &str = "0.1.0";
@@ -244,7 +244,8 @@ where
                     return Ok(TextResponse::CallResult { values }.into());
                 }
                 Ok(RunResult::Breakpoint) => {
-                    let mut result = process.run_loop(context)?;
+                    let mut interactive = Interactive::new_with_loading_history().unwrap();
+                    let mut result = interactive.run_loop(context, process)?;
                     loop {
                         match result {
                             CommandResult::ProcessFinish(values) => {
@@ -257,7 +258,7 @@ where
                                         result = r;
                                     }
                                     None => {
-                                        result = process.run_loop(context)?;
+                                        result = interactive.run_loop(context, process)?;
                                     }
                                 }
                             }

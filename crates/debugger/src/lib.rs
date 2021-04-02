@@ -8,19 +8,12 @@ pub use commands::command::CommandResult;
 pub use commands::debugger::RunResult;
 pub use debugger::MainDebugger;
 pub use linefeed;
+pub use process::Interactive;
 pub use process::Process;
 
 use anyhow::{anyhow, Result};
 use commands::command;
 use log::warn;
-use std::env;
-
-fn history_file_path() -> String {
-    format!(
-        "{}/.wasminspect-history",
-        env::var_os("HOME").unwrap().to_str().unwrap()
-    )
-}
 
 pub fn try_load_dwarf(
     buffer: &Vec<u8>,
@@ -84,7 +77,6 @@ pub fn start_debugger<'a>(
             Box::new(commands::process::ProcessCommand::new()),
         ],
         vec![Box::new(commands::backtrace::BacktraceCommand::new())],
-        &history_file_path(),
     )?;
     Ok((process, context))
 }
@@ -113,8 +105,9 @@ pub fn run_loop(bytes: Option<Vec<u8>>, init_source: Option<String>) -> Result<(
             process.dispatch_command(&line, &context)?;
         }
     }
+    let mut interactive = Interactive::new_with_loading_history()?;
     loop {
-        match process.run_loop(&context)? {
+        match interactive.run_loop(&context, &mut process)? {
             CommandResult::ProcessFinish(_) => {}
             CommandResult::Exit => break,
         }

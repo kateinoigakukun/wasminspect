@@ -10,7 +10,7 @@ use std::{
 use anyhow::anyhow;
 use futures::{Sink, SinkExt, StreamExt};
 use lazy_static::lazy_static;
-use wasminspect_debugger::{CommandContext, MainDebugger, Process};
+use wasminspect_debugger::{CommandContext, Interactive, MainDebugger, Process};
 
 use crate::rpc;
 use crate::{debugger_proxy, serialization};
@@ -142,14 +142,20 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
 
             let mut last_line: Option<String> = None;
             let step_timeout = Duration::from_millis(500);
-            if !std::env::var("WASMINSPECT_SERVER_SKIP_INIT").is_ok() {
+            if !std::env::var("WASMINSPECT_SERVER_NO_INTERACTIVE").is_ok() {
+                let mut interactive = Interactive::new_with_loading_history().unwrap();
                 loop {
                     if connection_finished_reader.load(Ordering::Relaxed) {
-                        process.interface.cancel_read_line().unwrap();
+                        interactive.interface.cancel_read_line().unwrap();
                         log::debug!("Debugger thread interrupted");
                         break;
                     }
-                    let result = process.run_step(&dbg_context, &mut last_line, Some(step_timeout));
+                    let result = interactive.run_step(
+                        &dbg_context,
+                        &mut process,
+                        &mut last_line,
+                        Some(step_timeout),
+                    );
                     match result {
                         Ok(Some(wasminspect_debugger::CommandResult::Exit)) => {
                             break;
