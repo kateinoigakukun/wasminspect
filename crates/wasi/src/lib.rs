@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
 use wasminspect_vm::*;
+mod borrow;
 
 pub struct WasiContext {
     ctx: RefCell<WasiCtx>,
