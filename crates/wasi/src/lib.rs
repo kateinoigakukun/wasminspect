@@ -43,7 +43,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
 
     let func = define_wasi_fn(vec![Type::I32], None, |args, _ret, ctx, wasi_ctx| {
         unsafe {
-            proc_exit(&wasi_ctx, ctx.mem, args[0].as_i32().unwrap() as u32);
+            proc_exit(wasi_ctx, ctx.mem, args[0].as_i32().unwrap() as u32);
         }
         Ok(())
     });
@@ -91,7 +91,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = clock_res_get(
-                    &wasi_ctx,
+                    wasi_ctx,
                     ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
@@ -109,7 +109,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = clock_time_get(
-                    &wasi_ctx,
+                    wasi_ctx,
                     ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
@@ -363,7 +363,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = random_get(
-                    &wasi_ctx,
+                    wasi_ctx,
                     ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
@@ -377,7 +377,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
 
     let func = define_wasi_fn(vec![], Some(Type::I32), |_args, ret, ctx, wasi_ctx| {
         unsafe {
-            let result = sched_yield(&wasi_ctx, ctx.mem);
+            let result = sched_yield(wasi_ctx, ctx.mem);
             ret.push(WasmValue::I32(result as i32));
         }
         Ok(())

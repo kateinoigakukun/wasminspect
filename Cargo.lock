@@ -118,6 +118,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "chrono"
+version = "0.4.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
+dependencies = [
+ "libc",
+ "num-integer",
+ "num-traits",
+ "time",
+ "winapi",
+]
+
+[[package]]
 name = "clap"
 version = "2.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -213,6 +226,19 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aafcde04e90a5226a6443b7aabdb016ba2f8307c847d524724bd9b346dd1a2d3"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "regex",
+ "termcolor",
 ]
 
 [[package]]
@@ -898,6 +924,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
 
 [[package]]
+name = "pretty_env_logger"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "717ee476b1690853d222af4634056d830b5197ffd747726a9a1eee6da9f49074"
+dependencies = [
+ "chrono",
+ "env_logger 0.6.2",
+ "log",
+]
+
+[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1528,9 +1565,9 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wasi-common"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcbf58f4a99a1b5e696cc59d136a7458bbb1da176824a83fdcf10756c5e64cde"
+checksum = "27e845adafa8fee2ab957ce1bf855daf93e94d840be1515055df933a54b36eec"
 dependencies = [
  "anyhow",
  "cfg-if 0.1.10",
@@ -1542,22 +1579,10 @@ dependencies = [
  "log",
  "num",
  "thiserror",
- "wasi-common-cbindgen",
  "wig",
  "winapi",
  "winx",
  "yanix",
-]
-
-[[package]]
-name = "wasi-common-cbindgen"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9816f4a0b8d49b4ce6450960b6dcccf0f64f25daa2a48f4866e60e503a96022f"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -1566,7 +1591,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
- "env_logger",
+ "env_logger 0.7.1",
  "structopt",
  "tokio",
  "wasminspect-debugger",
@@ -1599,7 +1624,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "bytes",
- "env_logger",
+ "env_logger 0.7.1",
  "futures",
  "headers",
  "hyper",
@@ -1676,9 +1701,9 @@ dependencies = [
 
 [[package]]
 name = "wig"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a7109e220791895ebfb15ced2a2b8b356bcd90b3333198a3c3ce7eb8c9fc29"
+checksum = "27dd34865978ae8394dd61821718ab75a0b8ccb9a3fd96c53967ef98f66f5bc1"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1719,9 +1744,9 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "winx"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1098ba2ef5c2548466010bcd8c2f8d74275acbf9c2f8914e65a1ddcb9aba0ad"
+checksum = "7e10b3e7ac7f2495da6acf423e21c6d88f15204b597b7d4903c9a990ce859a1e"
 dependencies = [
  "bitflags",
  "cvt",
@@ -1730,20 +1755,22 @@ dependencies = [
 
 [[package]]
 name = "witx"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abc432537dbc9940e06816ebc3e1c4694fc835b90720615c32038769d7b2967d"
+checksum = "a6ee25990cb94f39b8d5637b8c7d9b9eaaed76795d95f45342a7ef3d2e574931"
 dependencies = [
  "clap",
+ "log",
+ "pretty_env_logger",
  "thiserror",
  "wast 3.0.4",
 ]
 
 [[package]]
 name = "yanix"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "827867737c40ad5b9a6df2f56530f2990a90534ae3ceaf71387a66aa3ff874e2"
+checksum = "25d31a3d2022352bb26334399470ec8cf2d59b15a7f2b88c5b23b7d7c863905d"
 dependencies = [
  "bitflags",
  "cfg-if 0.1.10",
