@@ -41,9 +41,9 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         }));
     }
 
-    let func = define_wasi_fn(vec![Type::I32], None, |args, _ret, _ctx, _wasi_ctx| {
+    let func = define_wasi_fn(vec![Type::I32], None, |args, _ret, ctx, wasi_ctx| {
         unsafe {
-            proc_exit(args[0].as_i32().unwrap() as u32);
+            proc_exit(&wasi_ctx, ctx.mem, args[0].as_i32().unwrap() as u32);
         }
         Ok(())
     });
@@ -88,9 +88,10 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I32],
         Some(Type::I32),
-        |args, ret, ctx, _| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = clock_res_get(
+                    &wasi_ctx,
                     ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
@@ -105,9 +106,10 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I64, Type::I32],
         Some(Type::I32),
-        |args, ret, ctx, _| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = clock_time_get(
+                    &wasi_ctx,
                     ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
@@ -159,9 +161,9 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
-                let result = fd_close(wasi_ctx, args[0].as_i32().unwrap() as u32);
+                let result = fd_close(wasi_ctx, ctx.mem, args[0].as_i32().unwrap() as u32);
                 ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
@@ -190,10 +192,11 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I32],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = fd_fdstat_set_flags(
                     wasi_ctx,
+                    ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u16,
                 );
@@ -357,9 +360,10 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I32],
         Some(Type::I32),
-        |args, ret, ctx, _wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = random_get(
+                    &wasi_ctx,
                     ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
@@ -371,9 +375,9 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     );
     module.insert("random_get".to_string(), func);
 
-    let func = define_wasi_fn(vec![], Some(Type::I32), |_args, ret, _ctx, _wasi_ctx| {
+    let func = define_wasi_fn(vec![], Some(Type::I32), |_args, ret, ctx, wasi_ctx| {
         unsafe {
-            let result = sched_yield();
+            let result = sched_yield(&wasi_ctx, ctx.mem);
             ret.push(WasmValue::I32(result as i32));
         }
         Ok(())
@@ -480,10 +484,11 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I64, Type::I64],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = fd_allocate(
                     wasi_ctx,
+                    ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
                     args[2].as_i64().unwrap() as u64,
@@ -498,10 +503,11 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I64, Type::I64, Type::I32],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = fd_advise(
                     wasi_ctx,
+                    ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
                     args[2].as_i64().unwrap() as u64,
@@ -517,9 +523,9 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
-                let result = fd_datasync(wasi_ctx, args[0].as_i32().unwrap() as u32);
+                let result = fd_datasync(wasi_ctx, ctx.mem, args[0].as_i32().unwrap() as u32);
                 ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
@@ -530,9 +536,9 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
-                let result = fd_sync(wasi_ctx, args[0].as_i32().unwrap() as u32);
+                let result = fd_sync(wasi_ctx, ctx.mem, args[0].as_i32().unwrap() as u32);
                 ret.push(WasmValue::I32(result as i32));
             }
             Ok(())
@@ -543,10 +549,11 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I64, Type::I64],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = fd_fdstat_set_rights(
                     wasi_ctx,
+                    ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
                     args[2].as_i64().unwrap() as u64,
@@ -561,10 +568,11 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I64],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = fd_filestat_set_size(
                     wasi_ctx,
+                    ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
                 );
@@ -578,10 +586,11 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I64, Type::I64, Type::I32],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = fd_filestat_set_times(
                     wasi_ctx,
+                    ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i64().unwrap() as u64,
                     args[2].as_i64().unwrap() as u64,
@@ -660,10 +669,11 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
     let func = define_wasi_fn(
         vec![Type::I32, Type::I32],
         Some(Type::I32),
-        |args, ret, _ctx, wasi_ctx| {
+        |args, ret, ctx, wasi_ctx| {
             unsafe {
                 let result = fd_renumber(
                     wasi_ctx,
+                    ctx.mem,
                     args[0].as_i32().unwrap() as u32,
                     args[1].as_i32().unwrap() as u32,
                 );

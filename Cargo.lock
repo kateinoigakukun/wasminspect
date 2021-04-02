@@ -3,21 +3,6 @@
 version = 3
 
 [[package]]
-name = "addr2line"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a55f82cfe485775d02112886f4169bde0c5894d75e79ead7eafe7e40a25e45f7"
-dependencies = [
- "gimli 0.23.0",
-]
-
-[[package]]
-name = "adler"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
-
-[[package]]
 name = "aho-corasick"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -69,20 +54,6 @@ name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
-
-[[package]]
-name = "backtrace"
-version = "0.3.56"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d117600f438b1707d4e4ae15d3595657288f8235a0eb593e80ecc98ab34e1bc"
-dependencies = [
- "addr2line",
- "cfg-if 1.0.0",
- "libc",
- "miniz_oxide",
- "object",
- "rustc-demangle",
-]
 
 [[package]]
 name = "base64"
@@ -258,28 +229,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "failure"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d32e9bd16cc02eae7db7ef620b392808b89f6a5e16bb3497d159c6b92a0f4f86"
-dependencies = [
- "backtrace",
- "failure_derive",
-]
-
-[[package]]
-name = "failure_derive"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa4da3c766cd7a0db8242e326e9e4e081edd567072893ed320008189715366a4"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
-]
-
-[[package]]
 name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -417,12 +366,6 @@ dependencies = [
  "indexmap",
  "stable_deref_trait",
 ]
-
-[[package]]
-name = "gimli"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6503fe142514ca4799d4c26297c4248239fe8838d827db6bd6065c6ed29a6ce"
 
 [[package]]
 name = "h2"
@@ -670,16 +613,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a60c7ce501c71e03a9c9c0d35b861413ae925bd979cc7a4e30d060069aaac8d"
 
 [[package]]
-name = "miniz_oxide"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a92518e98c078586bc6c934028adcca4c92a53d6a958196de835170a01d84e4b"
-dependencies = [
- "adler",
- "autocfg",
-]
-
-[[package]]
 name = "mio"
 version = "0.7.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -709,25 +642,12 @@ checksum = "998fd6a991497275567703b6f435e27958b633878ec991f5734b96dd46675e9f"
 dependencies = [
  "bitflags",
  "libc",
- "nix 0.17.0",
+ "nix",
  "smallstr",
  "terminfo",
  "unicode-normalization",
  "unicode-width",
  "winapi",
-]
-
-[[package]]
-name = "nix"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b2e0b4f3320ed72aaedb9a5ac838690a8047c7b275da22711fddff4f8a14229"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 0.1.10",
- "libc",
- "void",
 ]
 
 [[package]]
@@ -857,12 +777,6 @@ dependencies = [
  "hermit-abi",
  "libc",
 ]
-
-[[package]]
-name = "object"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9a7ab5d64814df0fe4a4b5ead45ed6c5f181ee3ff04ba344313a6c80446c5d4"
 
 [[package]]
 name = "once_cell"
@@ -1178,12 +1092,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustc-demangle"
-version = "0.1.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e3bad0ee36814ca07d7968269dd4b7ec89ec2da10c4bb613928d3077083c232"
-
-[[package]]
 name = "ryu"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1330,18 +1238,6 @@ checksum = "3fd9d1e9976102a03c542daa2eff1b43f9d72306342f3f8b3ed5fb8908195d6f"
 dependencies = [
  "proc-macro2",
  "quote",
- "unicode-xid",
-]
-
-[[package]]
-name = "synstructure"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
  "unicode-xid",
 ]
 
@@ -1632,32 +1528,32 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wasi-common"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd6d7a7b4e2450ef06f4616c349059edb76b8d6b309e1b48944f887217a5eb2f"
+checksum = "6b98d6ce2d20d33eecf63f559e8a7ed404db8163bbff057c73177709f52ce9d0"
 dependencies = [
  "anyhow",
  "cfg-if 0.1.10",
  "cpu-time",
  "filetime",
+ "getrandom 0.1.16",
  "lazy_static",
  "libc",
  "log",
- "nix 0.15.0",
  "num",
- "rand 0.7.3",
  "thiserror",
  "wasi-common-cbindgen",
  "wig",
  "winapi",
  "winx",
+ "yanix",
 ]
 
 [[package]]
 name = "wasi-common-cbindgen"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6505210d9300ff7156ada60210150d4c9a2a71900a6a4b62161038904cb4c451"
+checksum = "bf3c39c71f826f9ca6bd799d43f69259a0e95e0fcb166a71ace2f29790be4bec"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1685,7 +1581,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
- "gimli 0.21.0",
+ "gimli",
  "linefeed",
  "log",
  "num-bigint",
@@ -1780,9 +1676,9 @@ dependencies = [
 
 [[package]]
 name = "wig"
-version = "0.8.0"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6da05fa60030980a9c05480d8c21aaa3639027708c6fff1b4154ee66fe4b01dd"
+checksum = "f880a02de54543f3ff1c7ea7fd1d406138ebf61c4dab7b5acf8e0d29820448d0"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1823,9 +1719,9 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "winx"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb65a9dbe1d3e3044c460bcd8c565271a262b379c5574a32e1940071242851c1"
+checksum = "9f47706d3c6e07820f139e001439ecb293f72a6799456fc9239acddfea3b75d3"
 dependencies = [
  "bitflags",
  "cvt",
@@ -1834,11 +1730,24 @@ dependencies = [
 
 [[package]]
 name = "witx"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d075344afebe51633c0302fc11698c2d6414f9d366c749db1af57710f112561"
+checksum = "abc432537dbc9940e06816ebc3e1c4694fc835b90720615c32038769d7b2967d"
 dependencies = [
  "clap",
- "failure",
+ "thiserror",
  "wast 3.0.4",
+]
+
+[[package]]
+name = "yanix"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46110b2c934e1035d4476fe30bdca850ceacd7cfc0557f8a63faf5ad71264d85"
+dependencies = [
+ "bitflags",
+ "cfg-if 0.1.10",
+ "libc",
+ "log",
+ "thiserror",
 ]
