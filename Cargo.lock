@@ -683,19 +683,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8536030f9fea7127f841b45bb6243b27255787fb4eb83958aa1ef9d2fdc0c36"
-dependencies = [
- "num-complex",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
 name = "num-bigint"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -703,16 +690,6 @@ checksum = "4e0d047c1062aa51e256408c560894e5251f08925980e53cf1aa5bd00eec6512"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
-dependencies = [
- "autocfg",
  "num-traits",
 ]
 
@@ -734,28 +711,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2cc698a63b549a70bc047073d2949cce27cd1c7b0a4a862d08a8031bc2801db"
 dependencies = [
  "autocfg",
- "num-traits",
-]
-
-[[package]]
-name = "num-iter"
-version = "0.1.42"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2021c8337a54d21aca0d59a92577a029af9431cb59b909b03252b9c164fad59"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
-dependencies = [
- "autocfg",
- "num-integer",
  "num-traits",
 ]
 
@@ -1528,9 +1483,9 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wasi-common"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49d94cafd58745540c69cf051571b518886ce7757ad1b251f7a4e8a7ffccfaae"
+checksum = "3c36197fe20e0a0673f346064a57122ee63a10c7e4da84d014ce8e97e7dd666c"
 dependencies = [
  "anyhow",
  "cfg-if 0.1.10",
@@ -1540,7 +1495,6 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "num",
  "thiserror",
  "wig",
  "wiggle",
@@ -1666,9 +1620,9 @@ dependencies = [
 
 [[package]]
 name = "wig"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e303a54196f33cbcc969a2ec7dd4743b96a86fa1aafb145807cbdc6a12dfda4e"
+checksum = "81c465c26ea1bfda64b38ec24f8036dab5a46963e7952cd55694dbb6ace7597d"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1678,9 +1632,9 @@ dependencies = [
 
 [[package]]
 name = "wiggle"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b8f2a7b5e882d8e5f5f5b3586b859b434d341e14ca608ef8d840cd1cdc3cae0"
+checksum = "ba87f956932fb15ce9deaca86b94cf9695ad69be12861d009b1be626d20710c5"
 dependencies = [
  "thiserror",
  "wiggle-macro",
@@ -1689,9 +1643,9 @@ dependencies = [
 
 [[package]]
 name = "wiggle-generate"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01b366da52bffd4b3680aaf63d347c8a4abb8ea25521b0528c50646eb72cb1bc"
+checksum = "b831c66c7f0d6f5c99feef50814a24578308ff47264dca468718977404c72ee7"
 dependencies = [
  "anyhow",
  "heck",
@@ -1703,10 +1657,11 @@ dependencies = [
 
 [[package]]
 name = "wiggle-macro"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f35e98cd16ad3762c033ebe0b1971268dc236c97490a8ac2ebdd1fe331748fb3"
+checksum = "91be3bbcc4c3be9c3384e93230bd2785bfa8a2c510609f879c283524229124ac"
 dependencies = [
+ "quote",
  "syn",
  "wiggle-generate",
  "witx",
@@ -1745,9 +1700,9 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "winx"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c941e93919fa7fdee744b1118f2759fe8d6140c752843ba4af593041a9b5f45b"
+checksum = "bd961a9c47fb866ee8289fa0917ac5e1c9c1145ec49572d7e434a69c7478d48a"
 dependencies = [
  "bitflags",
  "cvt",
@@ -1768,9 +1723,9 @@ dependencies = [
 
 [[package]]
 name = "yanix"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fe9b3baf00e1443c2c0d0c4826ead5e9cddd1b8bdbd515bbb165a642d1a85ec"
+checksum = "7c9b1a7c85f9dcf48fadb129461dc1e54cdf82f6a52cb7ab3b53a4a4234d056f"
 dependencies = [
  "bitflags",
  "cfg-if 0.1.10",
