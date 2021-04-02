@@ -47,6 +47,7 @@ fn from_js_number(value: rpc::JSNumber, ty: &wasmparser::Type) -> WasmValue {
     }
 }
 
+#[allow(dead_code)]
 fn to_vm_wasm_value(value: &rpc::WasmValue) -> WasmValue {
     match value {
         rpc::WasmValue::F32 { value } => WasmValue::F32(*value),

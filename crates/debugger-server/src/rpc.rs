@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
