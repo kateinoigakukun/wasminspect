@@ -1,12 +1,29 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use wasi_common::hostcalls::*;
+use wasi_common::wasi::wasi_snapshot_preview1::*;
 use wasi_common::{WasiCtx, WasiCtxBuilder};
+use wiggle::GuestMemory;
 use wasminspect_vm::*;
 use wasmparser::{FuncType, Type};
 
 pub struct WasiContext {
     ctx: RefCell<WasiCtx>,
+}
+
+struct WasiMemory<'a>(&'a mut [u8]);
+
+unsafe impl GuestMemory for WasiMemory<'_> {
+    fn base(&self) -> (*mut u8, u32) {
+        return unsafe { (self.0.as_mut_ptr(), self.0.len() as u32) }
+    }
+}
+
+struct WasiHostContext<'a, 'b>(&'b mut HostContext<'a>);
+
+impl<'a> WasiHostContext<'a, '_> {
+    fn mem(&'a self) -> WasiMemory<'a> {
+        WasiMemory(self.0.mem)
+    }
 }
 
 pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
@@ -18,7 +35,7 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         F: Fn(
                 &[WasmValue],
                 &mut Vec<WasmValue>,
-                &mut HostContext,
+                &mut WasiHostContext,
                 &mut WasiCtx,
             ) -> Result<(), Trap>
             + 'static,
@@ -37,13 +54,14 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
         return HostValue::Func(HostFuncBody::new(ty, move |args, ret, ctx, store| {
             let wasi_ctx = store.get_embed_context::<WasiContext>().unwrap();
             let mut wasi_ctx = wasi_ctx.ctx.borrow_mut();
-            f(args, ret, ctx, &mut *wasi_ctx)
+            let host_ctx = WasiHostContext(ctx);
+            f(args, ret, &mut host_ctx, &mut *wasi_ctx)
         }));
     }
 
     let func = define_wasi_fn(vec![Type::I32], None, |args, _ret, ctx, wasi_ctx| {
         unsafe {
-            proc_exit(wasi_ctx, ctx.mem, args[0].as_i32().unwrap() as u32);
+            proc_exit(wasi_ctx, &ctx.mem(), args[0].as_i32().unwrap());
         }
         Ok(())
     });
@@ -57,8 +75,8 @@ pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
                 let result = args_get(
                     wasi_ctx,
                     ctx.mem,
-                    args[0].as_i32().unwrap() as u32,
-                    args[1].as_i32().unwrap() as u32,
+                    args[0].as_i32().unwrap(),
+                    args[1].as_i32().unwrap(),
                 );
                 ret.push(WasmValue::I32(result as i32));
             }
