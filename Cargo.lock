@@ -1578,10 +1578,22 @@ dependencies = [
 name = "wasminspect-wasi"
 version = "0.2.0"
 dependencies = [
+ "log",
  "wasi-common",
  "wasminspect-vm",
+ "wasminspect-wasi-macro",
  "wasmparser",
+ "wig",
  "wiggle",
+]
+
+[[package]]
+name = "wasminspect-wasi-macro"
+version = "0.2.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "witx",
 ]
 
 [[package]]
