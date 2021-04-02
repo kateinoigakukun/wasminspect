@@ -5,8 +5,8 @@ authors = ["Yuta Saito <kateinoigakukun@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-wasi-common = "0.21.0"
-wiggle = "0.21.0"
+wasi-common = "0.22.0"
+wiggle = "0.22.0"
 log = "0.4"
 wasminspect-vm = { path = "../vm" }
 wasminspect-wasi-macro = { path = "./macro" }

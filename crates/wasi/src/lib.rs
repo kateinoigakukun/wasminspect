@@ -8,6 +8,15 @@ pub struct WasiContext {
     ctx: RefCell<WasiCtx>,
 }
 
+#[derive(Debug)]
+struct WasiError(std::string::String);
+impl std::error::Error for WasiError {}
+impl std::fmt::Display for WasiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 fn wasi_proc_exit(status: i32) -> Result<(), Trap> {
     std::process::exit(status);
 }
