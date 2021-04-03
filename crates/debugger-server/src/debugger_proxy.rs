@@ -315,12 +315,9 @@ where
     match req {
         Binary(req) => match req.kind {
             Init => {
-                process.debugger.reset_store();
                 let imports = remote_import_module(req.bytes, tx, rx)?;
-                for (name, module) in imports {
-                    process.debugger.load_host_module(name, module);
-                }
-                process.debugger.load_module(req.bytes)?;
+                process.debugger.load_main_module(req.bytes)?;
+                process.debugger.instantiate(imports)?;
                 let exports = module_exports(req.bytes, &process.debugger)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }

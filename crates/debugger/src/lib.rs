@@ -49,9 +49,8 @@ pub fn start_debugger<'a>(
         printer: Box::new(ConsolePrinter {}),
     };
 
-    debugger.load_wasi_module();
     if let Some(ref bytes) = bytes {
-        debugger.load_module(bytes)?;
+        debugger.load_main_module(bytes)?;
         match try_load_dwarf(bytes, &mut context) {
             Ok(_) => (),
             Err(err) => {

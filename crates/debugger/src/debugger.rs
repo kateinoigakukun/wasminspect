@@ -11,57 +11,97 @@ use wasminspect_vm::{
 };
 use wasminspect_wasi::instantiate_wasi;
 
-pub struct MainDebugger {
+type RawModule = Vec<u8>;
+type RawHostModule = HashMap<String, HostValue>;
+
+pub struct Instance {
+    main_module_index: ModuleIndex,
     pub store: Store,
-    executor: Option<Rc<RefCell<Executor>>>,
-    module_index: Option<ModuleIndex>,
+    pub executor: Option<Rc<RefCell<Executor>>>,
+}
+
+pub struct MainDebugger {
+    pub instance: Option<Instance>,
+
+    main_module: Option<RawModule>,
 
     opts: DebuggerOpts,
     function_breakpoints: HashMap<String, debugger::Breakpoint>,
 }
 
 impl MainDebugger {
-    pub fn load_module(&mut self, module: &[u8]) -> Result<()> {
+    pub fn load_main_module(&mut self, module: &[u8]) -> Result<()> {
         if let Err(err) = wasmparser::validate(module) {
             warn!("{}", err);
+            return Err(err.into());
         }
-        self.module_index = Some(self.store.load_module(None, module)?);
+        self.main_module = Some(module.to_vec());
         Ok(())
     }
+
     pub fn new() -> Result<Self> {
         Ok(Self {
-            store: Self::instantiate_store(),
-            executor: None,
-            module_index: None,
+            instance: None,
+            main_module: None,
             function_breakpoints: HashMap::new(),
             opts: DebuggerOpts::default(),
         })
     }
 
-    pub fn reset_store(&mut self) {
-        self.store = Self::instantiate_store();
+    fn main_module(&self) -> Result<&DefinedModuleInstance> {
+        if let Some(ref instance) = self.instance {
+            let module = match instance.store.module(instance.main_module_index).defined() {
+                Some(module) => module,
+                None => return Err(anyhow::anyhow!("Main module is not loaded correctly")),
+            };
+            return Ok(module);
+        } else {
+            return Err(anyhow::anyhow!("No instance"));
+        }
     }
 
-    pub fn load_host_module(&mut self, name: String, module: HashMap<String, HostValue>) {
-        self.store.load_host_module(name, module);
+    fn executor(&self) -> Result<Rc<RefCell<Executor>>> {
+        let instance = self.instance()?;
+        if let Some(ref executor) = instance.executor {
+            return Ok(executor.clone());
+        } else {
+            return Err(anyhow::anyhow!("No execution context"));
+        }
     }
-    pub fn load_wasi_module(&mut self) {
+    fn instance(&self) -> Result<&Instance> {
+        if let Some(ref instance) = self.instance {
+            return Ok(instance);
+        } else {
+            return Err(anyhow::anyhow!("No instance"));
+        }
+    }
+
+    pub fn instantiate(&mut self, host_modules: HashMap<String, RawHostModule>) -> Result<()> {
+        let mut store = Store::new();
+        let main_module_index = if let Some(ref main_module) = self.main_module {
+            store.load_module(None, &main_module)?
+        } else {
+            return Err(anyhow::anyhow!("No main module registered"));
+        };
+        for (name, host_module) in host_modules {
+            store.load_host_module(name, host_module);
+        }
         let (ctx, wasi_snapshot_preview) = instantiate_wasi();
         let (_, wasi_unstable) = instantiate_wasi();
-        self.store.add_embed_context(Box::new(ctx));
-        self.store
-            .load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-        self.store
-            .load_host_module("wasi_unstable".to_string(), wasi_unstable);
-    }
-    fn instantiate_store() -> Store {
-        let store = Store::new();
-        store
+        store.add_embed_context(Box::new(ctx));
+        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+        self.instance = Some(Instance {
+            main_module_index,
+            store,
+            executor: None,
+        });
+        Ok(())
     }
 
     pub fn func_type(&self, func_addr: FuncAddr) -> Result<wasmparser::FuncType> {
         let (func, _) = self
-            .store
+            .store()?
             .func(func_addr)
             .ok_or(anyhow!("Function not found"))?;
         return Ok(func.ty().clone());
@@ -71,11 +111,7 @@ impl MainDebugger {
         &self,
         f: F,
     ) -> Result<T> {
-        let module_index = match self.module_index {
-            Some(idx) => idx,
-            None => return Err(anyhow!("No module loaded")),
-        };
-        let module = self.store.module(module_index).defined().unwrap();
+        let module = self.main_module()?;
         return f(module);
     }
 
@@ -94,7 +130,11 @@ impl MainDebugger {
         func_addr: FuncAddr,
         args: Vec<WasmValue>,
     ) -> Result<debugger::RunResult> {
-        let func = self
+        let instance = self
+            .instance
+            .as_mut()
+            .ok_or(anyhow::anyhow!("No instance"))?;
+        let func = instance
             .store
             .func(func_addr)
             .ok_or(anyhow!("Function not found"))?;
@@ -103,7 +143,7 @@ impl MainDebugger {
                 let mut results = Vec::new();
                 match host
                     .code()
-                    .call(&args, &mut results, &self.store, func_addr.module_index())
+                    .call(&args, &mut results, &instance.store, func_addr.module_index())
                 {
                     Ok(_) => return Ok(debugger::RunResult::Finish(results)),
                     Err(_) => return Err(anyhow!("Failed to execute host func")),
@@ -114,7 +154,7 @@ impl MainDebugger {
                 let frame = CallFrame::new_from_func(exec_addr, func, args, None);
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                 let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
-                self.executor = Some(executor.clone());
+                instance.executor = Some(executor.clone());
                 return Ok(self.process()?);
             }
         }
@@ -129,13 +169,10 @@ impl debugger::Debugger for MainDebugger {
         self.opts = opts
     }
     fn instructions(&self) -> Result<(&[Instruction], usize)> {
-        if let Some(ref executor) = self.executor {
-            let executor = executor.borrow();
-            let insts = executor.current_func_insts(&self.store)?;
-            Ok((insts, executor.pc.inst_index().0 as usize))
-        } else {
-            Err(anyhow!("No execution context"))
-        }
+        let executor = self.executor()?;
+        let executor = executor.borrow();
+        let insts = executor.current_func_insts(self.store()?)?;
+        Ok((insts, executor.pc.inst_index().0 as usize))
     }
 
     fn set_breakpoint(&mut self, breakpoint: debugger::Breakpoint) {
@@ -147,7 +184,7 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn stack_values(&self) -> Vec<WasmValue> {
-        if let Some(ref executor) = self.executor {
+        if let Ok(ref executor) = self.executor() {
             let executor = executor.borrow();
             let values = executor.stack.peek_values();
             let mut new_values = Vec::<WasmValue>::new();
@@ -160,11 +197,13 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
-    fn store(&self) -> &Store {
-        &self.store
+    fn store(&self) -> Result<&Store> {
+        let instance = self.instance()?;
+        return Ok(&instance.store);
     }
+
     fn locals(&self) -> Vec<WasmValue> {
-        if let Some(ref executor) = self.executor {
+        if let Ok(ref executor) = self.executor() {
             let executor = executor.borrow();
             executor.stack.current_frame().unwrap().locals.clone()
         } else {
@@ -172,58 +211,63 @@ impl debugger::Debugger for MainDebugger {
         }
     }
     fn current_frame(&self) -> Option<debugger::FunctionFrame> {
-        let executor = if let Some(ref executor) = self.executor {
+        let executor = if let Ok(executor) = self.executor() {
             executor
         } else {
             return None;
         };
         let executor = executor.borrow();
         let frame = executor.stack.current_frame().unwrap();
-        let func = self.store.func_global(frame.exec_addr);
+        let func = match self.store() {
+            Ok(store) => store.func_global(frame.exec_addr),
+            Err(_) => return None,
+        };
 
-        self.module_index.map(|idx| debugger::FunctionFrame {
-            module_index: idx,
+        Some(debugger::FunctionFrame {
+            module_index: frame.module_index,
             argument_count: func.ty().params.len(),
         })
     }
     fn frame(&self) -> Vec<String> {
-        if let Some(ref executor) = self.executor {
-            let executor = executor.borrow();
-            let frames = executor.stack.peek_frames();
-            frames
-                .iter()
-                .map(|frame| self.store.func_global(frame.exec_addr).name().clone())
-                .collect()
+        let instance = if let Ok(instance) = self.instance() {
+            instance
         } else {
-            Vec::new()
-        }
+            return vec![];
+        };
+        let executor = if let Some(executor) = instance.executor.clone() {
+            executor
+        } else {
+            return vec![];
+        };
+        let executor = executor.borrow();
+        let frames = executor.stack.peek_frames();
+        return frames
+            .iter()
+            .map(|frame| instance.store.func_global(frame.exec_addr).name().clone())
+            .collect();
     }
     fn memory(&self) -> Result<Vec<u8>> {
-        if let Some(ref executor) = self.executor {
-            let executor = executor.borrow();
-            let frame = executor
-                .stack
-                .current_frame()
-                .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
-            let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
-            Ok(self.store.memory(addr).borrow().raw_data().to_vec())
-        } else {
-            Ok(vec![])
-        }
+        let store = self.store()?;
+        let executor = self.executor()?;
+        let executor = executor.borrow();
+        let frame = executor
+            .stack
+            .current_frame()
+            .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
+        let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
+        Ok(store.memory(addr).borrow().raw_data().to_vec())
     }
 
     fn write_memory(&self, offset: usize, bytes: Vec<u8>) -> Result<()> {
-        let memory = if let Some(ref executor) = self.executor {
-            let executor = executor.borrow();
-            let frame = executor
-                .stack
-                .current_frame()
-                .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
-            let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
-            self.store.memory(addr)
-        } else {
-            return Err(anyhow!("No execution context"));
-        };
+        let store = self.store()?;
+        let executor = self.executor()?;
+        let executor = executor.borrow();
+        let frame = executor
+            .stack
+            .current_frame()
+            .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
+        let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
+        let memory = store.memory(addr);
         for (idx, byte) in bytes.iter().enumerate() {
             memory.borrow_mut().raw_data_mut()[offset + idx] = *byte;
         }
@@ -231,27 +275,24 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn is_running(&self) -> bool {
-        self.executor.is_some()
+        self.executor().is_ok()
     }
 
     fn step(&self, style: debugger::StepStyle) -> Result<Signal> {
-        let executor = if let Some(ref executor) = self.executor {
-            executor
-        } else {
-            return Err(anyhow!("No execution context"));
-        };
+        let store = self.store()?;
+        let executor = self.executor()?;
         use debugger::StepStyle::*;
 
         fn frame_depth(executor: &Executor) -> usize {
             executor.stack.peek_frames().len()
         }
         match style {
-            StepInstIn => return Ok(executor.borrow_mut().execute_step(&self.store, self)?),
+            StepInstIn => return Ok(executor.borrow_mut().execute_step(&store, self)?),
             StepInstOver => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                let mut last_signal = executor.borrow_mut().execute_step(&store, self)?;
                 while initial_frame_depth < frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                    last_signal = executor.borrow_mut().execute_step(&store, self)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -260,9 +301,9 @@ impl debugger::Debugger for MainDebugger {
             }
             StepOut => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                let mut last_signal = executor.borrow_mut().execute_step(&store, self)?;
                 while initial_frame_depth <= frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&self.store, self)?;
+                    last_signal = executor.borrow_mut().execute_step(&store, self)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -273,18 +314,16 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn process(&self) -> Result<RunResult> {
-        let executor = match &self.executor {
-            Some(executor) => executor,
-            None => return Err(anyhow!("No execution context")),
-        };
+        let store = self.store()?;
+        let executor = self.executor()?;
         loop {
-            let result = executor.borrow_mut().execute_step(&self.store, self);
+            let result = executor.borrow_mut().execute_step(&store, self);
             match result {
                 Ok(Signal::Next) => continue,
                 Ok(Signal::Breakpoint) => return Ok(RunResult::Breakpoint),
                 Ok(Signal::End) => {
                     let pc = executor.borrow().pc;
-                    let func = self.store.func_global(pc.exec_addr());
+                    let func = store.func_global(pc.exec_addr());
                     let results = executor
                         .borrow_mut()
                         .pop_result(func.ty().returns.to_vec())?;
@@ -296,17 +335,8 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn run(&mut self, name: Option<&str>) -> Result<debugger::RunResult> {
-        if self.is_running() {
-            self.store = Self::instantiate_store();
-        }
-        let module_index = match self.module_index {
-            Some(idx) => idx,
-            None => return Err(anyhow!("No module loaded")),
-        };
-        let start_func_addr = {
-            let module = self.store.module(module_index).defined().unwrap();
-            *module.start_func_addr()
-        };
+        let main_module = self.main_module()?;
+        let start_func_addr = *main_module.start_func_addr();
         let func_addr = {
             if let Some(name) = name {
                 self.lookup_func(&name)?

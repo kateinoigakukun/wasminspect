@@ -40,7 +40,7 @@ impl<D: Debugger> Command<D> for GlobalCommand {
         use wasminspect_vm::*;
         match opts {
             Opts::Read { index } => {
-                let store: &Store = debugger.store();
+                let store: &Store = debugger.store()?;
                 let mod_index = match debugger.current_frame() {
                     Some(frame) => frame.module_index,
                     None => return Err(anyhow!("function frame not found")),

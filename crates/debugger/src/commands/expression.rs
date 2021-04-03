@@ -39,7 +39,7 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
         let current_inst = insts[current_index].clone();
         let locals = debugger.locals();
         use wasminspect_vm::*;
-        let store: &Store = debugger.store();
+        let store: &Store = debugger.store()?;
         let mod_index = match debugger.current_frame() {
             Some(frame) => frame.module_index,
             None => return Err(anyhow!("function frame not found")),
