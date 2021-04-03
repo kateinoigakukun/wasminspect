@@ -212,6 +212,24 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
+    fn write_memory(&self, offset: usize, bytes: Vec<u8>) -> Result<()> {
+        let memory = if let Some(ref executor) = self.executor {
+            let executor = executor.borrow();
+            let frame = executor
+                .stack
+                .current_frame()
+                .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
+            let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
+            self.store.memory(addr)
+        } else {
+            return Err(anyhow!("No execution context"));
+        };
+        for (idx, byte) in bytes.iter().enumerate() {
+            memory.borrow_mut().raw_data_mut()[offset + idx] = *byte;
+        }
+        Ok(())
+    }
+
     fn is_running(&self) -> bool {
         self.executor.is_some()
     }

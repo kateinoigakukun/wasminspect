@@ -9,7 +9,9 @@ use wasmparser::FuncType;
 
 use crate::rpc::{self, WasmExport};
 use crate::serialization;
-use wasminspect_debugger::{CommandContext, CommandResult, Interactive, MainDebugger, Process};
+use wasminspect_debugger::{
+    CommandContext, CommandResult, Debugger, Interactive, MainDebugger, Process,
+};
 use wasminspect_vm::{HostFuncBody, HostValue, Trap, WasmValue};
 
 static VERSION: &str = "0.1.0";
@@ -314,6 +316,13 @@ where
         }
         Text(CallResult { .. }) => unreachable!(),
         Text(CallExported { name, args }) => call_exported(name, args, process, context),
-        _ => unimplemented!(),
+        Text(LoadMemory { offset, length }) => {
+            let bytes = process.debugger.memory()?[offset..offset + length].to_vec();
+            return Ok(TextResponse::LoadMemoryResult { bytes: bytes }.into());
+        }
+        Text(StoreMemory { offset, bytes }) => {
+            process.debugger.write_memory(offset, bytes)?;
+            return Ok(TextResponse::StoreMemoryResult.into());
+        }
     }
 }
