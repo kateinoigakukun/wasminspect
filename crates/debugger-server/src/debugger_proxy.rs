@@ -16,10 +16,13 @@ use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, Trap, WasmValue};
 
 static VERSION: &str = "0.1.0";
 
+pub type ProcessRef = Arc<Mutex<Process<MainDebugger>>>;
+pub type CommandCtxRef = Arc<Mutex<CommandContext>>;
+
 pub fn handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
     req: rpc::Request,
-    process: &mut Process<MainDebugger>,
-    context: &CommandContext,
+    process: ProcessRef,
+    context: CommandCtxRef,
     tx: Arc<Mutex<S>>,
     rx: Arc<mpsc::Receiver<Option<Message>>>,
 ) -> rpc::Response
@@ -249,14 +252,14 @@ fn module_exports(bytes: &[u8]) -> anyhow::Result<Vec<WasmExport>> {
 fn call_exported(
     name: String,
     args: Vec<f64>,
-    process: &mut Process<MainDebugger>,
-    context: &CommandContext,
+    process: ProcessRef,
+    context: CommandCtxRef,
 ) -> Result<rpc::Response, anyhow::Error> {
     use rpc::*;
     use wasminspect_debugger::RunResult;
 
-    let func = process.debugger.lookup_func(&name)?;
-    let func_ty = process.debugger.func_type(func)?;
+    let func = process.lock().unwrap().debugger.lookup_func(&name)?;
+    let func_ty = process.lock().unwrap().debugger.func_type(func)?;
     if func_ty.params.len() != args.len() {
         return Err(RequestError::CallArgumentLengthMismatch.into());
     }
@@ -265,14 +268,18 @@ fn call_exported(
         .zip(func_ty.params.iter())
         .map(|(arg, ty)| from_js_number(*arg, ty))
         .collect();
-    match process.debugger.execute_func(func, args) {
+    match process.lock().unwrap().debugger.execute_func(func, args) {
         Ok(RunResult::Finish(values)) => {
             let values = values.iter().map(from_vm_wasm_value).collect();
             return Ok(TextResponse::CallResult { values }.into());
         }
         Ok(RunResult::Breakpoint) => {
+            use std::borrow::{Borrow, BorrowMut};
             let mut interactive = Interactive::new_with_loading_history().unwrap();
-            let mut result = interactive.run_loop(context, process)?;
+            let mut result = interactive.run_loop(
+                context.lock().unwrap().borrow(),
+                process.lock().unwrap().borrow_mut(),
+            )?;
             loop {
                 match result {
                     CommandResult::ProcessFinish(values) => {
@@ -280,12 +287,18 @@ fn call_exported(
                         return Ok(TextResponse::CallResult { values }.into());
                     }
                     CommandResult::Exit => {
-                        match process.dispatch_command("process continue", context)? {
+                        match process.lock().unwrap().dispatch_command(
+                            "process continue",
+                            context.lock().unwrap().borrow(),
+                        )? {
                             Some(r) => {
                                 result = r;
                             }
                             None => {
-                                result = interactive.run_loop(context, process)?;
+                                result = interactive.run_loop(
+                                    context.lock().unwrap().borrow(),
+                                    process.lock().unwrap().borrow_mut(),
+                                )?;
                             }
                         }
                     }
@@ -300,8 +313,8 @@ fn call_exported(
 
 fn _handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
     req: rpc::Request,
-    process: &mut Process<MainDebugger>,
-    context: &CommandContext,
+    process: ProcessRef,
+    context: CommandCtxRef,
     tx: Arc<Mutex<S>>,
     rx: Arc<mpsc::Receiver<Option<Message>>>,
 ) -> Result<rpc::Response, anyhow::Error>
@@ -317,6 +330,7 @@ where
         Binary(req) => match req.kind {
             Init => {
                 let imports = remote_import_module(req.bytes, tx, rx)?;
+                let mut process = process.lock().unwrap();
                 process.debugger.load_main_module(req.bytes)?;
                 process.debugger.instantiate(imports, false)?;
                 let exports = module_exports(req.bytes)?;
@@ -336,6 +350,7 @@ where
             offset,
             length,
         }) => {
+            let process = process.lock().unwrap();
             let memory_addr = memory_addr_by_name(&name, &process.debugger)?;
             let memory = process.debugger.store()?.memory(memory_addr);
             let bytes = memory.borrow().raw_data()[offset..offset + length].to_vec();
@@ -346,6 +361,7 @@ where
             offset,
             bytes,
         }) => {
+            let process = process.lock().unwrap();
             let memory_addr = memory_addr_by_name(&name, &process.debugger)?;
             let memory = process.debugger.store()?.memory(memory_addr);
             for (idx, byte) in bytes.iter().enumerate() {

@@ -10,10 +10,10 @@ use std::{
 use anyhow::anyhow;
 use futures::{Sink, SinkExt, StreamExt};
 use lazy_static::lazy_static;
-use wasminspect_debugger::{CommandContext, Interactive, MainDebugger, Process};
+use wasminspect_debugger::{Interactive, MainDebugger, Process};
 
-use crate::rpc;
 use crate::{debugger_proxy, serialization};
+use crate::{debugger_proxy::ProcessRef, rpc};
 use headers::{
     Connection, Header, HeaderMapExt, SecWebsocketAccept, SecWebsocketKey, SecWebsocketVersion,
     Upgrade,
@@ -90,8 +90,8 @@ where
 
 async fn handle_incoming_message<S: Sink<Message> + Unpin + Send + 'static>(
     message: Message,
-    process: &mut Process<MainDebugger>,
-    context: &CommandContext,
+    process: ProcessRef,
+    context: debugger_proxy::CommandCtxRef,
     tx: Arc<Mutex<S>>,
     rx: Arc<mpsc::Receiver<Option<Message>>>,
 ) -> Result<(), S::Error>
@@ -173,6 +173,8 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
 
             let tx = Arc::new(Mutex::new(tx));
             let request_rx = Arc::new(request_rx);
+            let process = Arc::new(Mutex::new(process));
+            let dbg_context = Arc::new(Mutex::new(dbg_context));
             loop {
                 let msg = match request_rx.recv() {
                     Ok(Some(msg)) => msg,
@@ -182,8 +184,8 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
                 log::debug!("Received message: {}", msg);
                 match handle_incoming_message(
                     msg,
-                    &mut process,
-                    &dbg_context,
+                    process.clone(),
+                    dbg_context.clone(),
                     tx.clone(),
                     request_rx.clone(),
                 )
