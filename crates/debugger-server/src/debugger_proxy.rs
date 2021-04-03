@@ -12,7 +12,7 @@ use crate::serialization;
 use wasminspect_debugger::{
     CommandContext, CommandResult, Debugger, Interactive, MainDebugger, Process,
 };
-use wasminspect_vm::{HostFuncBody, HostValue, Trap, WasmValue};
+use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, Trap, WasmValue};
 
 static VERSION: &str = "0.1.0";
 
@@ -197,10 +197,7 @@ where
     Ok(modules)
 }
 
-fn module_exports<D: wasminspect_debugger::Debugger>(
-    bytes: &[u8],
-    _debugger: &D,
-) -> anyhow::Result<Vec<WasmExport>> {
+fn module_exports(bytes: &[u8]) -> anyhow::Result<Vec<WasmExport>> {
     // FIXME: Don't re-parse again
     let parser = wasmparser::Parser::new(0);
     let mut exports = Vec::<WasmExport>::new();
@@ -318,7 +315,7 @@ where
                 let imports = remote_import_module(req.bytes, tx, rx)?;
                 process.debugger.load_main_module(req.bytes)?;
                 process.debugger.instantiate(imports)?;
-                let exports = module_exports(req.bytes, &process.debugger)?;
+                let exports = module_exports(req.bytes)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
         },
@@ -330,13 +327,35 @@ where
         }
         Text(CallResult { .. }) => unreachable!(),
         Text(CallExported { name, args }) => call_exported(name, args, process, context),
-        Text(LoadMemory { offset, length }) => {
-            let bytes = process.debugger.memory()?[offset..offset + length].to_vec();
+        Text(LoadMemory {
+            name,
+            offset,
+            length,
+        }) => {
+            let memory_addr = memory_addr_by_name(&name, &process.debugger)?;
+            let memory = process.debugger.store()?.memory(memory_addr);
+            let bytes = memory.borrow().raw_data()[offset..offset + length].to_vec();
             return Ok(TextResponse::LoadMemoryResult { bytes: bytes }.into());
         }
-        Text(StoreMemory { offset, bytes }) => {
-            process.debugger.write_memory(offset, bytes)?;
+        Text(StoreMemory {
+            name,
+            offset,
+            bytes,
+        }) => {
+            let memory_addr = memory_addr_by_name(&name, &process.debugger)?;
+            let memory = process.debugger.store()?.memory(memory_addr);
+            for (idx, byte) in bytes.iter().enumerate() {
+                memory.borrow_mut().raw_data_mut()[offset + idx] = *byte;
+            }
             return Ok(TextResponse::StoreMemoryResult.into());
         }
     }
+}
+
+fn memory_addr_by_name(name: &str, debugger: &MainDebugger) -> Result<MemoryAddr, anyhow::Error> {
+    let addr = debugger
+        .main_module()?
+        .exported_memory(&name)?
+        .ok_or(anyhow::anyhow!("no exported memory"))?;
+    Ok(addr)
 }

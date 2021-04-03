@@ -48,7 +48,7 @@ impl MainDebugger {
         })
     }
 
-    fn main_module(&self) -> Result<&DefinedModuleInstance> {
+    pub fn main_module(&self) -> Result<&DefinedModuleInstance> {
         if let Some(ref instance) = self.instance {
             let module = match instance.store.module(instance.main_module_index).defined() {
                 Some(module) => module,
@@ -256,22 +256,6 @@ impl debugger::Debugger for MainDebugger {
             .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
         let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
         Ok(store.memory(addr).borrow().raw_data().to_vec())
-    }
-
-    fn write_memory(&self, offset: usize, bytes: Vec<u8>) -> Result<()> {
-        let store = self.store()?;
-        let executor = self.executor()?;
-        let executor = executor.borrow();
-        let frame = executor
-            .stack
-            .current_frame()
-            .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
-        let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
-        let memory = store.memory(addr);
-        for (idx, byte) in bytes.iter().enumerate() {
-            memory.borrow_mut().raw_data_mut()[offset + idx] = *byte;
-        }
-        Ok(())
     }
 
     fn is_running(&self) -> bool {

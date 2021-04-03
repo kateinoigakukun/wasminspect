@@ -58,10 +58,12 @@ pub enum TextRequest {
     CallExported { name: String, args: Vec<JSNumber> },
     CallResult { values: Vec<JSNumber> },
     LoadMemory {
+        name: String,
         offset: usize,
         length: usize,
     },
     StoreMemory {
+        name: String,
         offset: usize,
         bytes: Vec<u8>,
     }

@@ -41,7 +41,6 @@ pub trait Debugger {
     fn current_frame(&self) -> Option<FunctionFrame>;
     fn locals(&self) -> Vec<WasmValue>;
     fn memory(&self) -> Result<Vec<u8>>;
-    fn write_memory(&self, offset: usize, bytes: Vec<u8>) -> Result<()>;
     fn store(&self) -> Result<&Store>;
     fn set_breakpoint(&mut self, breakpoint: Breakpoint);
     fn stack_values(&self) -> Vec<WasmValue>;
