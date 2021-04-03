@@ -111,6 +111,7 @@ impl<'a> BinaryRequest<'a> {
     }
 }
 
+#[derive(Debug)]
 pub enum Request<'a> {
     Text(TextRequest),
     Binary(BinaryRequest<'a>),
@@ -150,6 +151,7 @@ pub enum BinaryResponseKind {
 #[derive(Debug)]
 pub struct BinaryResponse {}
 
+#[derive(Debug)]
 pub enum Response {
     Text(TextResponse),
     Binary {

@@ -1,5 +1,5 @@
 use futures::SinkExt;
-use std::{collections::HashMap, sync::mpsc, usize};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::mpsc, usize};
 use std::{
     sync::{Arc, Mutex},
     thread,
@@ -16,8 +16,8 @@ use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, Trap, WasmValue};
 
 static VERSION: &str = "0.1.0";
 
-pub type ProcessRef = Arc<Mutex<Process<MainDebugger>>>;
-pub type CommandCtxRef = Arc<Mutex<CommandContext>>;
+pub type ProcessRef = Rc<RefCell<Process<MainDebugger>>>;
+pub type CommandCtxRef = Rc<RefCell<CommandContext>>;
 
 pub fn handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
     req: rpc::Request,
@@ -29,13 +29,16 @@ pub fn handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
 where
     S::Error: std::error::Error,
 {
-    match _handle_request(req, process, context, tx, rx) {
+    log::debug!("Received request: {:?}", req);
+    let res = match _handle_request(req, process, context, tx, rx) {
         Ok(res) => res,
         Err(err) => rpc::TextResponse::Error {
             message: err.to_string(),
         }
         .into(),
-    }
+    };
+    log::debug!("Sending response: {:?}", res);
+    res
 }
 
 fn from_js_number(value: rpc::JSNumber, ty: &wasmparser::Type) -> WasmValue {
@@ -84,9 +87,36 @@ impl std::fmt::Display for RemoteCallError {
 }
 impl std::error::Error for RemoteCallError {}
 
+fn blocking_send_response<S: futures::Sink<Message> + Unpin + Send + 'static>(
+    response: rpc::Response,
+    tx: Arc<Mutex<S>>,
+) -> Result<(), Trap> {
+    let return_tx = tx.clone();
+    let call_handle = thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            return_tx
+                .lock()
+                .unwrap()
+                .send(serialization::serialize_response(response))
+                .await
+                .ok()
+                .unwrap();
+        });
+    });
+
+    call_handle.join().map_err(|e| {
+        let e = RemoteCallError(format!("{:?}", e));
+        Trap::HostFunctionError(Box::new(e))
+    })?;
+    Ok(())
+}
+
 fn remote_call_fn<S: futures::Sink<Message> + Unpin + Send + 'static>(
     field_name: String,
     module_name: String,
+    process: ProcessRef,
+    context: CommandCtxRef,
     ty: FuncType,
     tx: Arc<Mutex<S>>,
     rx: Arc<mpsc::Receiver<Option<Message>>>,
@@ -98,41 +128,29 @@ where
     let rx = rx.clone();
 
     HostFuncBody::new(ty.clone(), move |args, results, _, _| {
-        let tx = tx.clone();
         let field_name = field_name.clone();
         let module_name = module_name.clone();
         let args = args.iter().map(from_vm_wasm_value).collect();
-        let call_handle = thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async move {
-                let call = rpc::TextResponse::CallHost {
-                    module: module_name,
-                    field: field_name,
-                    args: args,
-                };
-                tx.lock()
-                    .unwrap()
-                    .send(serialization::serialize_response(call.into()))
-                    .await
-                    .unwrap();
-            });
-        });
 
-        call_handle.join().map_err(|e| {
-            let e = RemoteCallError(format!("{:?}", e));
-            Trap::HostFunctionError(Box::new(e))
-        })?;
+        let call = rpc::TextResponse::CallHost {
+            module: module_name,
+            field: field_name,
+            args: args,
+        };
+        blocking_send_response(call.into(), tx.clone())?;
 
-        let message = rx
-            .recv()
-            .map_err(|e| Trap::HostFunctionError(Box::new(e)))?
-            .ok_or(RemoteCallError("unexpected end of message".to_owned()))
-            .map_err(|e| Trap::HostFunctionError(Box::new(e)))?;
-        let res = match serialization::deserialize_request(&message)
-            .map_err(|e| Trap::HostFunctionError(Box::new(e)))?
-        {
-            rpc::Request::Text(rpc::TextRequest::CallResult { values }) => values,
-            _ => unreachable!(),
+        let res = loop {
+            let message = rx
+                .recv()
+                .map_err(|e| Trap::HostFunctionError(Box::new(e)))?
+                .ok_or(RemoteCallError("unexpected end of message".to_owned()))
+                .map_err(|e| Trap::HostFunctionError(Box::new(e)))?;
+            let request = serialization::deserialize_request(&message)
+                .map_err(|e| Trap::HostFunctionError(Box::new(e)))?;
+            match request {
+                rpc::Request::Text(rpc::TextRequest::CallResult { values }) => break values,
+                _ => {}
+            };
         };
         *results = res
             .iter()
@@ -147,6 +165,8 @@ type ImportModule = HashMap<String, HostValue>;
 
 fn remote_import_module<S: futures::Sink<Message> + Unpin + Send + 'static>(
     bytes: &[u8],
+    process: ProcessRef,
+    context: CommandCtxRef,
     tx: Arc<Mutex<S>>,
     rx: Arc<mpsc::Receiver<Option<Message>>>,
 ) -> anyhow::Result<HashMap<String, ImportModule>>
@@ -188,6 +208,8 @@ where
                     let func = remote_call_fn(
                         field_name.to_string(),
                         import.module.to_string(),
+                        process.clone(),
+                        context.clone(),
                         ty.clone(),
                         tx.clone(),
                         rx.clone(),
@@ -258,8 +280,8 @@ fn call_exported(
     use rpc::*;
     use wasminspect_debugger::RunResult;
 
-    let func = process.lock().unwrap().debugger.lookup_func(&name)?;
-    let func_ty = process.lock().unwrap().debugger.func_type(func)?;
+    let func = process.borrow().debugger.lookup_func(&name)?;
+    let func_ty = process.borrow().debugger.func_type(func)?;
     if func_ty.params.len() != args.len() {
         return Err(RequestError::CallArgumentLengthMismatch.into());
     }
@@ -268,17 +290,17 @@ fn call_exported(
         .zip(func_ty.params.iter())
         .map(|(arg, ty)| from_js_number(*arg, ty))
         .collect();
-    match process.lock().unwrap().debugger.execute_func(func, args) {
+    match process.borrow_mut().debugger.execute_func(func, args) {
         Ok(RunResult::Finish(values)) => {
             let values = values.iter().map(from_vm_wasm_value).collect();
             return Ok(TextResponse::CallResult { values }.into());
         }
         Ok(RunResult::Breakpoint) => {
-            use std::borrow::{Borrow, BorrowMut};
+            // use std::borrow::{Borrow, BorrowMut};
             let mut interactive = Interactive::new_with_loading_history().unwrap();
             let mut result = interactive.run_loop(
-                context.lock().unwrap().borrow(),
-                process.lock().unwrap().borrow_mut(),
+                &*context.borrow(),
+                &mut *process.borrow_mut(),
             )?;
             loop {
                 match result {
@@ -287,17 +309,17 @@ fn call_exported(
                         return Ok(TextResponse::CallResult { values }.into());
                     }
                     CommandResult::Exit => {
-                        match process.lock().unwrap().dispatch_command(
+                        match process.borrow_mut().dispatch_command(
                             "process continue",
-                            context.lock().unwrap().borrow(),
+                            &*context.borrow(),
                         )? {
                             Some(r) => {
                                 result = r;
                             }
                             None => {
                                 result = interactive.run_loop(
-                                    context.lock().unwrap().borrow(),
-                                    process.lock().unwrap().borrow_mut(),
+                                    &*context.borrow(),
+                                    &mut *process.borrow_mut(),
                                 )?;
                             }
                         }
@@ -329,10 +351,9 @@ where
     match req {
         Binary(req) => match req.kind {
             Init => {
-                let imports = remote_import_module(req.bytes, tx, rx)?;
-                let mut process = process.lock().unwrap();
-                process.debugger.load_main_module(req.bytes)?;
-                process.debugger.instantiate(imports, false)?;
+                let imports = remote_import_module(req.bytes, process.clone(), context, tx, rx)?;
+                process.borrow_mut().debugger.load_main_module(req.bytes)?;
+                process.borrow_mut().debugger.instantiate(imports, false)?;
                 let exports = module_exports(req.bytes)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
@@ -350,7 +371,7 @@ where
             offset,
             length,
         }) => {
-            let process = process.lock().unwrap();
+            let process = process.borrow();
             let memory_addr = memory_addr_by_name(&name, &process.debugger)?;
             let memory = process.debugger.store()?.memory(memory_addr);
             let bytes = memory.borrow().raw_data()[offset..offset + length].to_vec();
@@ -361,7 +382,7 @@ where
             offset,
             bytes,
         }) => {
-            let process = process.lock().unwrap();
+            let process = process.borrow();
             let memory_addr = memory_addr_by_name(&name, &process.debugger)?;
             let memory = process.debugger.store()?.memory(memory_addr);
             for (idx, byte) in bytes.iter().enumerate() {

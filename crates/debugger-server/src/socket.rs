@@ -1,11 +1,7 @@
-use std::{
-    sync::{
+use std::{cell::RefCell, rc::Rc, sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
-    },
-    thread,
-    time::Duration,
-};
+    }, thread, time::Duration};
 
 use anyhow::anyhow;
 use futures::{Sink, SinkExt, StreamExt};
@@ -173,15 +169,14 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
 
             let tx = Arc::new(Mutex::new(tx));
             let request_rx = Arc::new(request_rx);
-            let process = Arc::new(Mutex::new(process));
-            let dbg_context = Arc::new(Mutex::new(dbg_context));
+            let process = Rc::new(RefCell::new(process));
+            let dbg_context = Rc::new(RefCell::new(dbg_context));
             loop {
                 let msg = match request_rx.recv() {
                     Ok(Some(msg)) => msg,
                     Ok(None) => break,
                     Err(_) => break,
                 };
-                log::debug!("Received message: {}", msg);
                 match handle_incoming_message(
                     msg,
                     process.clone(),
