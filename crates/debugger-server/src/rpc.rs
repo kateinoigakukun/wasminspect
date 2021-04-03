@@ -31,9 +31,15 @@ pub enum WasmExport {
         #[serde(rename = "memorySize")]
         memory_size: usize,
     },
-    Function { name: String },
-    Global { name: String },
-    Table { name: String },
+    Function {
+        name: String,
+    },
+    Global {
+        name: String,
+    },
+    Table {
+        name: String,
+    },
 }
 
 #[derive(Debug)]
@@ -55,8 +61,13 @@ impl std::error::Error for RequestError {}
 #[serde(tag = "type")]
 pub enum TextRequest {
     Version,
-    CallExported { name: String, args: Vec<JSNumber> },
-    CallResult { values: Vec<JSNumber> },
+    CallExported {
+        name: String,
+        args: Vec<JSNumber>,
+    },
+    CallResult {
+        values: Vec<JSNumber>,
+    },
     LoadMemory {
         name: String,
         offset: usize,
@@ -66,7 +77,7 @@ pub enum TextRequest {
         name: String,
         offset: usize,
         bytes: Vec<u8>,
-    }
+    },
 }
 
 #[derive(FromPrimitive, Debug)]
@@ -112,7 +123,7 @@ pub enum TextResponse {
         value: String,
     },
     Init {
-        exports: Vec<WasmExport>
+        exports: Vec<WasmExport>,
     },
     CallResult {
         values: Vec<WasmValue>,

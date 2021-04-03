@@ -61,8 +61,12 @@ fn to_vm_wasm_value(value: &rpc::WasmValue) -> WasmValue {
 
 fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     match value {
-        WasmValue::F32(v) => rpc::WasmValue::F32 { value: f32::from_bits(*v) },
-        WasmValue::F64(v) => rpc::WasmValue::F64 { value: f64::from_bits(*v) },
+        WasmValue::F32(v) => rpc::WasmValue::F32 {
+            value: f32::from_bits(*v),
+        },
+        WasmValue::F64(v) => rpc::WasmValue::F64 {
+            value: f64::from_bits(*v),
+        },
         WasmValue::I32(v) => rpc::WasmValue::I32 { value: *v },
         WasmValue::I64(v) => rpc::WasmValue::I64 { value: *v },
     }
