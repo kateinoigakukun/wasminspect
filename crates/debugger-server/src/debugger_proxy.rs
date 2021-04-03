@@ -134,11 +134,13 @@ where
     })
 }
 
+type ImportModule = HashMap<String, HostValue>;
+
 fn remote_import_module<S: futures::Sink<Message> + Unpin + Send + 'static>(
     bytes: &[u8],
     tx: Arc<Mutex<S>>,
     rx: Arc<mpsc::Receiver<Option<Message>>>,
-) -> anyhow::Result<HashMap<String, HashMap<String, HostValue>>>
+) -> anyhow::Result<HashMap<String, ImportModule>>
 where
     S::Error: std::error::Error,
 {
@@ -146,7 +148,7 @@ where
     let parser = wasmparser::Parser::new(0);
     let mut types = HashMap::new();
     let mut module_imports = HashMap::new();
-    let mut modules: HashMap<String, HashMap<String, HostValue>> = HashMap::new();
+    let mut modules: HashMap<String, ImportModule> = HashMap::new();
 
     for payload in parser.parse_all(bytes) {
         match payload? {
@@ -224,6 +226,58 @@ fn module_exports<D: wasminspect_debugger::Debugger>(
     Ok(exports)
 }
 
+fn call_exported(
+    name: String,
+    args: Vec<f64>,
+    process: &mut Process<MainDebugger>,
+    context: &CommandContext,
+) -> Result<rpc::Response, anyhow::Error> {
+    use rpc::*;
+    use wasminspect_debugger::RunResult;
+
+    let func = process.debugger.lookup_func(&name)?;
+    let func_ty = process.debugger.func_type(func)?;
+    if func_ty.params.len() != args.len() {
+        return Err(RequestError::CallArgumentLengthMismatch.into());
+    }
+    let args = args
+        .iter()
+        .zip(func_ty.params.iter())
+        .map(|(arg, ty)| from_js_number(*arg, ty))
+        .collect();
+    match process.debugger.execute_func(func, args) {
+        Ok(RunResult::Finish(values)) => {
+            let values = values.iter().map(from_vm_wasm_value).collect();
+            return Ok(TextResponse::CallResult { values }.into());
+        }
+        Ok(RunResult::Breakpoint) => {
+            let mut interactive = Interactive::new_with_loading_history().unwrap();
+            let mut result = interactive.run_loop(context, process)?;
+            loop {
+                match result {
+                    CommandResult::ProcessFinish(values) => {
+                        let values = values.iter().map(from_vm_wasm_value).collect();
+                        return Ok(TextResponse::CallResult { values }.into());
+                    }
+                    CommandResult::Exit => {
+                        match process.dispatch_command("process continue", context)? {
+                            Some(r) => {
+                                result = r;
+                            }
+                            None => {
+                                result = interactive.run_loop(context, process)?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Err(msg) => {
+            return Err(msg.into());
+        }
+    }
+}
+
 fn _handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
     req: rpc::Request,
     process: &mut Process<MainDebugger>,
@@ -259,49 +313,7 @@ where
             .into());
         }
         Text(CallResult { .. }) => unreachable!(),
-        Text(CallExported { name, args }) => {
-            use wasminspect_debugger::RunResult;
-            let func = process.debugger.lookup_func(&name)?;
-            let func_ty = process.debugger.func_type(func)?;
-            if func_ty.params.len() != args.len() {
-                return Err(RequestError::CallArgumentLengthMismatch.into());
-            }
-            let args = args
-                .iter()
-                .zip(func_ty.params.iter())
-                .map(|(arg, ty)| from_js_number(*arg, ty))
-                .collect();
-            match process.debugger.execute_func(func, args) {
-                Ok(RunResult::Finish(values)) => {
-                    let values = values.iter().map(from_vm_wasm_value).collect();
-                    return Ok(TextResponse::CallResult { values }.into());
-                }
-                Ok(RunResult::Breakpoint) => {
-                    let mut interactive = Interactive::new_with_loading_history().unwrap();
-                    let mut result = interactive.run_loop(context, process)?;
-                    loop {
-                        match result {
-                            CommandResult::ProcessFinish(values) => {
-                                let values = values.iter().map(from_vm_wasm_value).collect();
-                                return Ok(TextResponse::CallResult { values }.into());
-                            }
-                            CommandResult::Exit => {
-                                match process.dispatch_command("process continue", context)? {
-                                    Some(r) => {
-                                        result = r;
-                                    }
-                                    None => {
-                                        result = interactive.run_loop(context, process)?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(msg) => {
-                    return Err(msg.into());
-                }
-            }
-        }
+        Text(CallExported { name, args }) => call_exported(name, args, process, context),
+        _ => unimplemented!(),
     }
 }

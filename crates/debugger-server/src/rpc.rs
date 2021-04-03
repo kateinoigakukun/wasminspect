@@ -57,6 +57,14 @@ pub enum TextRequest {
     Version,
     CallExported { name: String, args: Vec<JSNumber> },
     CallResult { values: Vec<JSNumber> },
+    LoadMemory {
+        offset: usize,
+        length: usize,
+    },
+    StoreMemory {
+        offset: usize,
+        bytes: Vec<u8>,
+    }
 }
 
 #[derive(FromPrimitive, Debug)]
@@ -112,6 +120,10 @@ pub enum TextResponse {
         field: String,
         args: Vec<WasmValue>,
     },
+    LoadMemoryResult {
+        bytes: Vec<u8>,
+    },
+    StoreMemoryResult,
     Error {
         message: String,
     },
