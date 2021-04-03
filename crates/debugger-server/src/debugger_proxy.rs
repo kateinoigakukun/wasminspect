@@ -129,7 +129,7 @@ where
         };
         *results = res
             .iter()
-            .zip(ty.params.iter())
+            .zip(ty.returns.iter())
             .map(|(arg, ty)| from_js_number(*arg, ty))
             .collect::<Vec<WasmValue>>();
         Ok(())
