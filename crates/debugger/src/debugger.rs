@@ -1,18 +1,17 @@
-use crate::commands::debugger::{self, Debugger, DebuggerOpts, RunResult};
+use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
 use anyhow::{anyhow, Result};
 use log::{debug, trace, warn};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
 use wasminspect_vm::{
-    CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, HostValue, InstIndex,
+    CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, InstIndex,
     Instruction, Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap,
     WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
 type RawModule = Vec<u8>;
-type RawHostModule = HashMap<String, HostValue>;
 
 pub struct Instance {
     main_module_index: ModuleIndex,
@@ -76,29 +75,6 @@ impl MainDebugger {
         }
     }
 
-    pub fn instantiate(&mut self, host_modules: HashMap<String, RawHostModule>) -> Result<()> {
-        let mut store = Store::new();
-        let main_module_index = if let Some(ref main_module) = self.main_module {
-            store.load_module(None, &main_module)?
-        } else {
-            return Err(anyhow::anyhow!("No main module registered"));
-        };
-        for (name, host_module) in host_modules {
-            store.load_host_module(name, host_module);
-        }
-        let (ctx, wasi_snapshot_preview) = instantiate_wasi();
-        let (_, wasi_unstable) = instantiate_wasi();
-        store.add_embed_context(Box::new(ctx));
-        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
-        self.instance = Some(Instance {
-            main_module_index,
-            store,
-            executor: None,
-        });
-        Ok(())
-    }
-
     pub fn func_type(&self, func_addr: FuncAddr) -> Result<wasmparser::FuncType> {
         let (func, _) = self
             .store()?
@@ -141,10 +117,12 @@ impl MainDebugger {
         match func {
             (FunctionInstance::Host(host), _) => {
                 let mut results = Vec::new();
-                match host
-                    .code()
-                    .call(&args, &mut results, &instance.store, func_addr.module_index())
-                {
+                match host.code().call(
+                    &args,
+                    &mut results,
+                    &instance.store,
+                    func_addr.module_index(),
+                ) {
                     Ok(_) => return Ok(debugger::RunResult::Finish(results)),
                     Err(_) => return Err(anyhow!("Failed to execute host func")),
                 }
@@ -332,6 +310,30 @@ impl debugger::Debugger for MainDebugger {
         };
 
         self.execute_func(func_addr, vec![])
+    }
+
+    fn instantiate(&mut self, host_modules: HashMap<String, RawHostModule>) -> Result<()> {
+        let mut store = Store::new();
+        for (name, host_module) in host_modules {
+            store.load_host_module(name, host_module);
+        }
+        let (ctx, wasi_snapshot_preview) = instantiate_wasi();
+        let (_, wasi_unstable) = instantiate_wasi();
+        store.add_embed_context(Box::new(ctx));
+        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+
+        let main_module_index = if let Some(ref main_module) = self.main_module {
+            store.load_module(None, &main_module)?
+        } else {
+            return Err(anyhow::anyhow!("No main module registered"));
+        };
+        self.instance = Some(Instance {
+            main_module_index,
+            store,
+            executor: None,
+        });
+        Ok(())
     }
 }
 

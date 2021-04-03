@@ -1,5 +1,5 @@
 use anyhow::Result;
-use wasminspect_vm::{Instruction, ModuleIndex, Signal, Store, WasmValue};
+use wasminspect_vm::{HostValue, Instruction, ModuleIndex, Signal, Store, WasmValue};
 
 #[derive(Default, Clone)]
 pub struct DebuggerOpts {
@@ -31,10 +31,12 @@ pub trait OutputPrinter {
     fn println(&self, _: &str);
     fn eprintln(&self, _: &str);
 }
+pub type RawHostModule = std::collections::HashMap<String, HostValue>;
 
 pub trait Debugger {
     fn get_opts(&self) -> DebuggerOpts;
     fn set_opts(&mut self, opts: DebuggerOpts);
+    fn instantiate(&mut self, host_modules: std::collections::HashMap<String, RawHostModule>) -> Result<()>;
     fn run(&mut self, name: Option<&str>) -> Result<RunResult>;
     fn is_running(&self) -> bool;
     fn frame(&self) -> Vec<String>;
