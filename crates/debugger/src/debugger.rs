@@ -5,9 +5,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
 use wasminspect_vm::{
-    CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, InstIndex,
-    Instruction, Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap,
-    WasmValue,
+    CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, InstIndex, Instruction,
+    Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
@@ -312,16 +311,23 @@ impl debugger::Debugger for MainDebugger {
         self.execute_func(func_addr, vec![])
     }
 
-    fn instantiate(&mut self, host_modules: HashMap<String, RawHostModule>) -> Result<()> {
+    fn instantiate(
+        &mut self,
+        host_modules: HashMap<String, RawHostModule>,
+        wasi: bool,
+    ) -> Result<()> {
         let mut store = Store::new();
         for (name, host_module) in host_modules {
             store.load_host_module(name, host_module);
         }
-        let (ctx, wasi_snapshot_preview) = instantiate_wasi();
-        let (_, wasi_unstable) = instantiate_wasi();
-        store.add_embed_context(Box::new(ctx));
-        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+
+        if wasi {
+            let (ctx, wasi_snapshot_preview) = instantiate_wasi();
+            let (_, wasi_unstable) = instantiate_wasi();
+            store.add_embed_context(Box::new(ctx));
+            store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+            store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+        }
 
         let main_module_index = if let Some(ref main_module) = self.main_module {
             store.load_module(None, &main_module)?

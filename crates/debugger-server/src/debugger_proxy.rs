@@ -314,7 +314,7 @@ where
             Init => {
                 let imports = remote_import_module(req.bytes, tx, rx)?;
                 process.debugger.load_main_module(req.bytes)?;
-                process.debugger.instantiate(imports)?;
+                process.debugger.instantiate(imports, false)?;
                 let exports = module_exports(req.bytes)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
