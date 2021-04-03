@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 pub enum WasmValue {
     I32 { value: i32 },
     I64 { value: i64 },
-    F32 { value: u32 },
-    F64 { value: u64 },
+    F32 { value: f32 },
+    F64 { value: f64 },
 }
 
 pub type JSNumber = f64;

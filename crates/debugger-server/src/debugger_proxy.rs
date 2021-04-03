@@ -52,8 +52,8 @@ fn from_js_number(value: rpc::JSNumber, ty: &wasmparser::Type) -> WasmValue {
 #[allow(dead_code)]
 fn to_vm_wasm_value(value: &rpc::WasmValue) -> WasmValue {
     match value {
-        rpc::WasmValue::F32 { value } => WasmValue::F32(*value),
-        rpc::WasmValue::F64 { value } => WasmValue::F64(*value),
+        rpc::WasmValue::F32 { value } => WasmValue::F32((*value).to_bits()),
+        rpc::WasmValue::F64 { value } => WasmValue::F64((*value).to_bits()),
         rpc::WasmValue::I32 { value } => WasmValue::I32(*value),
         rpc::WasmValue::I64 { value } => WasmValue::I64(*value),
     }
@@ -61,8 +61,8 @@ fn to_vm_wasm_value(value: &rpc::WasmValue) -> WasmValue {
 
 fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     match value {
-        WasmValue::F32(v) => rpc::WasmValue::F32 { value: *v },
-        WasmValue::F64(v) => rpc::WasmValue::F64 { value: *v },
+        WasmValue::F32(v) => rpc::WasmValue::F32 { value: f32::from_bits(*v) },
+        WasmValue::F64(v) => rpc::WasmValue::F64 { value: f64::from_bits(*v) },
         WasmValue::I32(v) => rpc::WasmValue::I32 { value: *v },
         WasmValue::I64(v) => rpc::WasmValue::I64 { value: *v },
     }
