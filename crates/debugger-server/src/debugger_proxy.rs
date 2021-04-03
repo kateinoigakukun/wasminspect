@@ -1,5 +1,5 @@
 use futures::SinkExt;
-use std::{collections::HashMap, sync::mpsc};
+use std::{collections::HashMap, sync::mpsc, usize};
 use std::{
     sync::{Arc, Mutex},
     thread,
@@ -199,22 +199,39 @@ where
 
 fn module_exports<D: wasminspect_debugger::Debugger>(
     bytes: &[u8],
-    debugger: &D,
+    _debugger: &D,
 ) -> anyhow::Result<Vec<WasmExport>> {
     // FIXME: Don't re-parse again
     let parser = wasmparser::Parser::new(0);
     let mut exports = Vec::<WasmExport>::new();
+    let mut mems = Vec::new();
 
     for payload in parser.parse_all(bytes) {
         match payload? {
+            wasmparser::Payload::MemorySection(iter) => {
+                for mem in iter {
+                    let mem = mem?;
+                    match mem {
+                        wasmparser::MemoryType::M32 { limits, .. } => {
+                            mems.push(limits.initial as usize);
+                        }
+                        wasmparser::MemoryType::M64 { limits, .. } => {
+                            mems.push(limits.initial as usize);
+                        }
+                    }
+                }
+            }
             wasmparser::Payload::ExportSection(iter) => {
                 for export in iter {
                     let export = export?;
                     match export.kind {
-                        wasmparser::ExternalKind::Memory => exports.push(WasmExport::Memory {
-                            name: export.field.to_string(),
-                            memory_size: debugger.memory()?.len(),
-                        }),
+                        wasmparser::ExternalKind::Memory => {
+                            let initial_page = mems[export.index as usize];
+                            exports.push(WasmExport::Memory {
+                                name: export.field.to_string(),
+                                memory_size: initial_page * wasminspect_vm::WASM_PAGE_SIZE,
+                            })
+                        }
                         wasmparser::ExternalKind::Function => exports.push(WasmExport::Function {
                             name: export.field.to_string(),
                         }),
