@@ -23,6 +23,19 @@ pub enum WasmImport {
     Table { name: String },
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum WasmExport {
+    Memory {
+        name: String,
+        #[serde(rename = "memorySize")]
+        memory_size: usize,
+    },
+    Function { name: String },
+    Global { name: String },
+    Table { name: String },
+}
+
 #[derive(Debug)]
 pub enum RequestError {
     InvalidBinaryRequestKind(u8),
@@ -88,7 +101,9 @@ pub enum TextResponse {
     Version {
         value: String,
     },
-    Init,
+    Init {
+        exports: Vec<WasmExport>
+    },
     CallResult {
         values: Vec<WasmValue>,
     },

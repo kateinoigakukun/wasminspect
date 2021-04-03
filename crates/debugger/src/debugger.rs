@@ -5,13 +5,14 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
 use wasminspect_vm::{
-    CallFrame, Executor, FuncAddr, FunctionInstance, HostValue, InstIndex, Instruction,
-    Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
+    CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, HostValue, InstIndex,
+    Instruction, Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap,
+    WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
 pub struct MainDebugger {
-    store: Store,
+    pub store: Store,
     executor: Option<Rc<RefCell<Executor>>>,
     module_index: Option<ModuleIndex>,
 
@@ -65,17 +66,27 @@ impl MainDebugger {
             .ok_or(anyhow!("Function not found"))?;
         return Ok(func.ty().clone());
     }
-    pub fn lookup_func(&self, name: &str) -> Result<FuncAddr> {
+
+    pub fn with_module<T, F: FnOnce(&DefinedModuleInstance) -> Result<T>>(
+        &self,
+        f: F,
+    ) -> Result<T> {
         let module_index = match self.module_index {
             Some(idx) => idx,
             None => return Err(anyhow!("No module loaded")),
         };
         let module = self.store.module(module_index).defined().unwrap();
-        if let Some(Some(func_addr)) = module.exported_func(name).ok() {
-            Ok(func_addr)
-        } else {
-            Err(anyhow!("Entry function {} not found", name))
-        }
+        return f(module);
+    }
+
+    pub fn lookup_func(&self, name: &str) -> Result<FuncAddr> {
+        self.with_module(|module| {
+            if let Some(Some(func_addr)) = module.exported_func(name).ok() {
+                Ok(func_addr)
+            } else {
+                Err(anyhow!("Entry function {} not found", name))
+            }
+        })
     }
 
     pub fn execute_func(

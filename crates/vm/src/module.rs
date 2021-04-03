@@ -44,6 +44,8 @@ impl std::fmt::Display for DefinedModuleError {
     }
 }
 
+impl std::error::Error for DefinedModuleError {}
+
 type DefinedModuleResult<T> = std::result::Result<T, DefinedModuleError>;
 
 impl DefinedModuleInstance {

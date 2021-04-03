@@ -5,7 +5,7 @@ mod process;
 
 pub use commands::command::CommandContext;
 pub use commands::command::CommandResult;
-pub use commands::debugger::RunResult;
+pub use commands::debugger::{RunResult, Debugger};
 pub use debugger::MainDebugger;
 pub use linefeed;
 pub use process::Interactive;

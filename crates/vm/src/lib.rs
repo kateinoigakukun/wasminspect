@@ -28,6 +28,7 @@ pub use self::instance::WasmInstance;
 pub use self::interceptor::{Interceptor, NopInterceptor};
 pub use self::memory::MemoryInstance as HostMemory;
 pub use self::module::ModuleIndex;
+pub use self::module::DefinedModuleInstance;
 pub use self::stack::{CallFrame, ProgramCounter};
 pub use self::store::Store;
 pub use self::table::TableInstance as HostTable;

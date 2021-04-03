@@ -7,7 +7,7 @@ use std::{
 use tokio_tungstenite::tungstenite::Message;
 use wasmparser::FuncType;
 
-use crate::rpc::{self};
+use crate::rpc::{self, WasmExport};
 use crate::serialization;
 use wasminspect_debugger::{CommandContext, CommandResult, Interactive, MainDebugger, Process};
 use wasminspect_vm::{HostFuncBody, HostValue, Trap, WasmValue};
@@ -142,6 +142,7 @@ fn remote_import_module<S: futures::Sink<Message> + Unpin + Send + 'static>(
 where
     S::Error: std::error::Error,
 {
+    // FIXME: Don't re-parse again
     let parser = wasmparser::Parser::new(0);
     let mut types = HashMap::new();
     let mut module_imports = HashMap::new();
@@ -192,6 +193,37 @@ where
     Ok(modules)
 }
 
+fn module_exports<D: wasminspect_debugger::Debugger>(
+    bytes: &[u8],
+    debugger: &D,
+) -> anyhow::Result<Vec<WasmExport>> {
+    // FIXME: Don't re-parse again
+    let parser = wasmparser::Parser::new(0);
+    let mut exports = Vec::<WasmExport>::new();
+
+    for payload in parser.parse_all(bytes) {
+        match payload? {
+            wasmparser::Payload::ExportSection(iter) => {
+                for export in iter {
+                    let export = export?;
+                    match export.kind {
+                        wasmparser::ExternalKind::Memory => exports.push(WasmExport::Memory {
+                            name: export.field.to_string(),
+                            memory_size: debugger.memory()?.len(),
+                        }),
+                        wasmparser::ExternalKind::Function => exports.push(WasmExport::Function {
+                            name: export.field.to_string(),
+                        }),
+                        _ => unimplemented!(),
+                    }
+                }
+            }
+            _ => continue,
+        }
+    }
+    Ok(exports)
+}
+
 fn _handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
     req: rpc::Request,
     process: &mut Process<MainDebugger>,
@@ -216,7 +248,8 @@ where
                     process.debugger.load_host_module(name, module);
                 }
                 process.debugger.load_module(req.bytes)?;
-                return Ok(rpc::Response::Text(TextResponse::Init));
+                let exports = module_exports(req.bytes, &process.debugger)?;
+                return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
         },
         Text(Version) => {
