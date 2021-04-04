@@ -29,12 +29,21 @@ pub fn format_object<R: gimli::Reader>(
                     _ => None,
                 })
                 .ok_or(anyhow!("Failed to get type encoding"))?;
-            let mut bytes = Vec::with_capacity(8);
-            bytes.copy_from_slice(&memory[0..(byte_size as usize)]);
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&memory[0..(byte_size as usize)]);
 
             match encoding {
                 gimli::DW_ATE_signed => {
-                    let value = BigInt::from_bytes_le(Sign::NoSign, &bytes);
+                    let value = match byte_size {
+                        4 => {
+                            let mut bytes = [0u8; 4];
+                            bytes.copy_from_slice(&memory[0..4]);
+                            format!("{:}", u32::from_le_bytes(bytes))
+                        }
+                        _ => {
+                            format!("{:}", BigInt::from_bytes_le(Sign::NoSign, &bytes))
+                        }
+                    };
                     Ok(format!("{}({})", name, value))
                 }
                 gimli::DW_ATE_unsigned => {

@@ -82,8 +82,7 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
                 FrameBase::RBP(offset)
             }
         };
-        let output = format!("frame_base is {:?}", frame_base);
-        context.printer.println(&output);
+        log::debug!("frame_base is {:?}", frame_base);
         context.subroutine.display_variable(
             current_inst.offset,
             frame_base,
