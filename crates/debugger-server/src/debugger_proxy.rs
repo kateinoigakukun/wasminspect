@@ -29,7 +29,14 @@ pub fn handle_request<S: futures::Sink<Message> + Unpin + Send + 'static>(
 where
     S::Error: std::error::Error,
 {
-    log::debug!("Received request: {:?}", req);
+    match req {
+        rpc::Request::Text(ref req) => {
+            log::debug!("Received TextRequest: {:?}", req);
+        }
+        rpc::Request::Binary(ref req) => {
+            log::debug!("Received BinaryRequest: {:?}", req.kind);
+        }
+    };
     let res = match _handle_request(req, process, context, tx, rx) {
         Ok(res) => res,
         Err(err) => rpc::TextResponse::Error {
