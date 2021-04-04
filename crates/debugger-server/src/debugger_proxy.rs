@@ -127,7 +127,7 @@ where
     let tx = tx.clone();
     let rx = rx.clone();
 
-    HostFuncBody::new(ty.clone(), move |args, results, _, _| {
+    HostFuncBody::new(ty.clone(), move |args, results, ctx, _| {
         let field_name = field_name.clone();
         let module_name = module_name.clone();
         let args = args.iter().map(from_vm_wasm_value).collect();
@@ -149,6 +149,34 @@ where
                 .map_err(|e| Trap::HostFunctionError(Box::new(e)))?;
             match request {
                 rpc::Request::Text(rpc::TextRequest::CallResult { values }) => break values,
+                rpc::Request::Text(rpc::TextRequest::StoreMemory {
+                    name: _,
+                    offset,
+                    bytes,
+                }) => {
+                    for (idx, byte) in bytes.iter().enumerate() {
+                        ctx.mem[offset + idx] = *byte;
+                    }
+                    blocking_send_response(
+                        rpc::TextResponse::StoreMemoryResult.into(),
+                        tx.clone(),
+                    )?;
+                }
+                rpc::Request::Text(rpc::TextRequest::LoadMemory {
+                    name: _,
+                    offset,
+                    length,
+                }) => {
+                    let bytes = ctx.mem[offset..offset + length].to_vec();
+                    blocking_send_response(
+                        rpc::TextResponse::LoadMemoryResult { bytes }.into(),
+                        tx.clone(),
+                    )?;
+                }
+                rpc::Request::Text(rpc::TextRequest::CallExported { name, args }) => {
+                    let res = call_exported(name, args, process.clone(), context.clone()).unwrap();
+                    blocking_send_response(res, tx.clone())?;
+                }
                 _ => {}
             };
         };
@@ -298,10 +326,8 @@ fn call_exported(
         Ok(RunResult::Breakpoint) => {
             // use std::borrow::{Borrow, BorrowMut};
             let mut interactive = Interactive::new_with_loading_history().unwrap();
-            let mut result = interactive.run_loop(
-                &*context.borrow(),
-                &mut *process.borrow_mut(),
-            )?;
+            let mut result =
+                interactive.run_loop(&*context.borrow(), &mut *process.borrow_mut())?;
             loop {
                 match result {
                     CommandResult::ProcessFinish(values) => {
@@ -309,18 +335,16 @@ fn call_exported(
                         return Ok(TextResponse::CallResult { values }.into());
                     }
                     CommandResult::Exit => {
-                        match process.borrow_mut().dispatch_command(
-                            "process continue",
-                            &*context.borrow(),
-                        )? {
+                        match process
+                            .borrow_mut()
+                            .dispatch_command("process continue", &*context.borrow())?
+                        {
                             Some(r) => {
                                 result = r;
                             }
                             None => {
-                                result = interactive.run_loop(
-                                    &*context.borrow(),
-                                    &mut *process.borrow_mut(),
-                                )?;
+                                result = interactive
+                                    .run_loop(&*context.borrow(), &mut *process.borrow_mut())?;
                             }
                         }
                     }
