@@ -385,10 +385,15 @@ where
     match req {
         Binary(req) => match req.kind {
             Init => {
-                let imports = remote_import_module(req.bytes, process.clone(), context, tx, rx)?;
+                let imports = remote_import_module(req.bytes, process.clone(), context, tx.clone(), rx)?;
                 process.borrow_mut().debugger.load_main_module(req.bytes)?;
                 process.borrow_mut().debugger.instantiate(imports, true)?;
                 let exports = module_exports(req.bytes)?;
+                let init_memory = rpc::Response::Binary {
+                    kind: rpc::BinaryResponseKind::InitMemory,
+                    bytes: process.borrow().debugger.memory()?.clone()
+                };
+                blocking_send_response(init_memory, tx)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
         },

@@ -145,11 +145,8 @@ pub enum TextResponse {
 #[derive(Debug)]
 #[repr(u8)]
 pub enum BinaryResponseKind {
-    Memory = 0,
+    InitMemory = 0,
 }
-
-#[derive(Debug)]
-pub struct BinaryResponse {}
 
 #[derive(Debug)]
 pub enum Response {

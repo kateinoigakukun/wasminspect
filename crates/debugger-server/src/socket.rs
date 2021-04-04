@@ -6,7 +6,7 @@ use std::{cell::RefCell, rc::Rc, sync::{
 use anyhow::anyhow;
 use futures::{Sink, SinkExt, StreamExt};
 use lazy_static::lazy_static;
-use wasminspect_debugger::{Interactive, MainDebugger, Process};
+use wasminspect_debugger::{Interactive};
 
 use crate::{debugger_proxy, serialization};
 use crate::{debugger_proxy::ProcessRef, rpc};
