@@ -184,7 +184,10 @@ where
                     let res = call_exported(name, args, process.clone(), context.clone()).unwrap();
                     blocking_send_response(res, tx.clone())?;
                 }
-                _ => {}
+                other => {
+                    let error = RemoteCallError(format!("{:?} is not supported while calling external function", other));
+                    return Err(Trap::HostFunctionError(Box::new(error)));
+                }
             };
         };
         *results = res
