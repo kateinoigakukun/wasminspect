@@ -1,12 +1,18 @@
-use std::{cell::RefCell, rc::Rc, sync::{
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
-    }, thread, time::Duration};
+    },
+    thread,
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use futures::{Sink, SinkExt, StreamExt};
 use lazy_static::lazy_static;
-use wasminspect_debugger::{Interactive};
+use wasminspect_debugger::Interactive;
 
 use crate::{debugger_proxy, serialization};
 use crate::{debugger_proxy::ProcessRef, rpc};
@@ -134,7 +140,8 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             log::debug!("Start debugger thread");
-            let (mut process, dbg_context) = wasminspect_debugger::start_debugger(None).unwrap();
+            let (process, dbg_context) = wasminspect_debugger::start_debugger(None).unwrap();
+            let process = Rc::new(RefCell::new(process));
 
             let mut last_line: Option<String> = None;
             let step_timeout = Duration::from_millis(500);
@@ -148,7 +155,7 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
                     }
                     let result = interactive.run_step(
                         &dbg_context,
-                        &mut process,
+                        process.clone(),
                         &mut last_line,
                         Some(step_timeout),
                     );
@@ -169,7 +176,6 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
 
             let tx = Arc::new(Mutex::new(tx));
             let request_rx = Arc::new(request_rx);
-            let process = Rc::new(RefCell::new(process));
             let dbg_context = Rc::new(RefCell::new(dbg_context));
             loop {
                 let msg = match request_rx.recv() {

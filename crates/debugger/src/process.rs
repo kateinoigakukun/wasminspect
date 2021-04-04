@@ -2,7 +2,7 @@ use super::commands::command::{self, AliasCommand, Command, CommandResult};
 use super::commands::debugger::Debugger;
 use anyhow::{Context, Result};
 use linefeed::{DefaultTerminal, Interface, ReadResult};
-use std::io;
+use std::{cell::RefCell, io, rc::Rc};
 use std::{collections::HashMap, time::Duration};
 
 pub struct Process<D: Debugger> {
@@ -102,7 +102,7 @@ impl Interactive {
     pub fn run_step<D: Debugger>(
         &mut self,
         context: &command::CommandContext,
-        process: &mut Process<D>,
+        process: Rc<RefCell<Process<D>>>,
         last_line: &mut Option<String>,
         timeout: Option<Duration>,
     ) -> Result<Option<CommandResult>> {
@@ -114,9 +114,9 @@ impl Interactive {
         let result = if !line.trim().is_empty() {
             self.interface.add_history_unique(line.clone());
             *last_line = Some(line.clone());
-            process.dispatch_command(&line, context)?
+            process.borrow_mut().dispatch_command(&line, context)?
         } else if let Some(last_line) = last_line.as_ref() {
-            process.dispatch_command(last_line, context)?
+            process.borrow_mut().dispatch_command(last_line, context)?
         } else {
             None
         };
@@ -126,11 +126,11 @@ impl Interactive {
     pub fn run_loop<D: Debugger>(
         &mut self,
         context: &command::CommandContext,
-        process: &mut Process<D>,
+        process: Rc<RefCell<Process<D>>>,
     ) -> Result<CommandResult> {
         let mut last_line: Option<String> = None;
         loop {
-            if let Some(result) = self.run_step(context, process, &mut last_line, None)? {
+            if let Some(result) = self.run_step(context, process.clone(), &mut last_line, None)? {
                 return Ok(result);
             }
         }

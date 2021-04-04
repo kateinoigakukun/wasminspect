@@ -339,7 +339,10 @@ fn call_exported(
         .zip(func_ty.params.iter())
         .map(|(arg, ty)| from_js_number(*arg, ty))
         .collect();
-    match process.borrow_mut().debugger.execute_func(func, args) {
+    let result = {
+        process.borrow_mut().debugger.execute_func(func, args)
+    };
+    match result {
         Ok(RunResult::Finish(values)) => {
             let values = values.iter().map(from_vm_wasm_value).collect();
             return Ok(TextResponse::CallResult { values }.into());
@@ -348,7 +351,7 @@ fn call_exported(
             // use std::borrow::{Borrow, BorrowMut};
             let mut interactive = Interactive::new_with_loading_history().unwrap();
             let mut result =
-                interactive.run_loop(&*context.borrow(), &mut *process.borrow_mut())?;
+                interactive.run_loop(&*context.borrow(), process.clone())?;
             loop {
                 match result {
                     CommandResult::ProcessFinish(values) => {
@@ -365,7 +368,7 @@ fn call_exported(
                             }
                             None => {
                                 result = interactive
-                                    .run_loop(&*context.borrow(), &mut *process.borrow_mut())?;
+                                    .run_loop(&*context.borrow(), process.clone())?;
                             }
                         }
                     }

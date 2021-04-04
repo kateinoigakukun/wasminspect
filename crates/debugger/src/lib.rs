@@ -3,6 +3,8 @@ mod debugger;
 mod dwarf;
 mod process;
 
+use std::{cell::RefCell, rc::Rc};
+
 pub use commands::command::CommandContext;
 pub use commands::command::CommandResult;
 pub use commands::debugger::{Debugger, RunResult};
@@ -107,8 +109,9 @@ pub fn run_loop(bytes: Option<Vec<u8>>, init_source: Option<String>) -> Result<(
         }
     }
     let mut interactive = Interactive::new_with_loading_history()?;
+    let process = Rc::new(RefCell::new(process));
     loop {
-        match interactive.run_loop(&context, &mut process)? {
+        match interactive.run_loop(&context, process.clone())? {
             CommandResult::ProcessFinish(_) => {}
             CommandResult::Exit => break,
         }
