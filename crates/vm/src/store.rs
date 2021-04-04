@@ -217,39 +217,25 @@ impl std::fmt::Display for StoreError {
     }
 }
 
-fn read_name_section(reader: wasmparser::NameSectionReader) -> Result<HashMap<u32, String>> {
-    // let mut module_name = None;
+fn read_name_section(mut reader: wasmparser::NameSectionReader) -> Result<HashMap<u32, String>> {
     let mut func_names = HashMap::new();
-    // let mut locals_names = HashMap::new();
-    for i in reader.into_iter() {
-        match i? {
-            wasmparser::Name::Module(_) => {
-                // module_name = Some(String::from(m.get_name()?));
-            }
-            wasmparser::Name::Function(f) => {
-                let mut reader = f.get_map()?;
-                while let Ok(naming) = reader.read() {
+    while !reader.eof() {
+        let name = match reader.read() {
+            Ok(name) => name,
+            Err(_) => return Ok(func_names),
+        };
+        match name {
+            wasmparser::Name::Module(_) => continue,
+            wasmparser::Name::Function(n) => {
+                let mut map = n.get_map()?;
+                for _ in 0..map.get_count() {
+                    let naming = map.read()?;
                     func_names.insert(naming.index, String::from(naming.name));
                 }
             }
-            wasmparser::Name::Local(_) => {
-                // let mut reader = l.get_function_local_reader()?;
-                // while let Ok(f) = reader.read() {
-                //     let mut names = HashMap::new();
-                //     let mut reader = f.get_map()?;
-                //     while let Ok(naming) = reader.read() {
-                //         names.insert(naming.index, String::from(naming.name));
-                //     }
-                //     locals_names.insert(f.func_index, names);
-                // }
-            }
+            wasmparser::Name::Local(_) => continue
         }
     }
-    // let result = NameSection {
-    //     module_name,
-    //     func_names,
-    //     locals_names,
-    // };
     Ok(func_names)
 }
 
@@ -349,9 +335,13 @@ impl Store {
                 Payload::StartSection { func, .. } => {
                     start_func = Some(FuncAddr::new_unsafe(module_index, func as usize));
                 }
-                Payload::CustomSection { name, data, .. } => match name {
+                Payload::CustomSection {
+                    name,
+                    data,
+                    data_offset,
+                } => match name {
                     "name" => {
-                        let section = NameSectionReader::new(data, 0)?;
+                        let section = NameSectionReader::new(data, data_offset)?;
                         func_names = read_name_section(section)?;
                     }
                     _ => (),
