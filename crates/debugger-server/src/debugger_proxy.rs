@@ -9,9 +9,7 @@ use wasmparser::FuncType;
 
 use crate::rpc::{self, WasmExport};
 use crate::serialization;
-use wasminspect_debugger::{
-    CommandContext, CommandResult, Debugger, Interactive, MainDebugger, Process,
-};
+use wasminspect_debugger::{CommandContext, CommandResult, Debugger, Interactive, MainDebugger, Process, try_load_dwarf};
 use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, Trap, WasmValue};
 
 static VERSION: &str = "0.1.0";
@@ -350,8 +348,9 @@ fn call_exported(
         Ok(RunResult::Breakpoint) => {
             // use std::borrow::{Borrow, BorrowMut};
             let mut interactive = Interactive::new_with_loading_history().unwrap();
-            let mut result =
-                interactive.run_loop(&*context.borrow(), process.clone())?;
+            let mut result = {
+                interactive.run_loop(&*context.borrow(), process.clone())?
+            };
             loop {
                 match result {
                     CommandResult::ProcessFinish(values) => {
@@ -359,10 +358,12 @@ fn call_exported(
                         return Ok(TextResponse::CallResult { values }.into());
                     }
                     CommandResult::Exit => {
-                        match process
+                        let cmd_result= {
+                            process
                             .borrow_mut()
                             .dispatch_command("process continue", &*context.borrow())?
-                        {
+                        };
+                        match cmd_result {
                             Some(r) => {
                                 result = r;
                             }
@@ -400,9 +401,15 @@ where
         Binary(req) => match req.kind {
             Init => {
                 let imports =
-                    remote_import_module(req.bytes, process.clone(), context, tx.clone(), rx)?;
+                    remote_import_module(req.bytes, process.clone(), context.clone(), tx.clone(), rx)?;
                 process.borrow_mut().debugger.load_main_module(req.bytes)?;
                 process.borrow_mut().debugger.instantiate(imports, true)?;
+                match try_load_dwarf(&req.bytes.to_vec(), &mut *context.clone().borrow_mut()) {
+                    Ok(_) => (),
+                    Err(err) => {
+                        log::warn!("Failed to load dwarf info: {}", err);
+                    }
+                }
                 let exports = module_exports(req.bytes)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
