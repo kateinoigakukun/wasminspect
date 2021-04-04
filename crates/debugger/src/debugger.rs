@@ -295,7 +295,7 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
-    fn run(&mut self, name: Option<&str>) -> Result<debugger::RunResult> {
+    fn run(&mut self, name: Option<&str>, args: Vec<WasmValue>) -> Result<debugger::RunResult> {
         let main_module = self.main_module()?;
         let start_func_addr = *main_module.start_func_addr();
         let func_addr = {
@@ -308,7 +308,7 @@ impl debugger::Debugger for MainDebugger {
             }
         };
 
-        self.execute_func(func_addr, vec![])
+        self.execute_func(func_addr, args)
     }
 
     fn instantiate(

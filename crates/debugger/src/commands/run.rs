@@ -45,7 +45,7 @@ impl<D: Debugger> Command<D> for RunCommand {
             }
         }
         debugger.instantiate(std::collections::HashMap::new(), true)?;
-        match debugger.run(opts.name.as_ref().map(String::as_str)) {
+        match debugger.run(opts.name.as_ref().map(String::as_str), vec![]) {
             Ok(RunResult::Finish(values)) => {
                 let output = format!("{:?}", values);
                 context.printer.println(&output);

@@ -41,7 +41,7 @@ pub trait Debugger {
         host_modules: std::collections::HashMap<String, RawHostModule>,
         wasi: bool,
     ) -> Result<()>;
-    fn run(&mut self, name: Option<&str>) -> Result<RunResult>;
+    fn run(&mut self, name: Option<&str>, args: Vec<WasmValue>) -> Result<RunResult>;
     fn is_running(&self) -> bool;
     fn frame(&self) -> Vec<String>;
     fn current_frame(&self) -> Option<FunctionFrame>;
