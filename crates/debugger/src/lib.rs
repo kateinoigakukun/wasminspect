@@ -61,7 +61,6 @@ pub fn start_debugger<'a>(
     let process = process::Process::new(
         debugger,
         vec![
-            Box::new(commands::run::RunCommand::new()),
             Box::new(commands::thread::ThreadCommand::new()),
             Box::new(commands::list::ListCommand::new()),
             Box::new(commands::memory::MemoryCommand::new()),
@@ -75,7 +74,10 @@ pub fn start_debugger<'a>(
             Box::new(commands::settings::SettingsCommand::new()),
             Box::new(commands::process::ProcessCommand::new()),
         ],
-        vec![Box::new(commands::backtrace::BacktraceCommand::new())],
+        vec![
+            Box::new(commands::run::RunCommand::new()),
+            Box::new(commands::backtrace::BacktraceCommand::new()),
+        ],
     )?;
     Ok((process, context))
 }

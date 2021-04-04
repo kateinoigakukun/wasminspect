@@ -18,6 +18,11 @@ impl ProcessCommand {
 enum Opts {
     #[structopt(name = "continue")]
     Continue,
+    #[structopt(name = "launch")]
+    Launch {
+        #[structopt(name = "FUNCTION NAME")]
+        name: Option<String>,
+    }
 }
 
 impl<D: Debugger> Command<D> for ProcessCommand {
@@ -45,6 +50,34 @@ impl<D: Debugger> Command<D> for ProcessCommand {
                     context.printer.println("Hit breakpoint");
                 }
             },
+            Opts::Launch { name } => {
+                use std::io::Write;
+                if debugger.is_running() {
+                    print!("There is a running process, kill it and restart?: [Y/n] ");
+                    std::io::stdout().flush().unwrap();
+                    let stdin = std::io::stdin();
+                    let mut input = String::new();
+                    stdin.read_line(&mut input).unwrap();
+                    if input != "Y\n" {
+                        return Ok(None);
+                    }
+                }
+                debugger.instantiate(std::collections::HashMap::new(), true)?;
+                match debugger.run(name.as_ref().map(String::as_str), vec![]) {
+                    Ok(RunResult::Finish(values)) => {
+                        let output = format!("{:?}", values);
+                        context.printer.println(&output);
+                        return Ok(Some(CommandResult::ProcessFinish(values)));
+                    }
+                    Ok(RunResult::Breakpoint) => {
+                        context.printer.println("Hit breakpoint");
+                    }
+                    Err(msg) => {
+                        let output = format!("{}", msg);
+                        context.printer.eprintln(&output);
+                    }
+                }
+            }
         }
         Ok(None)
     }
