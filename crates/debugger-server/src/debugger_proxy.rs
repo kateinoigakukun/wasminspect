@@ -384,7 +384,7 @@ where
             Init => {
                 let imports = remote_import_module(req.bytes, process.clone(), context, tx, rx)?;
                 process.borrow_mut().debugger.load_main_module(req.bytes)?;
-                process.borrow_mut().debugger.instantiate(imports, false)?;
+                process.borrow_mut().debugger.instantiate(imports, true)?;
                 let exports = module_exports(req.bytes)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
