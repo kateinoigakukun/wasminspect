@@ -61,6 +61,7 @@ impl std::error::Error for RequestError {}
 #[serde(tag = "type")]
 pub enum TextRequest {
     Version,
+    InitMemory,
     CallExported {
         name: String,
         args: Vec<JSNumber>,

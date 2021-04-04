@@ -224,14 +224,12 @@ impl debugger::Debugger for MainDebugger {
             .collect();
     }
     fn memory(&self) -> Result<Vec<u8>> {
-        let store = self.store()?;
-        let executor = self.executor()?;
-        let executor = executor.borrow();
-        let frame = executor
-            .stack
-            .current_frame()
-            .map_err(|e| anyhow!("Failed to get current frame: {}", e))?;
-        let addr = MemoryAddr::new_unsafe(frame.module_index(), 0);
+        let instance = self.instance()?;
+        let store = &instance.store;
+        if store.memory_count(instance.main_module_index) == 0 {
+            return Ok(vec![]);
+        }
+        let addr = MemoryAddr::new_unsafe(instance.main_module_index, 0);
         Ok(store.memory(addr).borrow().raw_data().to_vec())
     }
 

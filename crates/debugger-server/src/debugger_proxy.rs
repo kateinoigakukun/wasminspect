@@ -44,7 +44,15 @@ where
         }
         .into(),
     };
-    log::debug!("Sending response: {:?}", res);
+
+    match res {
+        rpc::Response::Text(ref req) => {
+            log::debug!("Sending TextResponse: {:?}", req);
+        }
+        rpc::Response::Binary { ref kind, .. } => {
+            log::debug!("Sending BinaryResponse: {:?}", kind);
+        }
+    };
     res
 }
 
@@ -185,7 +193,10 @@ where
                     blocking_send_response(res, tx.clone())?;
                 }
                 other => {
-                    let error = RemoteCallError(format!("{:?} is not supported while calling external function", other));
+                    let error = RemoteCallError(format!(
+                        "{:?} is not supported while calling external function",
+                        other
+                    ));
                     return Err(Trap::HostFunctionError(Box::new(error)));
                 }
             };
@@ -385,18 +396,21 @@ where
     match req {
         Binary(req) => match req.kind {
             Init => {
-                let imports = remote_import_module(req.bytes, process.clone(), context, tx.clone(), rx)?;
+                let imports =
+                    remote_import_module(req.bytes, process.clone(), context, tx.clone(), rx)?;
                 process.borrow_mut().debugger.load_main_module(req.bytes)?;
                 process.borrow_mut().debugger.instantiate(imports, true)?;
                 let exports = module_exports(req.bytes)?;
-                let init_memory = rpc::Response::Binary {
-                    kind: rpc::BinaryResponseKind::InitMemory,
-                    bytes: process.borrow().debugger.memory()?.clone()
-                };
-                blocking_send_response(init_memory, tx)?;
                 return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
             }
         },
+        Text(InitMemory) => {
+            let init_memory = rpc::Response::Binary {
+                kind: rpc::BinaryResponseKind::InitMemory,
+                bytes: process.borrow().debugger.memory()?.clone(),
+            };
+            return Ok(init_memory);
+        }
         Text(Version) => {
             return Ok(TextResponse::Version {
                 value: VERSION.to_string(),
