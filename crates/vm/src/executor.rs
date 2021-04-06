@@ -16,7 +16,7 @@ use super::value::{
 };
 use wasmparser::{FuncType, Type, TypeOrFuncType};
 
-use std::ops::*;
+use std::{ops::*, usize};
 
 #[derive(Debug)]
 pub enum Trap {
@@ -42,6 +42,10 @@ pub enum Trap {
     UndefinedFunc(usize),
     NoMoreInstruction,
     HostFunctionError(Box<dyn std::error::Error + Send + Sync>),
+    MemoryAddrOverflow {
+        base: usize,
+        offset: usize,
+    },
 }
 
 impl std::error::Error for Trap {}
@@ -794,7 +798,12 @@ impl Executor {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
         let base_addr = base_addr as usize;
-        let addr = base_addr + offset;
+        let addr = base_addr
+            .checked_add(offset)
+            .ok_or(Trap::MemoryAddrOverflow {
+                base: base_addr,
+                offset,
+            })?;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
             .collect();
@@ -816,7 +825,12 @@ impl Executor {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
         let base_addr = base_addr as usize;
-        let addr: usize = base_addr + offset;
+        let addr = base_addr
+            .checked_add(offset)
+            .ok_or(Trap::MemoryAddrOverflow {
+                base: base_addr,
+                offset,
+            })?;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
             .collect();
@@ -836,7 +850,12 @@ impl Executor {
     {
         let base_addr: i32 = self.pop_as()?;
         let base_addr = base_addr as usize;
-        let addr: usize = base_addr + offset;
+        let addr = base_addr
+            .checked_add(offset)
+            .ok_or(Trap::MemoryAddrOverflow {
+                base: base_addr,
+                offset,
+            })?;
 
         let result: T = self
             .memory(store)?
@@ -854,7 +873,12 @@ impl Executor {
     ) -> ExecResult<Signal> {
         let base_addr: i32 = self.pop_as()?;
         let base_addr = base_addr as usize;
-        let addr: usize = base_addr + offset;
+        let addr = base_addr
+            .checked_add(offset)
+            .ok_or(Trap::MemoryAddrOverflow {
+                base: base_addr,
+                offset,
+            })?;
 
         let result: T = self
             .memory(store)?
