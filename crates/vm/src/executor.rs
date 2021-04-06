@@ -43,8 +43,8 @@ pub enum Trap {
     NoMoreInstruction,
     HostFunctionError(Box<dyn std::error::Error + Send + Sync>),
     MemoryAddrOverflow {
-        base: usize,
-        offset: usize,
+        base: i32,
+        offset: u32,
     },
 }
 
@@ -333,70 +333,70 @@ impl Executor {
                 Ok(Signal::Next)
             }
 
-            InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset as usize, store),
-            InstructionKind::I64Load { memarg } => self.load::<i64>(memarg.offset as usize, store),
-            InstructionKind::F32Load { memarg } => self.load::<f32>(memarg.offset as usize, store),
-            InstructionKind::F64Load { memarg } => self.load::<f64>(memarg.offset as usize, store),
+            InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset, store),
+            InstructionKind::I64Load { memarg } => self.load::<i64>(memarg.offset, store),
+            InstructionKind::F32Load { memarg } => self.load::<f32>(memarg.offset, store),
+            InstructionKind::F64Load { memarg } => self.load::<f64>(memarg.offset, store),
 
             InstructionKind::I32Load8S { memarg } => {
-                self.load_extend::<i8, i32>(memarg.offset as usize, store)
+                self.load_extend::<i8, i32>(memarg.offset, store)
             }
             InstructionKind::I32Load8U { memarg } => {
-                self.load_extend::<u8, i32>(memarg.offset as usize, store)
+                self.load_extend::<u8, i32>(memarg.offset, store)
             }
             InstructionKind::I32Load16S { memarg } => {
-                self.load_extend::<i16, i32>(memarg.offset as usize, store)
+                self.load_extend::<i16, i32>(memarg.offset, store)
             }
             InstructionKind::I32Load16U { memarg } => {
-                self.load_extend::<u16, i32>(memarg.offset as usize, store)
+                self.load_extend::<u16, i32>(memarg.offset, store)
             }
 
             InstructionKind::I64Load8S { memarg } => {
-                self.load_extend::<i8, i64>(memarg.offset as usize, store)
+                self.load_extend::<i8, i64>(memarg.offset, store)
             }
             InstructionKind::I64Load8U { memarg } => {
-                self.load_extend::<u8, i64>(memarg.offset as usize, store)
+                self.load_extend::<u8, i64>(memarg.offset, store)
             }
             InstructionKind::I64Load16S { memarg } => {
-                self.load_extend::<i16, i64>(memarg.offset as usize, store)
+                self.load_extend::<i16, i64>(memarg.offset, store)
             }
             InstructionKind::I64Load16U { memarg } => {
-                self.load_extend::<u16, i64>(memarg.offset as usize, store)
+                self.load_extend::<u16, i64>(memarg.offset, store)
             }
             InstructionKind::I64Load32S { memarg } => {
-                self.load_extend::<i32, i64>(memarg.offset as usize, store)
+                self.load_extend::<i32, i64>(memarg.offset, store)
             }
             InstructionKind::I64Load32U { memarg } => {
-                self.load_extend::<u32, i64>(memarg.offset as usize, store)
+                self.load_extend::<u32, i64>(memarg.offset, store)
             }
 
             InstructionKind::I32Store { memarg } => {
-                self.store::<i32, _>(memarg.offset as usize, store, interceptor)
+                self.store::<i32, _>(memarg.offset, store, interceptor)
             }
             InstructionKind::I64Store { memarg } => {
-                self.store::<i64, _>(memarg.offset as usize, store, interceptor)
+                self.store::<i64, _>(memarg.offset, store, interceptor)
             }
             InstructionKind::F32Store { memarg } => {
-                self.store::<f32, _>(memarg.offset as usize, store, interceptor)
+                self.store::<f32, _>(memarg.offset, store, interceptor)
             }
             InstructionKind::F64Store { memarg } => {
-                self.store::<f64, _>(memarg.offset as usize, store, interceptor)
+                self.store::<f64, _>(memarg.offset, store, interceptor)
             }
 
             InstructionKind::I32Store8 { memarg } => {
-                self.store_with_width::<i32, _>(memarg.offset as usize, 1, store, interceptor)
+                self.store_with_width::<i32, _>(memarg.offset, 1, store, interceptor)
             }
             InstructionKind::I32Store16 { memarg } => {
-                self.store_with_width::<i32, _>(memarg.offset as usize, 2, store, interceptor)
+                self.store_with_width::<i32, _>(memarg.offset, 2, store, interceptor)
             }
             InstructionKind::I64Store8 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset as usize, 1, store, interceptor)
+                self.store_with_width::<i64, _>(memarg.offset, 1, store, interceptor)
             }
             InstructionKind::I64Store16 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset as usize, 2, store, interceptor)
+                self.store_with_width::<i64, _>(memarg.offset, 2, store, interceptor)
             }
             InstructionKind::I64Store32 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset as usize, 4, store, interceptor)
+                self.store_with_width::<i64, _>(memarg.offset, 4, store, interceptor)
             }
 
             InstructionKind::MemorySize { .. } => {
@@ -789,21 +789,28 @@ impl Executor {
         Ok(store.memory(mem_addr))
     }
 
+    fn mem_addr(base: i32, offset: u32) -> ExecResult<u32> {
+        let addr = if base.is_negative() {
+            offset.checked_sub(base.wrapping_abs() as u32)
+        } else {
+            offset.checked_add(base as u32)
+        };
+        if let Some(addr) = addr {
+            Ok(addr)
+        } else {
+            Err(Trap::MemoryAddrOverflow { base, offset })
+        }
+    }
+
     fn store<T: NativeValue + IntoLittleEndian, I: Interceptor>(
         &mut self,
-        offset: usize,
+        offset: u32,
         store: &Store,
         interceptor: &I,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
-        let base_addr = base_addr as usize;
-        let addr = base_addr
-            .checked_add(offset)
-            .ok_or(Trap::MemoryAddrOverflow {
-                base: base_addr,
-                offset,
-            })?;
+        let addr = Self::mem_addr(base_addr, offset)? as usize;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
             .collect();
@@ -817,20 +824,14 @@ impl Executor {
 
     fn store_with_width<T: NativeValue + IntoLittleEndian, I: Interceptor>(
         &mut self,
-        offset: usize,
+        offset: u32,
         width: usize,
         store: &Store,
         interceptor: &I,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
-        let base_addr = base_addr as usize;
-        let addr = base_addr
-            .checked_add(offset)
-            .ok_or(Trap::MemoryAddrOverflow {
-                base: base_addr,
-                offset,
-            })?;
+        let addr = Self::mem_addr(base_addr, offset)? as usize;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
             .collect();
@@ -843,20 +844,13 @@ impl Executor {
         interceptor.after_store(addr, &buf)
     }
 
-    fn load<T>(&mut self, offset: usize, store: &Store) -> ExecResult<Signal>
+    fn load<T>(&mut self, offset: u32, store: &Store) -> ExecResult<Signal>
     where
         T: NativeValue + FromLittleEndian,
         T: Into<Value>,
     {
         let base_addr: i32 = self.pop_as()?;
-        let base_addr = base_addr as usize;
-        let addr = base_addr
-            .checked_add(offset)
-            .ok_or(Trap::MemoryAddrOverflow {
-                base: base_addr,
-                offset,
-            })?;
-
+        let addr = Self::mem_addr(base_addr, offset)? as usize;
         let result: T = self
             .memory(store)?
             .borrow_mut()
@@ -868,17 +862,11 @@ impl Executor {
 
     fn load_extend<T: FromLittleEndian + ExtendInto<U>, U: Into<Value>>(
         &mut self,
-        offset: usize,
+        offset: u32,
         store: &Store,
     ) -> ExecResult<Signal> {
         let base_addr: i32 = self.pop_as()?;
-        let base_addr = base_addr as usize;
-        let addr = base_addr
-            .checked_add(offset)
-            .ok_or(Trap::MemoryAddrOverflow {
-                base: base_addr,
-                offset,
-            })?;
+        let addr = Self::mem_addr(base_addr, offset)? as usize;
 
         let result: T = self
             .memory(store)?

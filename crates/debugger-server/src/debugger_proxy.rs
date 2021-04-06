@@ -379,6 +379,8 @@ fn call_exported(
         Err(msg) => {
             let mut interactive = Interactive::new_with_loading_history().unwrap();
             {
+                let err = format!("Error while calling exported function: {}", msg);
+                context.borrow().printer.eprintln(&err);
                 interactive.run_loop(&*context.borrow(), process.clone())?
             };
             return Err(msg.into());
