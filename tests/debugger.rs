@@ -14,7 +14,7 @@ fn load_file(filename: &str) -> anyhow::Result<Vec<u8>> {
 
 #[test]
 fn test_load_and_execute() -> anyhow::Result<()> {
-    let (mut process, ctx) = start_debugger(None)?;
+    let (mut process, _) = start_debugger(None)?;
     let example_dir = std::path::Path::new(file!())
         .parent()
         .unwrap()
