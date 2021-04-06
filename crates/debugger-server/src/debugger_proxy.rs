@@ -377,6 +377,10 @@ fn call_exported(
             }
         }
         Err(msg) => {
+            let mut interactive = Interactive::new_with_loading_history().unwrap();
+            {
+                interactive.run_loop(&*context.borrow(), process.clone())?
+            };
             return Err(msg.into());
         }
     }

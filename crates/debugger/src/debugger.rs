@@ -1,6 +1,6 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
 use anyhow::{anyhow, Result};
-use log::{debug, trace, warn};
+use log::{trace, warn};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
@@ -343,7 +343,7 @@ impl debugger::Debugger for MainDebugger {
 
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
-        debug!("Invoke function '{}'", name);
+        trace!("Invoke function '{}'", name);
         let key = self
             .function_breakpoints
             .keys()

@@ -81,6 +81,7 @@ fn emit_func_extern(
             returns: vec![#(#return_types),*].into_boxed_slice(),
         };
         let func = HostValue::Func(HostFuncBody::new(ty, move |args, ret, ctx, store| {
+            log::debug!("{}({:?})", #name, args);
             let wasi_ctx = store.get_embed_context::<WasiContext>().unwrap();
             let mut wasi_ctx = wasi_ctx.ctx.borrow_mut();
             let bc = unsafe { borrow::BorrowChecker::new() };
