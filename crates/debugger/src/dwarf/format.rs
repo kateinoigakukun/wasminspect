@@ -1,3 +1,5 @@
+use std::ops::{AddAssign, SubAssign};
+
 use super::utils::*;
 
 use anyhow::{anyhow, Result};
@@ -34,17 +36,8 @@ pub fn format_object<R: gimli::Reader>(
 
             match encoding {
                 gimli::DW_ATE_signed => {
-                    let value = match byte_size {
-                        4 => {
-                            let mut bytes = [0u8; 4];
-                            bytes.copy_from_slice(&memory[0..4]);
-                            format!("{:}", u32::from_le_bytes(bytes))
-                        }
-                        _ => {
-                            format!("{:}", BigInt::from_bytes_le(Sign::NoSign, &bytes))
-                        }
-                    };
-                    Ok(format!("{}({})", name, value))
+                    let v = from_signed_bytes_le(&bytes);
+                    Ok(format!("{}({})", name, v))
                 }
                 gimli::DW_ATE_unsigned => {
                     let value = BigUint::from_bytes_le(&bytes);
@@ -81,4 +74,21 @@ pub fn format_object<R: gimli::Reader>(
         }
         _ => Err(anyhow!("unsupported DIE type")),
     }
+}
+
+fn from_signed_bytes_le(bytes: &[u8]) -> BigInt {
+    assert!(!bytes.is_empty());
+    let is_negate = (bytes.last().unwrap() >> 7) == 1;
+    let mut result = Vec::new();
+    for byte in bytes {
+        let flipped = byte ^ !0;
+        result.push(flipped);
+    }
+    let mut v = BigInt::from_bytes_le(if is_negate { Sign::Minus } else { Sign::Plus }, &result);
+    if is_negate {
+        v.sub_assign(1);
+    } else {
+        v.add_assign(1);
+    }
+    return v;
 }
