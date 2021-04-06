@@ -24,7 +24,10 @@ use hyper::{upgrade::Upgraded, Body, Response};
 use hyper::{Request, StatusCode};
 
 use std::sync::mpsc;
-use tokio_tungstenite::tungstenite::{protocol, Message};
+use tokio_tungstenite::tungstenite::{
+    protocol::{self, WebSocketConfig},
+    Message,
+};
 use tokio_tungstenite::WebSocketStream;
 
 pub async fn socket_handshake<F, Fut>(
@@ -130,7 +133,11 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
 }
 
 async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
-    let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
+    let config = WebSocketConfig {
+        max_message_size: None,
+        ..WebSocketConfig::default()
+    };
+    let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, Some(config)).await;
     let (tx, mut rx) = ws.split();
     let (request_tx, request_rx) = mpsc::channel::<Option<Message>>();
     let connection_finished = Arc::new(AtomicBool::new(false));
