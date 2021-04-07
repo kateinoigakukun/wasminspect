@@ -606,61 +606,59 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
                 return Err(anyhow!("'{}' is not valid variable name", name));
             }
         };
-        let piece = match var.content {
-            VariableContent::Location(location) => match location {
-                AttributeValue::Exprloc(expr) => {
-                    evaluate_variable_location(subroutine.encoding, frame_base, expr)?
-                }
-                AttributeValue::LocationListsRef(listsref) => {
-                    let mut locs = dwarf.locations(&unit, listsref)?;
-                    loop {
-                        if let Some(loc) = locs.next()? {
-                            if (loc.range.begin..loc.range.end).contains(&(code_offset as u64)) {
-                                break evaluate_variable_location(
-                                    subroutine.encoding,
-                                    frame_base,
-                                    loc.data,
-                                )?;
+        let bytes = match var.content {
+            VariableContent::Location(location) => {
+                let piece = match location {
+                    AttributeValue::Exprloc(expr) => {
+                        evaluate_variable_location(subroutine.encoding, frame_base, expr)?
+                    }
+                    AttributeValue::LocationListsRef(listsref) => {
+                        let mut locs = dwarf.locations(&unit, listsref)?;
+                        loop {
+                            if let Some(loc) = locs.next()? {
+                                if (loc.range.begin..loc.range.end).contains(&(code_offset as u64))
+                                {
+                                    break evaluate_variable_location(
+                                        subroutine.encoding,
+                                        frame_base,
+                                        loc.data,
+                                    )?;
+                                }
+                            } else {
+                                return Err(anyhow!(
+                                    "location list doesn't match (code_offset: {})",
+                                    code_offset
+                                ));
                             }
-                        } else {
-                            return Err(anyhow!("location list doesn't match (code_offset: {})", code_offset));
                         }
                     }
+                    _ => panic!(),
+                };
+                let piece = match piece.iter().next() {
+                    Some(p) => p,
+                    None => {
+                        println!("failed to get piece of variable");
+                        return Ok(());
+                    }
+                };
+                match piece.location {
+                    gimli::Location::Address { address } => &memory[(address as usize)..],
+                    _ => unimplemented!(),
                 }
-                _ => panic!(),
-            },
-            VariableContent::ConstValue(ref _bytes) => unimplemented!(),
-            VariableContent::Unknown { ref debug_info } => {
-                unimplemented!("Unknown variable content found {}", debug_info)
             }
-        };
-
-        let piece = match piece.iter().next() {
-            Some(p) => p,
-            None => {
-                println!("failed to get piece of variable");
-                return Ok(());
+            VariableContent::ConstValue(ref bytes) => bytes,
+            VariableContent::Unknown { ref debug_info } => {
+                return Err(anyhow!("Unknown variable content found {}", debug_info));
             }
         };
 
         if let Some(offset) = var.ty_offset {
             use format::format_object;
-            match piece.location {
-                gimli::Location::Address { address } => {
-                    let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
-                    let root = tree.root()?;
-                    let type_name = types::type_name_string(&dwarf, &unit, var.ty_offset)?;
-                    let value = format_object(
-                        root,
-                        &memory[(address as usize)..],
-                        subroutine.encoding,
-                        &dwarf,
-                        &unit,
-                    )?;
-                    println!("{}({})", type_name, value);
-                }
-                _ => unimplemented!(),
-            }
+            let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
+            let root = tree.root()?;
+            let type_name = types::type_name_string(&dwarf, &unit, var.ty_offset)?;
+            let value = format_object(root, bytes, subroutine.encoding, &dwarf, &unit)?;
+            println!("{}({})", type_name, value);
         } else {
             println!("no explicit type");
         }
