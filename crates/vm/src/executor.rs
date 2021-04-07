@@ -70,6 +70,11 @@ impl std::fmt::Display for Trap {
             ),
             Self::UndefinedFunc(addr) => write!(f, "uninitialized func at {:?}", addr),
             Self::Unreachable => write!(f, "unreachable"),
+            Self::MemoryAddrOverflow { base, offset } => write!(
+                f,
+                "out of bounds memory access: memory address overflow (base: {}, offset: {})",
+                base, offset
+            ),
             _ => write!(f, "{:?}", self),
         }
     }
