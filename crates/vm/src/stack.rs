@@ -294,14 +294,13 @@ impl Stack {
         }
     }
 
-    pub fn current_frame_labels(&self) -> Result<Vec<&Label>> {
+    pub fn current_frame_labels(&self) -> Result<impl std::iter::Iterator<Item = &Label>> {
         Ok(self.stack[self.current_frame_index()?..]
-            .iter()
+            .iter().rev()
             .filter_map(|v| match v {
                 StackValue::Label(label) => Some(label),
                 _ => None,
-            })
-            .collect())
+            }))
     }
 
     fn latest(&self) -> &StackValue {
