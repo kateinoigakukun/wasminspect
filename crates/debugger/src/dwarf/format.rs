@@ -1,4 +1,4 @@
-use std::ops::{AddAssign, SubAssign};
+use std::{convert::TryInto, ops::{AddAssign, SubAssign}};
 
 use super::utils::*;
 
@@ -16,10 +16,6 @@ pub fn format_object<R: gimli::Reader>(
     match node.entry().tag() {
         gimli::DW_TAG_base_type => {
             let entry = node.entry();
-            let name = match entry.attr_value(gimli::DW_AT_name)? {
-                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-                None => "<no type name>".to_string(),
-            };
             let byte_size = entry
                 .attr_value(gimli::DW_AT_byte_size)?
                 .and_then(|attr| attr.udata_value())
@@ -37,21 +33,21 @@ pub fn format_object<R: gimli::Reader>(
             match encoding {
                 gimli::DW_ATE_signed => {
                     let v = from_signed_bytes_le(&bytes);
-                    Ok(format!("{}({})", name, v))
+                    Ok(v.to_string())
                 }
                 gimli::DW_ATE_unsigned => {
                     let value = BigUint::from_bytes_le(&bytes);
-                    Ok(format!("{}({})", name, value))
+                    Ok(value.to_string())
                 }
                 _ => unimplemented!(),
             }
         }
+        gimli::DW_TAG_pointer_type => {
+            let bytes = &memory[0..4];
+            let address = u32::from_le_bytes(bytes.try_into()?);
+            Ok(format!("0x{:x}", address))
+        }
         gimli::DW_TAG_class_type | gimli::DW_TAG_structure_type => {
-            let entry = node.entry();
-            let type_name = match entry.attr_value(gimli::DW_AT_name)? {
-                Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
-                None => "<no type name>".to_string(),
-            };
             let mut children = node.children();
             let mut members = vec![];
             while let Some(child) = children.next()? {
@@ -70,7 +66,7 @@ pub fn format_object<R: gimli::Reader>(
                     _ => continue,
                 }
             }
-            Ok(format!("{} {{\n{}\n}}", type_name, members.join(",\n")))
+            Ok(format!("{{\n{}\n}}", members.join(",\n")))
         }
         _ => Err(anyhow!("unsupported DIE type")),
     }

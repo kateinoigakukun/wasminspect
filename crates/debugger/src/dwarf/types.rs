@@ -82,6 +82,45 @@ pub enum TypeInfo<R: gimli::Reader> {
     EnumerationType(EnumerationTypeInfo<R>),
 }
 
+pub fn type_name_string<R: gimli::Reader>(
+    dwarf: &gimli::Dwarf<R>,
+    unit: &gimli::Unit<R>,
+    type_offset: Option<R::Offset>,
+) -> Result<String> {
+    let type_offset = match type_offset {
+        Some(offset) => offset,
+        None => {
+            return Ok("void".to_string());
+        }
+    };
+    let mut tree = unit.entries_tree(Some(gimli::UnitOffset::<R::Offset>(type_offset)))?;
+    let root = tree.root()?;
+    let root_entry = root.entry();
+    match root_entry.tag() {
+        gimli::DW_TAG_pointer_type | gimli::DW_TAG_const_type => {
+            let next_offset = match root_entry.attr_value(gimli::DW_AT_type)? {
+                Some(gimli::AttributeValue::UnitRef(offset)) => Some(offset.0),
+                None => None,
+                _ => return Err(anyhow!("Invalid DW_AT_type value")),
+            };
+            let next = type_name_string(dwarf, unit, next_offset)?;
+            match root_entry.tag() {
+                gimli::DW_TAG_pointer_type => Ok(format!("{}*", next)),
+                gimli::DW_TAG_const_type => Ok(format!("const {}", next)),
+                gimli::DW_TAG_reference_type => Ok(format!("{}&", next)),
+                _ => Err(anyhow!("Unsupported type: {:?}", root_entry))
+            }
+        }
+        _ => {
+            if let Some(attr) = root_entry.attr_value(gimli::DW_AT_name)? {
+                clone_string_attribute(dwarf, unit, attr)
+            } else {
+                Err(anyhow!("Unsupported type: {:?}", root_entry))
+            }
+        }
+    }
+}
+
 pub fn get_types<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,
     unit: &gimli::Unit<R, R::Offset>,

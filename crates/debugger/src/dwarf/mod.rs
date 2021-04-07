@@ -508,26 +508,6 @@ fn subroutine_variables<R: gimli::Reader>(
     Ok(variables)
 }
 
-fn unit_type_name<R: gimli::Reader>(
-    dwarf: &gimli::Dwarf<R>,
-    unit: &Unit<R>,
-    type_offset: Option<R::Offset>,
-) -> Result<String> {
-    let type_offset = match type_offset {
-        Some(offset) => offset,
-        None => {
-            return Ok("void".to_string());
-        }
-    };
-    let mut tree = unit.entries_tree(Some(UnitOffset::<R::Offset>(type_offset)))?;
-    let root = tree.root()?;
-    if let Some(attr) = root.entry().attr_value(gimli::DW_AT_name)? {
-        clone_string_attribute(dwarf, unit, attr)
-    } else {
-        Err(anyhow!(format!("failed to seek at {:?}", type_offset)))
-    }
-}
-
 impl subroutine::SubroutineMap for DwarfSubroutineMap {
     fn variable_name_list(&self, code_offset: usize) -> Result<Vec<subroutine::Variable>> {
         let offset = &(code_offset as u64);
@@ -561,7 +541,7 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
                 if let Some(name) = var.name.clone() {
                     v.name = name;
                 }
-                if let Ok(ty_name) = unit_type_name(&dwarf, &unit, var.ty_offset) {
+                if let Ok(ty_name) = types::type_name_string(&dwarf, &unit, var.ty_offset) {
                     v.type_name = ty_name;
                 }
                 v
@@ -654,16 +634,15 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
                 gimli::Location::Address { address } => {
                     let mut tree = unit.entries_tree(Some(UnitOffset(offset)))?;
                     let root = tree.root()?;
-                    println!(
-                        "{}",
-                        format_object(
-                            root,
-                            &memory[(address as usize)..],
-                            subroutine.encoding,
-                            &dwarf,
-                            &unit
-                        )?
-                    );
+                    let type_name = types::type_name_string(&dwarf, &unit, var.ty_offset)?;
+                    let value = format_object(
+                        root,
+                        &memory[(address as usize)..],
+                        subroutine.encoding,
+                        &dwarf,
+                        &unit,
+                    )?;
+                    println!("{}({})", type_name, value);
                 }
                 _ => unimplemented!(),
             }
