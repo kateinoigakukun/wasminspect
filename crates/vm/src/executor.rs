@@ -176,73 +176,9 @@ impl Executor {
                 self.stack.push_label(Label::new_loop(start_loop));
                 Ok(Signal::Next)
             }
-            InstructionKind::If { ty } => {
-                let val: i32 = self.pop_as()?;
-                self.stack.push_label(Label::If(match ty {
-                    TypeOrFuncType::Type(Type::EmptyBlockType) => 0,
-                    TypeOrFuncType::Type(_) => 1,
-                    TypeOrFuncType::FuncType(_) => 1,
-                }));
-                if val == 0 {
-                    let mut depth = 1;
-                    loop {
-                        let index = self.pc.inst_index().0 as usize;
-                        match self.current_func_insts(store)?[index].kind {
-                            InstructionKind::End => depth -= 1,
-                            InstructionKind::Block { ty: _ } => depth += 1,
-                            InstructionKind::If { ty: _ } => depth += 1,
-                            InstructionKind::Loop { ty: _ } => depth += 1,
-                            InstructionKind::Else => {
-                                if depth == 1 {
-                                    self.pc.inc_inst_index();
-                                    break;
-                                }
-                            }
-                            _ => (),
-                        }
-                        if depth == 0 {
-                            break;
-                        }
-                        self.pc.inc_inst_index();
-                    }
-                }
-                Ok(Signal::Next)
-            }
+            InstructionKind::If { ty } => self.do_if(ty, store),
             InstructionKind::Else => self.branch(0, store),
-            InstructionKind::End => {
-                if self.stack.is_func_top_level().map_err(Trap::Stack)? {
-                    // When the end of a function is reached without a jump
-                    let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
-                    let func = store.func_global(self.pc.exec_addr());
-                    let arity = func.ty().returns.len();
-                    let mut result = vec![];
-                    for _ in 0..arity {
-                        result.push(self.stack.pop_value().map_err(Trap::Stack)?);
-                    }
-                    self.stack.pop_label().map_err(Trap::Stack)?;
-                    self.stack.pop_frame().map_err(Trap::Stack)?;
-                    for v in result {
-                        self.stack.push_value(v);
-                    }
-                    if let Some(ret_pc) = ret_pc {
-                        self.pc = ret_pc;
-                        Ok(Signal::Next)
-                    } else {
-                        Ok(Signal::End)
-                    }
-                } else {
-                    // When the end of a block is reached without a jump
-                    let results = self.stack.pop_while(|v| match v {
-                        StackValue::Value(_) => true,
-                        _ => false,
-                    });
-                    self.stack.pop_label().map_err(Trap::Stack)?;
-                    for v in results {
-                        self.stack.push_value(v.as_value().map_err(Trap::Stack)?);
-                    }
-                    Ok(Signal::Next)
-                }
-            }
+            InstructionKind::End => self.do_end(store),
             InstructionKind::Br { relative_depth } => self.branch(relative_depth, store),
             InstructionKind::BrIf { relative_depth } => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
@@ -271,28 +207,7 @@ impl Executor {
             InstructionKind::CallIndirect {
                 index,
                 table_index: _,
-            } => {
-                let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                let addr = TableAddr::new_unsafe(frame.module_index(), 0);
-                let module = store.module(frame.module_index()).defined().unwrap();
-                let ty = module.get_type(index as usize);
-                let buf_index: i32 = self.pop_as()?;
-                let table = store.table(addr);
-                let buf_index = buf_index as usize;
-                let func_addr = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
-                let (func, _) = store
-                    .func(func_addr)
-                    .ok_or(Trap::UndefinedFunc(func_addr.1))?;
-                if func.ty() == ty {
-                    self.invoke(func_addr, store, interceptor)
-                } else {
-                    Err(Trap::IndirectCallTypeMismatch {
-                        callee_name: func.name().clone(),
-                        expected: ty.clone(),
-                        actual: func.ty().clone(),
-                    })
-                }
-            }
+            } => self.call_indirect(index, store, interceptor),
             InstructionKind::Drop => {
                 self.stack.pop_value().map_err(Trap::Stack)?;
                 Ok(Signal::Next)
@@ -605,6 +520,102 @@ impl Executor {
             expected: T::value_type(),
             actual: value.value_type(),
         })
+    }
+
+    fn do_if(&mut self, ty: TypeOrFuncType, store: &Store) -> ExecResult<Signal> {
+        let val: i32 = self.pop_as()?;
+        self.stack.push_label(Label::If(match ty {
+            TypeOrFuncType::Type(Type::EmptyBlockType) => 0,
+            TypeOrFuncType::Type(_) => 1,
+            TypeOrFuncType::FuncType(_) => 1,
+        }));
+        if val == 0 {
+            let mut depth = 1;
+            loop {
+                let index = self.pc.inst_index().0 as usize;
+                match self.current_func_insts(store)?[index].kind {
+                    InstructionKind::End => depth -= 1,
+                    InstructionKind::Block { ty: _ } => depth += 1,
+                    InstructionKind::If { ty: _ } => depth += 1,
+                    InstructionKind::Loop { ty: _ } => depth += 1,
+                    InstructionKind::Else => {
+                        if depth == 1 {
+                            self.pc.inc_inst_index();
+                            break;
+                        }
+                    }
+                    _ => (),
+                }
+                if depth == 0 {
+                    break;
+                }
+                self.pc.inc_inst_index();
+            }
+        }
+        Ok(Signal::Next)
+    }
+
+    fn do_end(&mut self, store: &Store) -> ExecResult<Signal> {
+        if self.stack.is_func_top_level().map_err(Trap::Stack)? {
+            // When the end of a function is reached without a jump
+            let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
+            let func = store.func_global(self.pc.exec_addr());
+            let arity = func.ty().returns.len();
+            let mut result = vec![];
+            for _ in 0..arity {
+                result.push(self.stack.pop_value().map_err(Trap::Stack)?);
+            }
+            self.stack.pop_label().map_err(Trap::Stack)?;
+            self.stack.pop_frame().map_err(Trap::Stack)?;
+            for v in result {
+                self.stack.push_value(v);
+            }
+            if let Some(ret_pc) = ret_pc {
+                self.pc = ret_pc;
+                Ok(Signal::Next)
+            } else {
+                Ok(Signal::End)
+            }
+        } else {
+            // When the end of a block is reached without a jump
+            let results = self.stack.pop_while(|v| match v {
+                StackValue::Value(_) => true,
+                _ => false,
+            });
+            self.stack.pop_label().map_err(Trap::Stack)?;
+            for v in results {
+                self.stack.push_value(v.as_value().map_err(Trap::Stack)?);
+            }
+            Ok(Signal::Next)
+        }
+    }
+
+    fn call_indirect<I: Interceptor>(
+        &mut self,
+        index: u32,
+        store: &Store,
+        interceptor: &I,
+    ) -> ExecResult<Signal> {
+        let frame = self.stack.current_frame().map_err(Trap::Stack)?;
+        let addr = TableAddr::new_unsafe(frame.module_index(), 0);
+        let module = store.module(frame.module_index()).defined().unwrap();
+        let ty = module.get_type(index as usize);
+        let buf_index: i32 = self.pop_as()?;
+        let table = store.table(addr);
+        let buf_index = buf_index as usize;
+        let func_addr = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
+        let (func, _) = store
+            .func(func_addr)
+            .ok_or(Trap::UndefinedFunc(func_addr.1))?;
+        if func.ty() == ty {
+            self.invoke(func_addr, store, interceptor)
+        } else {
+            Err(Trap::IndirectCallTypeMismatch {
+                callee_name: func.name().clone(),
+                expected: ty.clone(),
+                actual: func.ty().clone(),
+            })
+        }
     }
 
     fn branch(&mut self, depth: u32, store: &Store) -> ExecResult<Signal> {
