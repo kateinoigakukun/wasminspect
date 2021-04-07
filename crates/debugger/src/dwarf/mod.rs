@@ -611,7 +611,22 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
                 AttributeValue::Exprloc(expr) => {
                     evaluate_variable_location(subroutine.encoding, frame_base, expr)?
                 }
-                AttributeValue::LocationListsRef(_listsref) => unimplemented!("listsref"),
+                AttributeValue::LocationListsRef(listsref) => {
+                    let mut locs = dwarf.locations(&unit, listsref)?;
+                    loop {
+                        if let Some(loc) = locs.next()? {
+                            if (loc.range.begin..loc.range.end).contains(&(code_offset as u64)) {
+                                break evaluate_variable_location(
+                                    subroutine.encoding,
+                                    frame_base,
+                                    loc.data,
+                                )?;
+                            }
+                        } else {
+                            return Err(anyhow!("location list doesn't match (code_offset: {})", code_offset));
+                        }
+                    }
+                }
                 _ => panic!(),
             },
             VariableContent::ConstValue(ref _bytes) => unimplemented!(),
