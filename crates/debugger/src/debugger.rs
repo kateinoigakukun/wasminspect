@@ -1,12 +1,13 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
 use anyhow::{anyhow, Result};
 use log::{trace, warn};
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
+use std::{collections::HashMap, io::Write};
 use wasminspect_vm::{
-    CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, InstIndex, Instruction,
-    Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
+    CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, GlobalAddr, InstIndex,
+    Instruction, Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap,
+    WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
 
@@ -25,6 +26,8 @@ pub struct MainDebugger {
 
     opts: DebuggerOpts,
     function_breakpoints: HashMap<String, debugger::Breakpoint>,
+    previous_rsp: RefCell<Option<i32>>,
+    rsp_log: RefCell<std::fs::File>,
 }
 
 impl MainDebugger {
@@ -43,6 +46,10 @@ impl MainDebugger {
             main_module: None,
             function_breakpoints: HashMap::new(),
             opts: DebuggerOpts::default(),
+            previous_rsp: RefCell::new(None),
+            rsp_log: RefCell::new(
+                std::fs::File::create("/Users/kateinoigakukun/Desktop/rsp.log").unwrap(),
+            ),
         })
     }
 
@@ -344,6 +351,9 @@ impl debugger::Debugger for MainDebugger {
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
         trace!("Invoke function '{}'", name);
+        if self.opts.watch_rsp {
+            writeln!(self.rsp_log.borrow_mut(), "f: {}", name).unwrap();
+        }
         let key = self
             .function_breakpoints
             .keys()
@@ -361,6 +371,32 @@ impl Interceptor for MainDebugger {
     }
 
     fn after_store(&self, _addr: usize, _bytes: &[u8]) -> Result<Signal, Trap> {
+        Ok(Signal::Next)
+    }
+    fn global_set(&self, addr: GlobalAddr, value: WasmValue) -> Result<Signal, Trap> {
+        if let Some(ref instance) = self.instance {
+            let rsp = GlobalAddr::new_unsafe(instance.main_module_index, 0);
+            if addr != rsp {
+                return Ok(Signal::Next);
+            }
+            let value = match value.as_i32() {
+                Some(v) => v,
+                None => return Ok(Signal::Next),
+            };
+            if self.opts.watch_rsp {
+                writeln!(self.rsp_log.borrow_mut(), "{}", value).unwrap();
+            }
+            if let Some(old) = *self.previous_rsp.borrow() {
+                if old >= 0 && value < 0 {
+                    println!(
+                        "Sign of stack pointer has changed (old: {}, current: {})",
+                        old, value
+                    );
+                    return Ok(Signal::Breakpoint);
+                }
+            }
+            *self.previous_rsp.borrow_mut() = Some(value);
+        }
         Ok(Signal::Next)
     }
 }

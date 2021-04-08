@@ -19,6 +19,8 @@ enum Opts {
         #[structopt(name = "INDEX")]
         index: usize,
     },
+    #[structopt(name = "enable-watch")]
+    EnableWatch,
 }
 
 impl<D: Debugger> Command<D> for GlobalCommand {
@@ -48,6 +50,12 @@ impl<D: Debugger> Command<D> for GlobalCommand {
                 let global = store.global(GlobalAddr::new_unsafe(mod_index, index));
                 let output = format!("{:?}", global.borrow().value());
                 context.printer.println(&output);
+                Ok(None)
+            }
+            Opts::EnableWatch => {
+                let mut opts = debugger.get_opts();
+                opts.watch_rsp = true;
+                debugger.set_opts(opts);
                 Ok(None)
             }
         }

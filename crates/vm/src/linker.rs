@@ -19,7 +19,7 @@ impl<T> fmt::Debug for GlobalAddress<T> {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Hash)]
 pub struct LinkableAddress<T>(ModuleIndex, pub(crate) usize, std::marker::PhantomData<T>);
 
 impl<T> LinkableAddress<T> {
@@ -31,6 +31,13 @@ impl<T> LinkableAddress<T> {
         self.0
     }
 }
+
+impl<T> PartialEq for LinkableAddress<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+impl<T> Eq for LinkableAddress<T> {}
 
 impl<T> Clone for LinkableAddress<T> {
     fn clone(&self) -> Self {

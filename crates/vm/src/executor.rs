@@ -250,7 +250,7 @@ impl Executor {
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
                 let global = store.global(addr);
                 global.borrow_mut().set_value(value);
-                Ok(Signal::Next)
+                interceptor.global_set(addr, value)
             }
 
             InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset, store),

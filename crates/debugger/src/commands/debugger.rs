@@ -4,6 +4,7 @@ use wasminspect_vm::{HostValue, Instruction, ModuleIndex, Signal, Store, WasmVal
 #[derive(Default, Clone)]
 pub struct DebuggerOpts {
     pub watch_memory: bool,
+    pub watch_rsp: bool,
 }
 
 pub enum Breakpoint {
