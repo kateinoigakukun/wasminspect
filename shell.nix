@@ -12,6 +12,7 @@ in
       darwin.libiconv
     ] ++ [
       rust_toolchain
+      cacert
       curl
     ];
   }
