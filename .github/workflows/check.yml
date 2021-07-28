@@ -14,11 +14,10 @@ jobs:
           git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive --depth=1
       - name: Install wabt and fixtures
         run: make .wabt fixtures
+      - uses: cachix/install-nix-action@v13
+        with:
+          nix_path: nixpkgs=channel:nixos-21.05
       - name: Run cargo build
-        uses: actions-rs/cargo@v1.0.1
-        with:
-          command: build
+        run: nix-shell --pure --run "cargo build"
       - name: Run cargo test 
-        uses: actions-rs/cargo@v1.0.1
-        with:
-          command: test
+        run: nix-shell --pure --run "cargo test"
