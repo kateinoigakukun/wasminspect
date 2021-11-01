@@ -50,7 +50,7 @@ impl MemoryInstance {
 
     pub fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
         if let Some(max_addr) = offset.checked_add(size) {
-            if max_addr > self.data_len() {
+            if max_addr > self.data_len() || max_addr == 0 {
                 return Err(Error::AccessOutOfBounds(Some(max_addr), self.data_len()));
             }
         } else {

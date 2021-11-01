@@ -312,16 +312,16 @@ impl debugger::Debugger for MainDebugger {
     fn instantiate(
         &mut self,
         host_modules: HashMap<String, RawHostModule>,
-        wasi: bool,
+        wasi_args: Option<&[String]>,
     ) -> Result<()> {
         let mut store = Store::new();
         for (name, host_module) in host_modules {
             store.load_host_module(name, host_module);
         }
 
-        if wasi {
-            let (ctx, wasi_snapshot_preview) = instantiate_wasi();
-            let (_, wasi_unstable) = instantiate_wasi();
+        if let Some(wasi_args) = wasi_args {
+            let (ctx, wasi_snapshot_preview) = instantiate_wasi(wasi_args);
+            let (_, wasi_unstable) = instantiate_wasi(wasi_args);
             store.add_embed_context(Box::new(ctx));
             store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
             store.load_host_module("wasi_unstable".to_string(), wasi_unstable);

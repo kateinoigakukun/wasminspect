@@ -22,9 +22,9 @@ fn wasi_proc_exit(status: i32) -> Result<(), Trap> {
     std::process::exit(status);
 }
 
-pub fn instantiate_wasi() -> (WasiContext, HashMap<String, HostValue>) {
+pub fn instantiate_wasi(args: &[String]) -> (WasiContext, HashMap<String, HostValue>) {
     let builder = WasiCtxBuilder::new();
-    let wasi_ctx = builder.inherit_stdio().build().unwrap();
+    let wasi_ctx = builder.inherit_stdio().args(args).unwrap().build().unwrap();
     let mut module: HashMap<String, HostValue> = HashMap::new();
 
     wasminspect_wasi_macro::define_wasi_fn_for_wasminspect!(
