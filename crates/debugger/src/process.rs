@@ -38,7 +38,9 @@ impl<D: Debugger> Process<D> {
         context: &command::CommandContext,
     ) -> Result<Option<CommandResult>> {
         let cmd_name = extract_command_name(&line);
-        let args = line.split_whitespace().collect();
+        let args = shell_words::split(line)?;
+        // FIXME
+        let args = args.iter().map(AsRef::as_ref).collect();
         if let Some(cmd) = self.commands.get(cmd_name) {
             match cmd.run(&mut self.debugger, &context, args) {
                 Ok(result) => Ok(result),
