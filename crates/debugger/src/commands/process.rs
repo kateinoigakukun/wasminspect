@@ -82,7 +82,7 @@ impl ProcessCommand {
             let stdin = std::io::stdin();
             let mut input = String::new();
             stdin.read_line(&mut input).unwrap();
-            if input != "Y\n" {
+            if input != "Y\n" && input != "y\n" {
                 return Ok(None);
             }
         }
