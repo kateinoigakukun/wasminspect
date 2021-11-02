@@ -233,7 +233,8 @@ fn read_name_section(mut reader: wasmparser::NameSectionReader) -> Result<HashMa
                     func_names.insert(naming.index, String::from(naming.name));
                 }
             }
-            wasmparser::Name::Local(_) => continue
+            wasmparser::Name::Local(_) => continue,
+            wasmparser::Name::Unknown { .. } => continue,
         }
     }
     Ok(func_names)
