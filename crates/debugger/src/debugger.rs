@@ -1,6 +1,7 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
 use anyhow::{anyhow, Result};
 use log::{trace, warn};
+use wasmparser::WasmFeatures;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
@@ -24,6 +25,7 @@ pub struct MainDebugger {
     main_module: Option<RawModule>,
 
     opts: DebuggerOpts,
+    config: wasminspect_vm::Config,
     function_breakpoints: HashMap<String, debugger::Breakpoint>,
 }
 
@@ -43,6 +45,9 @@ impl MainDebugger {
             main_module: None,
             function_breakpoints: HashMap::new(),
             opts: DebuggerOpts::default(),
+            config: wasminspect_vm::Config {
+                features: WasmFeatures::default(),
+            }
         })
     }
 
@@ -246,12 +251,12 @@ impl debugger::Debugger for MainDebugger {
             executor.stack.peek_frames().len()
         }
         match style {
-            StepInstIn => return Ok(executor.borrow_mut().execute_step(&store, self)?),
+            StepInstIn => return Ok(executor.borrow_mut().execute_step(&store, self, &self.config)?),
             StepInstOver => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&store, self)?;
+                let mut last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
                 while initial_frame_depth < frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&store, self)?;
+                    last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -260,9 +265,9 @@ impl debugger::Debugger for MainDebugger {
             }
             StepOut => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&store, self)?;
+                let mut last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
                 while initial_frame_depth <= frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&store, self)?;
+                    last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -276,7 +281,7 @@ impl debugger::Debugger for MainDebugger {
         let store = self.store()?;
         let executor = self.executor()?;
         loop {
-            let result = executor.borrow_mut().execute_step(&store, self);
+            let result = executor.borrow_mut().execute_step(&store, self, &self.config);
             match result {
                 Ok(Signal::Next) => continue,
                 Ok(Signal::Breakpoint) => return Ok(RunResult::Breakpoint),

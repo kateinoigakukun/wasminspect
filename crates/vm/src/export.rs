@@ -39,7 +39,7 @@ impl ExportInstance {
                 ExternalKind::Type | ExternalKind::Module | ExternalKind::Instance => {
                     panic!("module type is not supported yet")
                 }
-                ExternalKind::Event => {
+                ExternalKind::Tag => {
                     panic!("event is not supported yet")
                 }
             },

@@ -1,3 +1,5 @@
+use crate::config::Config;
+
 use super::executor::{simple_invoke_func, WasmError};
 use super::host::HostValue;
 use super::module::ModuleIndex;
@@ -63,6 +65,7 @@ impl WasmInstance {
         module_index: ModuleIndex,
         func_name: Option<String>,
         arguments: Vec<Value>,
+        config: &Config
     ) -> Result<Vec<Value>, WasmError> {
         let module = self.store.module(module_index).defined().unwrap();
         let func_addr = if let Some(func_name) = func_name {
@@ -80,6 +83,6 @@ impl WasmInstance {
                 return Err(WasmError::EntryFunctionNotFound("_start".to_string()));
             }
         };
-        simple_invoke_func(func_addr, arguments, &mut self.store)
+        simple_invoke_func(func_addr, arguments, &mut self.store, config)
     }
 }

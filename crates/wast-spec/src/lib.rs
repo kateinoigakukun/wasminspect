@@ -1,5 +1,6 @@
 /// Reference: https://github.com/bytecodealliance/wasmtime/blob/master/crates/wast/src/wast.rs
 use anyhow::{anyhow, bail, Context as _, Result};
+use wasmparser::WasmFeatures;
 use std::collections::HashMap;
 use std::path::Path;
 use std::str;
@@ -11,6 +12,7 @@ pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
     instance: WasmInstance,
     current: Option<ModuleIndex>,
+    config: wasminspect_vm::Config,
 }
 
 impl WastContext {
@@ -21,6 +23,9 @@ impl WastContext {
             module_index_by_name: HashMap::new(),
             instance: instance,
             current: None,
+            config: wasminspect_vm::Config {
+                features: WasmFeatures::default()
+            }
         }
     }
     pub fn run_file(&mut self, path: &Path) -> Result<()> {
@@ -50,7 +55,7 @@ impl WastContext {
             .map_err(|e| anyhow!("Failed to instantiate: {}", e))?;
         if let Some(start_section) = start_section {
             let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
-            simple_invoke_func(func_addr, vec![], &mut self.instance.store)
+            simple_invoke_func(func_addr, vec![], &mut self.instance.store, &self.config)
                 .map_err(|e| anyhow!("Failed to exec start func: {}", e))?;
         }
         self.current = Some(module_index);
@@ -256,7 +261,7 @@ impl WastContext {
         let args = args.iter().map(const_expr).collect();
         let result = self
             .instance
-            .run(module_index, Some(func_name.to_string()), args)
+            .run(module_index, Some(func_name.to_string()), args, &self.config)
             .map_err(|e| anyhow!("{}", e))?;
         Ok(result)
     }
@@ -277,7 +282,7 @@ impl WastContext {
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
                     return Ok(
-                        simple_invoke_func(func_addr, vec![], &mut self.instance.store)
+                        simple_invoke_func(func_addr, vec![], &mut self.instance.store, &self.config)
                             .map_err(|e| anyhow!("Failed to exec start func: {}", e)),
                     );
                 }

@@ -14,10 +14,7 @@ use anyhow::{Context, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use wasmparser::{
-    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, NameSectionReader, TableType, Type, TypeDef,
-};
+use wasmparser::{Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType, Import, MemoryType, NameSectionReader, TableType, Type, TypeDef};
 
 /// Store
 pub struct Store {
@@ -233,8 +230,15 @@ fn read_name_section(mut reader: wasmparser::NameSectionReader) -> Result<HashMa
                     func_names.insert(naming.index, String::from(naming.name));
                 }
             }
-            wasmparser::Name::Local(_) => continue,
-            wasmparser::Name::Unknown { .. } => continue,
+            wasmparser::Name::Local(_)
+            | wasmparser::Name::Label(_)
+            | wasmparser::Name::Type(_)
+            | wasmparser::Name::Table(_)
+            | wasmparser::Name::Memory(_)
+            | wasmparser::Name::Global(_)
+            | wasmparser::Name::Element(_)
+            | wasmparser::Name::Data(_)
+            | wasmparser::Name::Unknown { .. } => continue,
         }
     }
     Ok(func_names)
@@ -339,7 +343,8 @@ impl Store {
                 Payload::CustomSection {
                     name,
                     data,
-                    data_offset, ..
+                    data_offset,
+                    ..
                 } => match name {
                     "name" => {
                         let section = NameSectionReader::new(data, data_offset)?;
@@ -433,9 +438,7 @@ impl Store {
                 Module(_) | Instance(_) => {
                     panic!("module type is not supported yet");
                 }
-                Event(_) => {
-                    panic!("event type is not supported yet");
-                }
+                Tag(_) => panic!("event type is not supported yet"),
             }
         }
         Ok(())
@@ -520,14 +523,8 @@ impl Store {
         // Validation
         {
             let memory = self.mems.get_global(resolved_addr);
-            let limit_initial = match memory_ty {
-                MemoryType::M32 { limits, .. } => limits.initial as u64,
-                MemoryType::M64 { limits, .. } => limits.initial,
-            };
-            let limit_max = match memory_ty {
-                MemoryType::M32 { limits, .. } => limits.maximum.map(u64::from),
-                MemoryType::M64 { limits, .. } => limits.maximum,
-            };
+            let limit_initial = memory_ty.initial;
+            let limit_max = memory_ty.maximum;
             if memory.borrow().initial < limit_initial as usize {
                 Err(StoreError::IncompatibleImportMemoryType)?;
             }
@@ -577,10 +574,10 @@ impl Store {
         let found = self.tables.get_global(resolved_addr);
         // Validation
         {
-            if found.borrow().initial < table_ty.limits.initial as usize {
+            if found.borrow().initial < table_ty.initial as usize {
                 Err(StoreError::IncompatibleImportTableType)?;
             }
-            match (found.clone().borrow().max, table_ty.limits.maximum) {
+            match (found.clone().borrow().max, table_ty.maximum) {
                 (Some(found), Some(expected)) => {
                     if found > expected as usize {
                         Err(StoreError::IncompatibleImportTableType)?;
@@ -698,8 +695,8 @@ impl Store {
             match entry.element_type {
                 Type::FuncRef => {
                     let instance = TableInstance::new(
-                        entry.limits.initial as usize,
-                        entry.limits.maximum.map(|mx| mx as usize),
+                        entry.initial as usize,
+                        entry.maximum.map(|mx| mx as usize),
                     );
                     let addr = self
                         .tables
@@ -758,16 +755,8 @@ impl Store {
             return Ok(mem_addrs);
         }
         for entry in mems.iter() {
-            let limit_initial = match entry {
-                MemoryType::M32 { limits, .. } => limits.initial as u64,
-                MemoryType::M64 { limits, .. } => limits.initial,
-            };
-            let limit_max = match entry {
-                MemoryType::M32 { limits, .. } => limits.maximum.map(u64::from),
-                MemoryType::M64 { limits, .. } => limits.maximum,
-            };
             let instance =
-                MemoryInstance::new(limit_initial as usize, limit_max.map(|mx| mx as usize));
+                MemoryInstance::new(entry.initial as usize, entry.maximum.map(|mx| mx as usize));
             let addr = self
                 .mems
                 .push(module_index, Rc::new(RefCell::new(instance)));

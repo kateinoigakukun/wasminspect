@@ -1,3 +1,5 @@
+use crate::config::Config;
+
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
 use super::inst::{Instruction, InstructionKind};
@@ -16,6 +18,7 @@ use super::value::{
 };
 use wasmparser::{FuncType, Type, TypeOrFuncType};
 
+use std::convert::TryInto;
 use std::{ops::*, usize};
 
 #[derive(Debug)]
@@ -44,7 +47,7 @@ pub enum Trap {
     HostFunctionError(Box<dyn std::error::Error + Send + Sync>),
     MemoryAddrOverflow {
         base: i32,
-        offset: u32,
+        offset: u64,
     },
 }
 
@@ -139,6 +142,7 @@ impl Executor {
         &mut self,
         store: &Store,
         interceptor: &I,
+        config: &Config,
     ) -> ExecResult<Signal> {
         let func = store.func_global(self.pc.exec_addr()).defined().unwrap();
         let module_index = func.module_index().clone();
@@ -146,7 +150,7 @@ impl Executor {
             Some(inst) => inst,
             None => return Err(Trap::NoMoreInstruction),
         };
-        return self.execute_inst(&inst, module_index, store, interceptor);
+        return self.execute_inst(&inst, module_index, store, interceptor, config);
     }
 
     fn execute_inst<I: Interceptor>(
@@ -155,6 +159,7 @@ impl Executor {
         module_index: ModuleIndex,
         store: &Store,
         interceptor: &I,
+        config: &Config,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
         interceptor.execute_inst(inst);
@@ -338,70 +343,70 @@ impl Executor {
                 Ok(Signal::Next)
             }
 
-            InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset, store),
-            InstructionKind::I64Load { memarg } => self.load::<i64>(memarg.offset, store),
-            InstructionKind::F32Load { memarg } => self.load::<f32>(memarg.offset, store),
-            InstructionKind::F64Load { memarg } => self.load::<f64>(memarg.offset, store),
+            InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset, store, config),
+            InstructionKind::I64Load { memarg } => self.load::<i64>(memarg.offset, store, config),
+            InstructionKind::F32Load { memarg } => self.load::<f32>(memarg.offset, store, config),
+            InstructionKind::F64Load { memarg } => self.load::<f64>(memarg.offset, store, config),
 
             InstructionKind::I32Load8S { memarg } => {
-                self.load_extend::<i8, i32>(memarg.offset, store)
+                self.load_extend::<i8, i32>(memarg.offset, store, config)
             }
             InstructionKind::I32Load8U { memarg } => {
-                self.load_extend::<u8, i32>(memarg.offset, store)
+                self.load_extend::<u8, i32>(memarg.offset, store, config)
             }
             InstructionKind::I32Load16S { memarg } => {
-                self.load_extend::<i16, i32>(memarg.offset, store)
+                self.load_extend::<i16, i32>(memarg.offset, store, config)
             }
             InstructionKind::I32Load16U { memarg } => {
-                self.load_extend::<u16, i32>(memarg.offset, store)
+                self.load_extend::<u16, i32>(memarg.offset, store, config)
             }
 
             InstructionKind::I64Load8S { memarg } => {
-                self.load_extend::<i8, i64>(memarg.offset, store)
+                self.load_extend::<i8, i64>(memarg.offset, store, config)
             }
             InstructionKind::I64Load8U { memarg } => {
-                self.load_extend::<u8, i64>(memarg.offset, store)
+                self.load_extend::<u8, i64>(memarg.offset, store, config)
             }
             InstructionKind::I64Load16S { memarg } => {
-                self.load_extend::<i16, i64>(memarg.offset, store)
+                self.load_extend::<i16, i64>(memarg.offset, store, config)
             }
             InstructionKind::I64Load16U { memarg } => {
-                self.load_extend::<u16, i64>(memarg.offset, store)
+                self.load_extend::<u16, i64>(memarg.offset, store, config)
             }
             InstructionKind::I64Load32S { memarg } => {
-                self.load_extend::<i32, i64>(memarg.offset, store)
+                self.load_extend::<i32, i64>(memarg.offset, store, config)
             }
             InstructionKind::I64Load32U { memarg } => {
-                self.load_extend::<u32, i64>(memarg.offset, store)
+                self.load_extend::<u32, i64>(memarg.offset, store, config)
             }
 
             InstructionKind::I32Store { memarg } => {
-                self.store::<i32, _>(memarg.offset, store, interceptor)
+                self.store::<i32, _>(memarg.offset, store, interceptor, config)
             }
             InstructionKind::I64Store { memarg } => {
-                self.store::<i64, _>(memarg.offset, store, interceptor)
+                self.store::<i64, _>(memarg.offset, store, interceptor, config)
             }
             InstructionKind::F32Store { memarg } => {
-                self.store::<f32, _>(memarg.offset, store, interceptor)
+                self.store::<f32, _>(memarg.offset, store, interceptor, config)
             }
             InstructionKind::F64Store { memarg } => {
-                self.store::<f64, _>(memarg.offset, store, interceptor)
+                self.store::<f64, _>(memarg.offset, store, interceptor, config)
             }
 
             InstructionKind::I32Store8 { memarg } => {
-                self.store_with_width::<i32, _>(memarg.offset, 1, store, interceptor)
+                self.store_with_width::<i32, _>(memarg.offset, 1, store, interceptor, config)
             }
             InstructionKind::I32Store16 { memarg } => {
-                self.store_with_width::<i32, _>(memarg.offset, 2, store, interceptor)
+                self.store_with_width::<i32, _>(memarg.offset, 2, store, interceptor, config)
             }
             InstructionKind::I64Store8 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset, 1, store, interceptor)
+                self.store_with_width::<i64, _>(memarg.offset, 1, store, interceptor, config)
             }
             InstructionKind::I64Store16 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset, 2, store, interceptor)
+                self.store_with_width::<i64, _>(memarg.offset, 2, store, interceptor, config)
             }
             InstructionKind::I64Store32 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset, 4, store, interceptor)
+                self.store_with_width::<i64, _>(memarg.offset, 4, store, interceptor, config)
             }
 
             InstructionKind::MemorySize { .. } => {
@@ -794,28 +799,44 @@ impl Executor {
         Ok(store.memory(mem_addr))
     }
 
-    fn mem_addr(base: i32, offset: u32) -> ExecResult<u32> {
-        let addr = if base.is_negative() {
-            offset.checked_sub(base.wrapping_abs() as u32)
+    fn mem_addr(base: i32, offset: u64, memory64: bool) -> ExecResult<u64> {
+        let addr = if memory64 {
+            if base.is_negative() {
+                offset.checked_sub(base.wrapping_abs() as u64)
+            } else {
+                offset.checked_add(base as u64)
+            }
         } else {
-            offset.checked_add(base as u32)
+            let offset: u32 = offset
+                .try_into()
+                .map_err(|_| Trap::MemoryAddrOverflow { base, offset })?;
+            let addr = if base.is_negative() {
+                offset.checked_sub(base.wrapping_abs() as u32)
+            } else {
+                offset.checked_add(base as u32)
+            };
+            addr.map(|v| v as u64)
         };
         if let Some(addr) = addr {
             Ok(addr)
         } else {
-            Err(Trap::MemoryAddrOverflow { base, offset })
+            Err(Trap::MemoryAddrOverflow {
+                base,
+                offset: offset.into(),
+            })
         }
     }
 
     fn store<T: NativeValue + IntoLittleEndian, I: Interceptor>(
         &mut self,
-        offset: u32,
+        offset: u64,
         store: &Store,
         interceptor: &I,
+        config: &Config,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
-        let addr = Self::mem_addr(base_addr, offset)? as usize;
+        let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
             .collect();
@@ -829,14 +850,15 @@ impl Executor {
 
     fn store_with_width<T: NativeValue + IntoLittleEndian, I: Interceptor>(
         &mut self,
-        offset: u32,
+        offset: u64,
         width: usize,
         store: &Store,
         interceptor: &I,
+        config: &Config
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
-        let addr = Self::mem_addr(base_addr, offset)? as usize;
+        let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
             .collect();
@@ -849,13 +871,13 @@ impl Executor {
         interceptor.after_store(addr, &buf)
     }
 
-    fn load<T>(&mut self, offset: u32, store: &Store) -> ExecResult<Signal>
+    fn load<T>(&mut self, offset: u64, store: &Store, config: &Config) -> ExecResult<Signal>
     where
         T: NativeValue + FromLittleEndian,
         T: Into<Value>,
     {
         let base_addr: i32 = self.pop_as()?;
-        let addr = Self::mem_addr(base_addr, offset)? as usize;
+        let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
         let result: T = self
             .memory(store)?
             .borrow_mut()
@@ -867,11 +889,12 @@ impl Executor {
 
     fn load_extend<T: FromLittleEndian + ExtendInto<U>, U: Into<Value>>(
         &mut self,
-        offset: u32,
+        offset: u64,
         store: &Store,
+        config: &Config
     ) -> ExecResult<Signal> {
         let base_addr: i32 = self.pop_as()?;
-        let addr = Self::mem_addr(base_addr, offset)? as usize;
+        let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
 
         let result: T = self
             .memory(store)?
@@ -936,6 +959,7 @@ pub fn simple_invoke_func(
     func_addr: FuncAddr,
     arguments: Vec<Value>,
     store: &mut Store,
+    config: &Config,
 ) -> Result<Vec<Value>, WasmError> {
     match store
         .func(func_addr)
@@ -961,7 +985,7 @@ pub fn simple_invoke_func(
             let interceptor = NopInterceptor::new();
             let mut executor = Executor::new(frame, ret_types.len(), pc);
             loop {
-                let result = executor.execute_step(store, &interceptor);
+                let result = executor.execute_step(store, &interceptor, config);
                 match result {
                     Ok(Signal::Next) => continue,
                     Ok(Signal::Breakpoint) => continue,
