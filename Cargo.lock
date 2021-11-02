@@ -1826,7 +1826,19 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "thiserror",
+ "wasminspect-vm-macro",
  "wasmparser",
+]
+
+[[package]]
+name = "wasminspect-vm-macro"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "witx",
 ]
 
 [[package]]

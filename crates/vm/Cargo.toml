@@ -8,3 +8,4 @@ edition = "2018"
 wasmparser = "0.79.0"
 thiserror = "1.0.9"
 anyhow = "1.0.26"
+wasminspect-vm-macro = { path = "./macro" }

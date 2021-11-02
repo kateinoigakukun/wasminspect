@@ -1,126 +1,10 @@
 use std::convert::TryFrom;
+use wasminspect_vm_macro::TryFromWasmParserOperator;
 use wasmparser::*;
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub kind: InstructionKind,
     pub offset: usize,
-}
-
-macro_rules! translate_match {
-    // VariantName
-    (
-        $val:ident,
-        @variants [
-            $($variants:tt)*
-        ]
-        @parsing
-            $VariantName:ident
-            $(, $($input:tt)*)?
-    ) => (translate_match! {
-        $val,
-        @variants [
-            $($variants)*
-            {
-                $VariantName
-            }
-        ]
-        @parsing
-            $( $($input)* )?
-    });
-
-    // VariantName(...)
-    (
-        $val:ident,
-        @variants [
-            $($variants:tt)*
-        ]
-        @parsing
-            $VariantName:ident ( $($tt:tt)* )
-            $(, $($input:tt)*)?
-    ) => (translate_match! {
-        $val,
-        @variants [
-            $($variants)*
-            {
-                $VariantName ($($tt)*)
-            }
-        ]
-        @parsing
-            $( $($input)* )?
-    });
-
-    // VariantName { ... }
-    (
-        $val:ident,
-        @variants [
-            $($variants:tt)*
-        ]
-        @parsing
-            $VariantName:ident { $($tt:tt)* }
-            $(, $($input:tt)*)?
-    ) => (translate_match! {
-        $val,
-        @variants [
-            $($variants)*
-            {
-                $VariantName { $($tt)* }
-            }
-        ]
-        @parsing
-            $( $($input)* )?
-    });
-
-    // Done parsing, time to generate code:
-    (
-        $val:ident,
-        @variants [
-            $(
-                {
-                    $VariantName:ident $({ $($k:ident : $v:ident),* $(,)* })?
-                }
-            )*
-        ]
-        @parsing
-            // Nothing left to parse
-    ) => (
-        match $val {
-            $(wasmparser::Operator::$VariantName $(
-                {$($k),*}
-            )? => { InstructionKind::$VariantName $(
-                {$($k:WasmInstPayloadFrom::from_payload($k)?),*}
-            )? }),*
-        }
-    );
-
-    // == ENTRY POINT ==
-    (
-        $val:ident,
-        $($input:tt)*
-    ) => (translate_match! {
-        $val,
-        // a sequence of brace-enclosed variants
-        @variants []
-        // remaining tokens to parse
-        @parsing
-            $($input)*
-    });
-}
-
-macro_rules! build_wasm_inst_kind {
-
-    ($($body:tt)*) => (
-        #[derive(Debug, Clone)]
-        pub enum InstructionKind {
-            $($body)*
-        }
-
-        impl TryFrom<wasmparser::Operator<'_>> for InstructionKind {
-            type Error = wasmparser::BinaryReaderError;
-            fn try_from(op: wasmparser::Operator<'_>) -> Result<Self, Self::Error> {
-                Ok(translate_match!(op, $($body)*))
-            }
-        }
-    );
 }
 
 #[derive(Debug, Clone)]
@@ -167,7 +51,8 @@ impl WasmInstPayloadFrom<BrTable<'_>> for BrTableData {
 type I8x16ShuffleLanes = Vec<u8>;
 pub type SIMDLaneIndex = u8;
 
-build_wasm_inst_kind!(
+#[derive(Debug, Clone, TryFromWasmParserOperator)]
+pub enum InstructionKind {
     Unreachable,
     Nop,
     Block { ty: TypeOrFuncType },
@@ -983,7 +868,7 @@ build_wasm_inst_kind!(
     I32x4TruncSatF64x2SZero,
     I32x4TruncSatF64x2UZero,
     I8x16Popcnt
-);
+}
 
 pub fn transform_inst(
     reader: &mut OperatorsReader,
