@@ -338,7 +338,7 @@ impl Store {
                 Payload::CustomSection {
                     name,
                     data,
-                    data_offset,
+                    data_offset, ..
                 } => match name {
                     "name" => {
                         let section = NameSectionReader::new(data, data_offset)?;
