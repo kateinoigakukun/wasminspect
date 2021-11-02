@@ -22,9 +22,10 @@ fn test_load_and_execute() -> anyhow::Result<()> {
     let bytes = load_file(example_dir.join("calc.wasm").to_str().unwrap())?;
     let spectest = instantiate_spectest();
     let mut host_modules = HashMap::new();
+    let args = vec![];
     host_modules.insert("spectest".to_string(), spectest);
     process.debugger.load_main_module(&bytes)?;
-    process.debugger.instantiate(host_modules, true)?;
+    process.debugger.instantiate(host_modules, Some(&args))?;
     process.debugger.run(Some("add"), vec![WasmValue::I32(1), WasmValue::I32(2)])?;
     Ok(())
 }
