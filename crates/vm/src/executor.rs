@@ -46,7 +46,7 @@ pub enum Trap {
     NoMoreInstruction,
     HostFunctionError(Box<dyn std::error::Error + Send + Sync>),
     MemoryAddrOverflow {
-        base: i32,
+        base: u32,
         offset: u64,
     },
 }
@@ -799,22 +799,14 @@ impl Executor {
         Ok(store.memory(mem_addr))
     }
 
-    fn mem_addr(base: i32, offset: u64, memory64: bool) -> ExecResult<u64> {
+    fn mem_addr(base: u32, offset: u64, memory64: bool) -> ExecResult<u64> {
         let addr = if memory64 {
-            if base.is_negative() {
-                offset.checked_sub(base.wrapping_abs() as u64)
-            } else {
-                offset.checked_add(base as u64)
-            }
+            offset.checked_add(base as u64)
         } else {
             let offset: u32 = offset
                 .try_into()
                 .map_err(|_| Trap::MemoryAddrOverflow { base, offset })?;
-            let addr = if base.is_negative() {
-                offset.checked_sub(base.wrapping_abs() as u32)
-            } else {
-                offset.checked_add(base as u32)
-            };
+            let addr = offset.checked_add(base as u32);
             addr.map(|v| v as u64)
         };
         if let Some(addr) = addr {
@@ -836,6 +828,7 @@ impl Executor {
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
+        let base_addr: u32 = u32::from_le_bytes(base_addr.to_le_bytes());
         let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
@@ -858,6 +851,7 @@ impl Executor {
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
+        let base_addr: u32 = u32::from_le_bytes(base_addr.to_le_bytes());
         let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
         let mut buf: Vec<u8> = std::iter::repeat(0)
             .take(std::mem::size_of::<T>())
@@ -877,6 +871,7 @@ impl Executor {
         T: Into<Value>,
     {
         let base_addr: i32 = self.pop_as()?;
+        let base_addr: u32 = u32::from_le_bytes(base_addr.to_le_bytes());
         let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
         let result: T = self
             .memory(store)?
@@ -894,6 +889,7 @@ impl Executor {
         config: &Config
     ) -> ExecResult<Signal> {
         let base_addr: i32 = self.pop_as()?;
+        let base_addr: u32 = u32::from_le_bytes(base_addr.to_le_bytes());
         let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
 
         let result: T = self
