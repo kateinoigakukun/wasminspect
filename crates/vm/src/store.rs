@@ -14,7 +14,10 @@ use anyhow::{Context, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use wasmparser::{Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType, Import, MemoryType, NameSectionReader, TableType, Type, TypeDef};
+use wasmparser::{
+    Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
+    Import, MemoryType, NameSectionReader, TableType, Type, TypeDef,
+};
 
 /// Store
 pub struct Store {
@@ -729,7 +732,7 @@ impl Store {
                             ElementItem::Func(index) => {
                                 Ok(Some(FuncAddr::new_unsafe(module_index, index as usize)))
                             }
-                            ElementItem::Null { .. } => Ok(None),
+                            ElementItem::Expr { .. } => Ok(None),
                         })
                         .collect::<Result<Vec<Option<FuncAddr>>>>()?;
                     let table = self.tables.get_global(*table_addr);
@@ -785,7 +788,7 @@ impl Store {
                         .map_err(StoreError::InvalidDataSegments)?;
                     offsets_and_value.push((mem, offset, seg.data));
                 }
-                _ => (),
+                other => unimplemented!("{:?}", other),
             }
         }
 
