@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{extend_i32, extend_i64};
+use crate::value::{TruncSatTo, TruncTo, extend_i32, extend_i64};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
@@ -577,16 +577,16 @@ impl Executor {
             InstructionKind::F64Copysign => self.binop(|a: f64, b: f64| F64::copysign(a, b)),
 
             InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
-            InstructionKind::I32TruncF32S => self.try_unop(|v: f32| F32::trunc_to_i32(v)),
-            InstructionKind::I32TruncF32U => self.try_unop(|v: f32| F32::trunc_to_u32(v)),
-            InstructionKind::I32TruncF64S => self.try_unop(|v: f64| F64::trunc_to_i32(v)),
-            InstructionKind::I32TruncF64U => self.try_unop(|v: f64| F64::trunc_to_u32(v)),
+            InstructionKind::I32TruncF32S => self.try_unop(|v: f32| TruncTo::<i32>::trunc_to(v)),
+            InstructionKind::I32TruncF32U => self.try_unop(|v: f32| TruncTo::<u32>::trunc_to(v)),
+            InstructionKind::I32TruncF64S => self.try_unop(|v: f64| TruncTo::<i32>::trunc_to(v)),
+            InstructionKind::I32TruncF64U => self.try_unop(|v: f64| TruncTo::<u32>::trunc_to(v)),
             InstructionKind::I64ExtendI32S => self.unop(|v: i32| Value::from(v as u64)),
             InstructionKind::I64ExtendI32U => self.unop(|v: u32| Value::from(v as u64)),
-            InstructionKind::I64TruncF32S => self.try_unop(|x: f32| F32::trunc_to_i64(x)),
-            InstructionKind::I64TruncF32U => self.try_unop(|x: f32| F32::trunc_to_u64(x)),
-            InstructionKind::I64TruncF64S => self.try_unop(|x: f64| F64::trunc_to_i64(x)),
-            InstructionKind::I64TruncF64U => self.try_unop(|x: f64| F64::trunc_to_u64(x)),
+            InstructionKind::I64TruncF32S => self.try_unop(|x: f32| TruncTo::<i64>::trunc_to(x)),
+            InstructionKind::I64TruncF32U => self.try_unop(|x: f32| TruncTo::<u64>::trunc_to(x)),
+            InstructionKind::I64TruncF64S => self.try_unop(|x: f64| TruncTo::<i64>::trunc_to(x)),
+            InstructionKind::I64TruncF64U => self.try_unop(|x: f64| TruncTo::<u64>::trunc_to(x)),
             InstructionKind::F32ConvertI32S => self.unop(|x: u32| x as i32 as f32),
             InstructionKind::F32ConvertI32U => self.unop(|x: u32| x as f32),
             InstructionKind::F32ConvertI64S => self.unop(|x: u64| x as i64 as f32),
@@ -608,14 +608,14 @@ impl Executor {
             InstructionKind::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
-            InstructionKind::I32TruncSatF32S => self.unop(|v: f32| F32::trunc_sat_to_i32(v)),
-            InstructionKind::I32TruncSatF32U => self.unop(|v: f32| F32::trunc_sat_to_u32(v)),
-            InstructionKind::I32TruncSatF64S => self.unop(|v: f64| F64::trunc_sat_to_i32(v)),
-            InstructionKind::I32TruncSatF64U => self.unop(|v: f64| F64::trunc_sat_to_u32(v)),
-            InstructionKind::I64TruncSatF32S => self.unop(|v: f32| F32::trunc_sat_to_i64(v)),
-            InstructionKind::I64TruncSatF32U => self.unop(|v: f32| F32::trunc_sat_to_u64(v)),
-            InstructionKind::I64TruncSatF64S => self.unop(|v: f64| F64::trunc_sat_to_i64(v)),
-            InstructionKind::I64TruncSatF64U => self.unop(|v: f64| F64::trunc_sat_to_u64(v)),
+            InstructionKind::I32TruncSatF32S => self.unop(|v: f32| TruncSatTo::<i32>::trunc_sat_to(v)),
+            InstructionKind::I32TruncSatF32U => self.unop(|v: f32| TruncSatTo::<u32>::trunc_sat_to(v)),
+            InstructionKind::I32TruncSatF64S => self.unop(|v: f64| TruncSatTo::<i32>::trunc_sat_to(v)),
+            InstructionKind::I32TruncSatF64U => self.unop(|v: f64| TruncSatTo::<u32>::trunc_sat_to(v)),
+            InstructionKind::I64TruncSatF32S => self.unop(|v: f32| TruncSatTo::<i64>::trunc_sat_to(v)),
+            InstructionKind::I64TruncSatF32U => self.unop(|v: f32| TruncSatTo::<u64>::trunc_sat_to(v)),
+            InstructionKind::I64TruncSatF64S => self.unop(|v: f64| TruncSatTo::<i64>::trunc_sat_to(v)),
+            InstructionKind::I64TruncSatF64U => self.unop(|v: f64| TruncSatTo::<u64>::trunc_sat_to(v)),
             other => unimplemented!("{:?}", other),
         };
         if self.stack.is_over_top_level() {

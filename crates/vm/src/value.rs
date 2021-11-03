@@ -200,8 +200,8 @@ impl FromLittleEndian for f64 {
     }
 }
 
-pub trait ExtendInto<T> {
-    fn extend_into(self) -> T;
+pub trait ExtendInto<To> {
+    fn extend_into(self) -> To;
 }
 
 macro_rules! extend_conversion {
@@ -248,127 +248,75 @@ macro_rules! impl_copysign {
 impl_copysign!(F32, f32, u32);
 impl_copysign!(F64, f64, u64);
 
-macro_rules! impl_trunc {
-    ($type:ty, $orig:ty) => {
-        impl $type {
-            pub fn trunc_to_i32(self_float: $orig) -> Result<i32, Error> {
-                if self_float.is_nan() {
+pub trait TruncTo<To> {
+    fn trunc_to(self) -> Result<To, Error>;
+}
+
+macro_rules! impl_trunc_to {
+    ($self:ty, $to:ty) => {
+        impl TruncTo<$to> for $self {
+            fn trunc_to(self) -> Result<$to, Error> {
+                if self.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if InRange::<i32>::in_range(self_float.trunc()) != InRangeResult::InRange {
+                } else if InRange::<$to>::in_range(self.trunc()) != InRangeResult::InRange {
                     Err(Error::IntegerOverflow)
                 } else {
-                    Ok(self_float.trunc() as i32)
+                    Ok(self.trunc() as $to)
                 }
             }
+        }
+    }
+}
 
-            pub fn trunc_to_i64(self_float: $orig) -> Result<i64, Error> {
-                if self_float.is_nan() {
-                    Err(Error::InvalidConversionToInt)
-                } else if InRange::<i64>::in_range(self_float.trunc()) != InRangeResult::InRange {
-                    Err(Error::IntegerOverflow)
-                } else {
-                    Ok(self_float.trunc() as i64)
-                }
-            }
+impl_trunc_to!(f32, i32);
+impl_trunc_to!(f32, i64);
+impl_trunc_to!(f64, i32);
+impl_trunc_to!(f64, i64);
 
-            pub fn trunc_to_u32(self_float: $orig) -> Result<u32, Error> {
-                if self_float.is_nan() {
-                    Err(Error::InvalidConversionToInt)
-                } else if InRange::<u32>::in_range(self_float.trunc()) != InRangeResult::InRange {
-                    Err(Error::IntegerOverflow)
-                } else {
-                    Ok(self_float.trunc() as u32)
-                }
-            }
+impl_trunc_to!(f32, u32);
+impl_trunc_to!(f32, u64);
+impl_trunc_to!(f64, u32);
+impl_trunc_to!(f64, u64);
 
-            pub fn trunc_to_u64(self_float: $orig) -> Result<u64, Error> {
-                if self_float.is_nan() {
-                    Err(Error::InvalidConversionToInt)
-                } else if InRange::<u64>::in_range(self_float.trunc()) != InRangeResult::InRange {
-                    Err(Error::IntegerOverflow)
-                } else {
-                    Ok(self_float.trunc() as u64)
-                }
-            }
+pub trait TruncSatTo<To> {
+    fn trunc_sat_to(self) -> To;
+}
 
-            pub fn trunc_sat_to_i32(self_float: $orig) -> i32 {
-                if self_float.is_nan() {
+macro_rules! impl_trunc_sat_to {
+    ($self:ty, $to:ty) => {
+        impl TruncSatTo<$to> for $self {
+            fn trunc_sat_to(self) -> $to {
+                if self.is_nan() {
                     0
-                } else if self_float == <$orig>::INFINITY {
-                    i32::MAX
-                } else if self_float == <$orig>::NEG_INFINITY {
-                    i32::MIN
+                } else if self == <$self>::INFINITY {
+                    <$to>::MAX
+                } else if self == <$self>::NEG_INFINITY {
+                    <$to>::MIN
                 } else {
-                    let trunc = self_float.trunc();
-                    if trunc < i32::MIN as $orig {
-                        i32::MIN
-                    } else if trunc > i32::MAX as $orig {
-                        i32::MAX
+                    let trunc = self.trunc();
+                    if trunc < <$to>::MIN as $self {
+                        <$to>::MIN
+                    } else if trunc > <$to>::MAX as $self {
+                        <$to>::MAX
                     } else {
-                        trunc as i32
-                    }
-                }
-            }
-
-            pub fn trunc_sat_to_i64(self_float: $orig) -> i64 {
-                if self_float.is_nan() {
-                    0
-                } else if self_float == <$orig>::INFINITY {
-                    i64::MAX
-                } else if self_float == <$orig>::NEG_INFINITY {
-                    i64::MIN
-                } else {
-                    let trunc = self_float.trunc();
-                    if trunc < i64::MIN as $orig {
-                        i64::MIN
-                    } else if trunc > i64::MAX as $orig {
-                        i64::MAX
-                    } else {
-                        trunc as i64
-                    }
-                }
-            }
-
-            pub fn trunc_sat_to_u32(self_float: $orig) -> u32 {
-                if self_float.is_nan() {
-                    0
-                } else if self_float == <$orig>::INFINITY {
-                    u32::MAX
-                } else if self_float == <$orig>::NEG_INFINITY {
-                    u32::MIN
-                } else {
-                    let trunc = self_float.trunc();
-                    if trunc < u32::MIN as $orig {
-                        u32::MIN
-                    } else if trunc > u32::MAX as $orig {
-                        u32::MAX
-                    } else {
-                        trunc as u32
-                    }
-                }
-            }
-
-            pub fn trunc_sat_to_u64(self_float: $orig) -> u64 {
-                if self_float.is_nan() {
-                    0
-                } else if self_float == <$orig>::INFINITY {
-                    u64::MAX
-                } else if self_float == <$orig>::NEG_INFINITY {
-                    u64::MIN
-                } else {
-                    let trunc = self_float.trunc();
-                    if trunc < u64::MIN as $orig {
-                        u64::MIN
-                    } else if trunc > u64::MAX as $orig {
-                        u64::MAX
-                    } else {
-                        trunc as u64
+                        trunc as $to
                     }
                 }
             }
         }
-    };
+    }
 }
+
+impl_trunc_sat_to!(f32, i32);
+impl_trunc_sat_to!(f32, i64);
+impl_trunc_sat_to!(f64, i32);
+impl_trunc_sat_to!(f64, i64);
+
+impl_trunc_sat_to!(f32, u32);
+impl_trunc_sat_to!(f32, u64);
+impl_trunc_sat_to!(f64, u32);
+impl_trunc_sat_to!(f64, u64);
+
 
 trait InRange<Target> {
     fn in_range(self) -> InRangeResult;
@@ -471,9 +419,6 @@ impl_in_range_unsigned!(u32, 32, f32);
 impl_in_range_unsigned!(u32, 32, f64);
 impl_in_range_unsigned!(u64, 64, f32);
 impl_in_range_unsigned!(u64, 64, f64);
-
-impl_trunc!(F32, f32);
-impl_trunc!(F64, f64);
 
 #[derive(Debug)]
 pub enum Error {
