@@ -5,7 +5,7 @@ use std::path::Path;
 use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
-use wasminspect_vm::{simple_invoke_func, FuncAddr, ModuleIndex, WasmInstance, WasmValue};
+use wasminspect_vm::{FuncAddr, ModuleIndex, NumVal, WasmInstance, WasmValue, simple_invoke_func};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -327,14 +327,14 @@ impl WastContext {
 
 fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<bool> {
     Ok(match (actual, expected) {
-        (WasmValue::I32(a), wast::AssertExpression::I32(x)) => a == x,
-        (WasmValue::I64(a), wast::AssertExpression::I64(x)) => a == x,
-        (WasmValue::F32(a), wast::AssertExpression::F32(x)) => match x {
+        (WasmValue::Num(NumVal::I32(a)), wast::AssertExpression::I32(x)) => a == x,
+        (WasmValue::Num(NumVal::I64(a)), wast::AssertExpression::I64(x)) => a == x,
+        (WasmValue::Num(NumVal::F32(a)), wast::AssertExpression::F32(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
             wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
         },
-        (WasmValue::F64(a), wast::AssertExpression::F64(x)) => match x {
+        (WasmValue::Num(NumVal::F64(a)), wast::AssertExpression::F64(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
             wast::NanPattern::Value(expected_value) => *a == expected_value.bits,

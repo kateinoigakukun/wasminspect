@@ -1,4 +1,5 @@
 use crate::module::DefaultHostModuleInstance;
+use crate::value::NumVal;
 
 use super::address::*;
 use super::executor::eval_const_expr;
@@ -721,8 +722,8 @@ impl Store {
                         None => continue,
                     };
                     let offset = match eval_const_expr(&init_expr, self, module_index)? {
-                        Value::I32(v) => v,
-                        _ => panic!(),
+                        Value::Num(NumVal::I32(v)) => v,
+                        other => panic!("unexpected result value of const init expr {:?}", other),
                     };
                     let data = seg
                         .items
@@ -780,8 +781,8 @@ impl Store {
                         None => continue,
                     };
                     let offset = match eval_const_expr(&init_expr, self, module_index)? {
-                        Value::I32(v) => v,
-                        _ => panic!(),
+                        Value::Num(NumVal::I32(v)) => v,
+                        other => panic!("unexpected result value of const init expr {:?}", other),
                     };
                     let mem = self.mems.get_global(*mem_addr);
                     mem.borrow()

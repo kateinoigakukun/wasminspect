@@ -1,47 +1,77 @@
 use wasmparser::Type;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Value {
+pub enum NumVal {
     I32(i32),
     I64(i64),
     F32(u32),
     F64(u64),
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum RefType {
+    FuncRef, ExternRef
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Value {
+    Num(NumVal),
+    Ref(RefType),
+}
+
 impl Value {
+    #[allow(non_snake_case)]
+    pub fn I32(v: i32) -> Value {
+        Value::Num(NumVal::I32(v))
+    }
+    #[allow(non_snake_case)]
+    pub fn I64(v: i64) -> Value {
+        Value::Num(NumVal::I64(v))
+    }
+    #[allow(non_snake_case)]
+    pub fn F32(v: u32) -> Value {
+        Value::Num(NumVal::F32(v))
+    }
+    #[allow(non_snake_case)]
+    pub fn F64(v: u64) -> Value {
+        Value::Num(NumVal::F64(v))
+    }
+
     pub fn value_type(&self) -> Type {
         match self {
-            Value::I32(_) => Type::I32,
-            Value::I64(_) => Type::I64,
-            Value::F32(_) => Type::F32,
-            Value::F64(_) => Type::F64,
+            Value::Num(NumVal::I32(_)) => Type::I32,
+            Value::Num(NumVal::I64(_)) => Type::I64,
+            Value::Num(NumVal::F32(_)) => Type::F32,
+            Value::Num(NumVal::F64(_)) => Type::F64,
+            Value::Ref(RefType::FuncRef) => Type::FuncRef,
+            Value::Ref(RefType::ExternRef) => Type::ExternRef,
         }
     }
 
     pub fn as_i32(self) -> Option<i32> {
         match self {
-            Value::I32(v) => Some(v),
+            Value::Num(NumVal::I32(v)) => Some(v),
             _ => None,
         }
     }
 
     pub fn as_i64(self) -> Option<i64> {
         match self {
-            Value::I64(v) => Some(v),
+            Value::Num(NumVal::I64(v)) => Some(v),
             _ => None,
         }
     }
 
     pub fn as_f32(self) -> Option<f32> {
         match self {
-            Value::F32(v) => Some(f32::from_bits(v)),
+            Value::Num(NumVal::F32(v)) => Some(f32::from_bits(v)),
             _ => None,
         }
     }
 
     pub fn as_f64(self) -> Option<f64> {
         match self {
-            Value::F64(v) => Some(f64::from_bits(v)),
+            Value::Num(NumVal::F64(v)) => Some(f64::from_bits(v)),
             _ => None,
         }
     }
@@ -93,7 +123,7 @@ macro_rules! impl_native_value {
         impl NativeValue for $type {
             fn from_value(val: Value) -> Option<Self> {
                 match val {
-                    Value::$case(val) => Some(val as $type),
+                    Value::Num(NumVal::$case(val)) => Some(val as $type),
                     _ => None,
                 }
             }
@@ -113,7 +143,7 @@ impl_native_value!(u64, I64);
 impl NativeValue for f32 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::F32(val) => Some(f32::from_bits(val)),
+            Value::Num(NumVal::F32(val)) => Some(f32::from_bits(val)),
             _ => None,
         }
     }
@@ -126,7 +156,7 @@ impl NativeValue for f32 {
 impl NativeValue for f64 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::F64(val) => Some(f64::from_bits(val)),
+            Value::Num(NumVal::F64(val)) => Some(f64::from_bits(val)),
             _ => None,
         }
     }
