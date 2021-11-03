@@ -555,3 +555,13 @@ macro_rules! impl_nearest {
 
 impl_nearest!(F32, f32);
 impl_nearest!(F64, f64);
+
+pub fn extend_i32(x: i32, to_bits: usize) -> i32 {
+    let shift = 32 - to_bits;
+    (x << shift)  >> shift
+}
+
+pub fn extend_i64(x: i64, to_bits: usize) -> i64 {
+    let shift = 64 - to_bits;
+    (x << shift)  >> shift
+}

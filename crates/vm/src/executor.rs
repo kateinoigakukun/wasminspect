@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::value::{extend_i32, extend_i64};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
@@ -596,6 +597,12 @@ impl Executor {
             InstructionKind::F64ConvertI64S => self.unop(|x: u64| x as i64 as f64),
             InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
             InstructionKind::F64PromoteF32 => self.unop(|x: f32| f64::from(x)),
+
+            InstructionKind::I32Extend8S =>  self.unop(|x: i32| extend_i32(x, 8)),
+            InstructionKind::I32Extend16S => self.unop(|x: i32| extend_i32(x, 16)),
+            InstructionKind::I64Extend8S =>  self.unop(|x: i64| extend_i64(x, 8)),
+            InstructionKind::I64Extend16S => self.unop(|x: i64| extend_i64(x, 16)),
+            InstructionKind::I64Extend32S => self.unop(|x: i64| extend_i64(x, 32)),
 
             InstructionKind::I32ReinterpretF32 => self.unop(|v: f32| v.to_bits() as i32),
             InstructionKind::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
