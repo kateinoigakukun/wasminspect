@@ -601,7 +601,15 @@ impl Executor {
             InstructionKind::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
-            _ => unimplemented!(),
+            InstructionKind::I32TruncSatF32S => self.unop(|v: f32| F32::trunc_sat_to_i32(v)),
+            InstructionKind::I32TruncSatF32U => self.unop(|v: f32| F32::trunc_sat_to_u32(v)),
+            InstructionKind::I32TruncSatF64S => self.unop(|v: f64| F64::trunc_sat_to_i32(v)),
+            InstructionKind::I32TruncSatF64U => self.unop(|v: f64| F64::trunc_sat_to_u32(v)),
+            InstructionKind::I64TruncSatF32S => self.unop(|v: f32| F32::trunc_sat_to_i64(v)),
+            InstructionKind::I64TruncSatF32U => self.unop(|v: f32| F32::trunc_sat_to_u64(v)),
+            InstructionKind::I64TruncSatF64S => self.unop(|v: f64| F64::trunc_sat_to_i64(v)),
+            InstructionKind::I64TruncSatF64U => self.unop(|v: f64| F64::trunc_sat_to_u64(v)),
+            other => unimplemented!("{:?}", other),
         };
         if self.stack.is_over_top_level() {
             return Ok(Signal::End);

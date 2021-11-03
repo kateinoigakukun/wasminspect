@@ -254,7 +254,7 @@ macro_rules! impl_trunc {
             pub fn trunc_to_i32(self_float: $orig) -> Result<i32, Error> {
                 if self_float.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if !<$type>::in_range_i32(self_float.to_bits()) {
+                } else if !<$type>::in_range_i32(self_float.trunc()) {
                     Err(Error::IntegerOverflow)
                 } else {
                     Ok(self_float.trunc() as i32)
@@ -274,7 +274,7 @@ macro_rules! impl_trunc {
             pub fn trunc_to_u32(self_float: $orig) -> Result<u32, Error> {
                 if self_float.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if !<$type>::in_range_u32(self_float.to_bits()) {
+                } else if !<$type>::in_range_u32(self_float.trunc()) {
                     Err(Error::IntegerOverflow)
                 } else {
                     Ok(self_float.trunc() as u32)
@@ -290,6 +290,82 @@ macro_rules! impl_trunc {
                     Ok(self_float.trunc() as u64)
                 }
             }
+
+            pub fn trunc_sat_to_i32(self_float: $orig) -> i32 {
+                if self_float.is_nan() {
+                    0
+                } else if self_float == <$orig>::INFINITY {
+                    i32::MAX
+                } else if self_float == <$orig>::NEG_INFINITY {
+                    i32::MIN
+                } else {
+                    let trunc = self_float.trunc();
+                    if trunc < i32::MIN as $orig {
+                        i32::MIN
+                    } else if trunc > i32::MAX as $orig {
+                        i32::MAX
+                    } else {
+                        trunc as i32
+                    }
+                }
+            }
+
+            pub fn trunc_sat_to_i64(self_float: $orig) -> i64 {
+                if self_float.is_nan() {
+                    0
+                } else if self_float == <$orig>::INFINITY {
+                    i64::MAX
+                } else if self_float == <$orig>::NEG_INFINITY {
+                    i64::MIN
+                } else {
+                    let trunc = self_float.trunc();
+                    if trunc < i64::MIN as $orig {
+                        i64::MIN
+                    } else if trunc > i64::MAX as $orig {
+                        i64::MAX
+                    } else {
+                        trunc as i64
+                    }
+                }
+            }
+
+            pub fn trunc_sat_to_u32(self_float: $orig) -> u32 {
+                if self_float.is_nan() {
+                    0
+                } else if self_float == <$orig>::INFINITY {
+                    u32::MAX
+                } else if self_float == <$orig>::NEG_INFINITY {
+                    u32::MIN
+                } else {
+                    let trunc = self_float.trunc();
+                    if trunc < u32::MIN as $orig {
+                        u32::MIN
+                    } else if trunc > u32::MAX as $orig {
+                        u32::MAX
+                    } else {
+                        trunc as u32
+                    }
+                }
+            }
+
+            pub fn trunc_sat_to_u64(self_float: $orig) -> u64 {
+                if self_float.is_nan() {
+                    0
+                } else if self_float == <$orig>::INFINITY {
+                    u64::MAX
+                } else if self_float == <$orig>::NEG_INFINITY {
+                    u64::MIN
+                } else {
+                    let trunc = self_float.trunc();
+                    if trunc < u64::MIN as $orig {
+                        u64::MIN
+                    } else if trunc > u64::MAX as $orig {
+                        u64::MAX
+                    } else {
+                        trunc as u64
+                    }
+                }
+            }
         }
     };
 }
@@ -297,17 +373,20 @@ macro_rules! impl_trunc {
 impl F32 {
     const NEGATIVE_ZERO: u32 = 0x80000000u32;
     const NEGATIVE_ONE: u32 = 0xbf800000u32;
-    fn in_range_i32(bits: u32) -> bool {
-        return (bits < 0x4f000000u32) || (bits >= Self::NEGATIVE_ZERO && bits <= 0xcf000000u32);
+    fn in_range_i32(v: f32) -> bool {
+        // 0b0_10011110_00000000000000000000000 is bit pattern of i32::MAX + 1.0
+        // use ..(i32::MAX + 1.0) here instead of ..=i32::MAX because i32::MAX can't be exactly
+        // represented by 32bit IEEE 754 FP
+        ((i32::MIN as f32)..f32::from_bits(0b0_10011110_00000000000000000000000)).contains(&v)
     }
 
     fn in_range_i64(bits: u32) -> bool {
         return (bits < 0x5f000000u32) || (bits >= Self::NEGATIVE_ZERO && bits <= 0xdf000000u32);
     }
 
-    fn in_range_u32(bits: u32) -> bool {
-        return (bits < 0x4f800000u32)
-            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    fn in_range_u32(v: f32) -> bool {
+        // 0b0_10011111_00000000000000000000000 is bit pattern of u32::MAX + 1.0
+        ((u32::MIN as f32)..f32::from_bits(0b0_10011111_00000000000000000000000)).contains(&v)
     }
 
     fn in_range_u64(bits: u32) -> bool {
@@ -319,9 +398,8 @@ impl F32 {
 impl F64 {
     const NEGATIVE_ZERO: u64 = 0x8000000000000000u64;
     const NEGATIVE_ONE: u64 = 0xbff0000000000000u64;
-    fn in_range_i32(bits: u64) -> bool {
-        return (bits <= 0x41dfffffffc00000u64)
-            || (bits >= Self::NEGATIVE_ZERO && bits <= 0xc1e0000000000000u64);
+    fn in_range_i32(v: f64) -> bool {
+        ((i32::MIN as f64)..=(i32::MAX as f64)).contains(&v)
     }
 
     fn in_range_i64(bits: u64) -> bool {
@@ -329,9 +407,8 @@ impl F64 {
             || (bits >= Self::NEGATIVE_ZERO && bits <= 0xc3e0000000000000u64);
     }
 
-    fn in_range_u32(bits: u64) -> bool {
-        return (bits <= 0x41efffffffe00000u64)
-            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    fn in_range_u32(v: f64) -> bool {
+        ((u32::MIN as f64)..=(u32::MAX as f64)).contains(&v)
     }
 
     fn in_range_u64(bits: u64) -> bool {
