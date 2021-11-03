@@ -387,23 +387,22 @@ impl Stack {
 
 impl std::fmt::Debug for Stack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "┌-------------------------┐")?;
-        writeln!(f, "|--------- Stack ---------|")?;
-        writeln!(f, "|     ty     |     val    |")?;
+        writeln!(f, "-------------------------")?;
+        writeln!(f, "--------- Stack ---------")?;
         for v in &self.stack {
             match v {
                 StackValue::Value(value) => {
-                    writeln!(f, "| Value({:?})|{:?}|", value.value_type(), value)?;
+                    writeln!(f, " Value | {:?}", value)?;
                 }
                 StackValue::Label(label) => {
-                    writeln!(f, "| Label |{:?}|", label)?;
+                    writeln!(f, " Label | {:?}", label)?;
                 }
                 StackValue::Activation(_) => {
-                    writeln!(f, "| Frame |   -   |")?;
+                    writeln!(f, " Frame |   -   ")?;
                 }
             }
         }
-        writeln!(f, "└-------------------------┘")?;
+        writeln!(f, "-------------------------")?;
         Ok(())
     }
 }

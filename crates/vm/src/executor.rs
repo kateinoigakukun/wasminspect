@@ -179,10 +179,10 @@ impl Executor {
             }
             InstructionKind::Loop { ty } => {
                 let start_loop = InstIndex(self.pc.inst_index().0 - 1);
-                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+                let (params_size, _) = self.get_type_arity(ty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack
-                    .push_label(Label::new_loop(start_loop, results_size));
+                    .push_label(Label::new_loop(start_loop, params_size));
                 self.stack.push_values(params.into_iter().rev());
                 Ok(Signal::Next)
             }
@@ -244,11 +244,10 @@ impl Executor {
                         StackValue::Value(_) => true,
                         _ => false,
                     });
-                    let label = self.stack.pop_label().map_err(Trap::Stack)?;
+                    self.stack.pop_label().map_err(Trap::Stack)?;
                     let results = results
                         .into_iter()
                         .rev()
-                        .take(label.arity())
                         .map(|v| v.as_value().map_err(Trap::Stack))
                         .collect::<ExecResult<Vec<_>>>()?;
                     self.stack.push_values(results);
