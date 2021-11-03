@@ -117,7 +117,9 @@ impl Executor {
     pub fn new(initial_frame: CallFrame, initial_arity: usize, pc: ProgramCounter) -> Self {
         let mut stack = Stack::default();
         let _ = stack.set_frame(initial_frame);
-        stack.push_label(Label::Return(initial_arity));
+        stack.push_label(Label::Return {
+            arity: initial_arity,
+        });
         Self { pc, stack }
     }
 
@@ -167,28 +169,32 @@ impl Executor {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),
             InstructionKind::Block { ty } => {
-                self.stack.push_label(Label::Block({
-                    match ty {
-                        TypeOrFuncType::Type(Type::EmptyBlockType) => 0,
-                        TypeOrFuncType::Type(_) => 1,
-                        TypeOrFuncType::FuncType(_) => 1,
-                    }
-                }));
+                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+                let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
+                self.stack.push_label(Label::Block {
+                    arity: results_size,
+                });
+                self.stack.push_values(params);
                 Ok(Signal::Next)
             }
-            InstructionKind::Loop { ty: _ } => {
+            InstructionKind::Loop { ty } => {
                 let start_loop = InstIndex(self.pc.inst_index().0 - 1);
-                self.stack.push_label(Label::new_loop(start_loop));
+                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+                let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
+                self.stack
+                    .push_label(Label::new_loop(start_loop, results_size));
+                self.stack.push_values(params);
                 Ok(Signal::Next)
             }
             InstructionKind::If { ty } => {
                 let val: i32 = self.pop_as()?;
-                self.stack.push_label(Label::If(match ty {
-                    TypeOrFuncType::Type(Type::EmptyBlockType) => 0,
-                    TypeOrFuncType::Type(_) => 1,
-                    TypeOrFuncType::FuncType(_) => 1,
-                }));
+                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+                let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
+                self.stack.push_label(Label::If {
+                    arity: results_size,
+                });
                 if val == 0 {
+                    self.stack.push_values(params);
                     let mut depth = 1;
                     loop {
                         let index = self.pc.inst_index().0 as usize;
@@ -241,8 +247,8 @@ impl Executor {
                         StackValue::Value(_) => true,
                         _ => false,
                     });
-                    self.stack.pop_label().map_err(Trap::Stack)?;
-                    for v in results {
+                    let label = self.stack.pop_label().map_err(Trap::Stack)?;
+                    for v in results.into_iter().rev().take(label.arity()) {
                         self.stack.push_value(v.as_value().map_err(Trap::Stack)?);
                     }
                     Ok(Signal::Next)
@@ -642,11 +648,11 @@ impl Executor {
 
         // Jump to the continuation
         match label {
-            Label::Loop(loop_label) => self.pc.loop_jump(&loop_label),
-            Label::Return(_) => {
+            Label::Loop { label, .. } => self.pc.loop_jump(&label),
+            Label::Return { .. } => {
                 return self.do_return(store);
             }
-            Label::If(_) | Label::Block(_) => {
+            Label::If { .. } | Label::Block { .. } => {
                 let mut depth = depth + 1;
                 loop {
                     let index = self.pc.inst_index().0 as usize;
@@ -747,7 +753,7 @@ impl Executor {
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                 let frame = CallFrame::new_from_func(exec_addr, &func, args, Some(self.pc));
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
-                self.stack.push_label(Label::Return(arity));
+                self.stack.push_label(Label::Return { arity });
                 self.pc = pc;
                 interceptor.invoke_func(func.name())
             }
@@ -784,6 +790,20 @@ impl Executor {
             self.pc = ret_pc;
         }
         Ok(Signal::Next)
+    }
+
+    /// Returns a pair of arities for parameter and result
+    fn get_type_arity(&self, ty: TypeOrFuncType, store: &Store) -> ExecResult<(usize, usize)> {
+        Ok(match ty {
+            TypeOrFuncType::Type(Type::EmptyBlockType) => (0, 0),
+            TypeOrFuncType::Type(_) => (0, 1),
+            TypeOrFuncType::FuncType(type_id) => {
+                let frame = self.stack.current_frame().map_err(Trap::Stack)?;
+                let module = store.module(frame.module_index()).defined().unwrap();
+                let ty = module.get_type(type_id as usize);
+                (ty.params.len(), ty.returns.len())
+            }
+        })
     }
 
     fn set_local(&mut self, index: usize) -> ExecResult<Signal> {
@@ -847,7 +867,7 @@ impl Executor {
         width: usize,
         store: &Store,
         interceptor: &I,
-        config: &Config
+        config: &Config,
     ) -> ExecResult<Signal> {
         let val: T = self.pop_as()?;
         let base_addr: i32 = self.pop_as()?;
@@ -886,7 +906,7 @@ impl Executor {
         &mut self,
         offset: u64,
         store: &Store,
-        config: &Config
+        config: &Config,
     ) -> ExecResult<Signal> {
         let base_addr: i32 = self.pop_as()?;
         let base_addr: u32 = u32::from_le_bytes(base_addr.to_le_bytes());

@@ -15,10 +15,10 @@ const DEFAULT_CALL_STACK_LIMIT: usize = 1024;
 #[derive(Debug)]
 pub enum Error {
     PopEmptyStack,
-    MismatchStackValueType(
-        /* expected: */ StackValueType,
-        /* actual: */ StackValueType,
-    ),
+    MismatchStackValueType {
+        expected: StackValueType,
+        actual: StackValueType,
+    },
     NoCallFrame,
     Overflow,
 }
@@ -36,10 +36,10 @@ type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Label {
-    If(usize),
-    Block(usize),
-    Loop(LoopLabel),
-    Return(usize),
+    If { arity: usize },
+    Block { arity: usize },
+    Loop { arity: usize, label: LoopLabel },
+    Return { arity: usize },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -48,16 +48,19 @@ pub struct LoopLabel {
 }
 
 impl Label {
-    pub fn new_loop(inst_index: InstIndex) -> Self {
-        Self::Loop(LoopLabel { inst_index })
+    pub fn new_loop(inst_index: InstIndex, arity: usize) -> Self {
+        Self::Loop {
+            arity,
+            label: LoopLabel { inst_index },
+        }
     }
 
     pub fn arity(&self) -> usize {
         match self {
-            Label::If(arity) => *arity,
-            Label::Block(arity) => *arity,
-            Label::Loop(_) => 0,
-            Label::Return(arity) => *arity,
+            Label::If { arity } => *arity,
+            Label::Block { arity } => *arity,
+            Label::Loop { arity, .. } => *arity,
+            Label::Return { arity } => *arity,
         }
     }
 }
@@ -161,6 +164,7 @@ impl CallFrame {
     }
 }
 
+#[derive(Clone)]
 pub enum StackValue {
     Value(Value),
     Label(Label),
@@ -178,48 +182,48 @@ impl StackValue {
     pub fn as_value(self) -> Result<Value> {
         match self {
             Self::Value(val) => Ok(val),
-            _ => Err(Error::MismatchStackValueType(
-                StackValueType::Value,
-                self.value_type(),
-            )),
+            _ => Err(Error::MismatchStackValueType {
+                expected: StackValueType::Value,
+                actual: self.value_type(),
+            }),
         }
     }
     fn as_label(self) -> Result<Label> {
         match self {
             Self::Label(val) => Ok(val),
-            _ => Err(Error::MismatchStackValueType(
-                StackValueType::Label,
-                self.value_type(),
-            )),
+            _ => Err(Error::MismatchStackValueType {
+                expected: StackValueType::Label,
+                actual: self.value_type(),
+            }),
         }
     }
     fn as_activation(self) -> Result<CallFrame> {
         match self {
             Self::Activation(val) => Ok(val),
-            _ => Err(Error::MismatchStackValueType(
-                StackValueType::Activation,
-                self.value_type(),
-            )),
+            _ => Err(Error::MismatchStackValueType {
+                expected: StackValueType::Activation,
+                actual: self.value_type(),
+            }),
         }
     }
 
     fn as_activation_ref(&self) -> Result<&CallFrame> {
         match self {
             Self::Activation(val) => Ok(val),
-            _ => Err(Error::MismatchStackValueType(
-                StackValueType::Activation,
-                self.value_type(),
-            )),
+            _ => Err(Error::MismatchStackValueType {
+                expected: StackValueType::Activation,
+                actual: self.value_type(),
+            }),
         }
     }
 
     fn as_activation_mut(&mut self) -> Result<&mut CallFrame> {
         match self {
             Self::Activation(val) => Ok(val),
-            _ => Err(Error::MismatchStackValueType(
-                StackValueType::Activation,
-                self.value_type(),
-            )),
+            _ => Err(Error::MismatchStackValueType {
+                expected: StackValueType::Activation,
+                actual: self.value_type(),
+            }),
         }
     }
 }
@@ -283,7 +287,7 @@ impl Stack {
         match self.stack[self.current_frame_index()?..]
             .iter()
             .filter(|v| match v {
-                StackValue::Label(Label::Return(_)) => false,
+                StackValue::Label(Label::Return { .. }) => false,
                 StackValue::Label(_) => true,
                 _ => false,
             })
@@ -307,8 +311,21 @@ impl Stack {
     fn latest(&self) -> &StackValue {
         self.stack.last().unwrap()
     }
+    pub fn push_values<I: IntoIterator<Item = Value>>(&mut self, iter: I) {
+        for v in iter {
+            self.push_value(v);
+        }
+    }
+
     pub fn push_value(&mut self, val: Value) {
         self.stack.push(StackValue::Value(val))
+    }
+
+    pub fn pop_values(&mut self, length: usize) -> Result<Vec<Value>> {
+        (0..length)
+            .into_iter()
+            .map(|_| self.pop_value())
+            .collect::<Result<Vec<_>>>()
     }
 
     pub fn pop_value(&mut self) -> Result<Value> {
