@@ -135,7 +135,7 @@ impl WastContext {
                 AssertMalformed {
                     span,
                     module,
-                    message,
+                    message: _,
                 } => {
                     let mut module = match module {
                         wast::QuoteModule::Module(m) => m,
@@ -144,22 +144,12 @@ impl WastContext {
                         wast::QuoteModule::Quote(_) => continue,
                     };
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, bytes) {
+                    match self.module(None, bytes) {
                         Ok(()) => {
                             panic!("{}\nexpected module to fail to instantiate", context(span))
                         }
-                        Err(e) => e,
+                        Err(_) => (),
                     };
-                    let error_message = format!("{:?}", err);
-                    if !error_message.contains(&message) {
-                        // TODO: change to panic!
-                        println!(
-                            "{}\nassert_malformed: expected {}, got {}",
-                            context(span),
-                            message,
-                            error_message
-                        )
-                    }
                 }
                 AssertUnlinkable {
                     span,
