@@ -254,7 +254,7 @@ macro_rules! impl_trunc {
             pub fn trunc_to_i32(self_float: $orig) -> Result<i32, Error> {
                 if self_float.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if !<$type>::in_range_i32(self_float.trunc()) {
+                } else if InRange::<i32>::in_range(self_float.trunc()) != InRangeResult::InRange {
                     Err(Error::IntegerOverflow)
                 } else {
                     Ok(self_float.trunc() as i32)
@@ -264,7 +264,7 @@ macro_rules! impl_trunc {
             pub fn trunc_to_i64(self_float: $orig) -> Result<i64, Error> {
                 if self_float.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if !<$type>::in_range_i64(self_float.to_bits()) {
+                } else if InRange::<i64>::in_range(self_float.trunc()) != InRangeResult::InRange {
                     Err(Error::IntegerOverflow)
                 } else {
                     Ok(self_float.trunc() as i64)
@@ -274,7 +274,7 @@ macro_rules! impl_trunc {
             pub fn trunc_to_u32(self_float: $orig) -> Result<u32, Error> {
                 if self_float.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if !<$type>::in_range_u32(self_float.trunc()) {
+                } else if InRange::<u32>::in_range(self_float.trunc()) != InRangeResult::InRange {
                     Err(Error::IntegerOverflow)
                 } else {
                     Ok(self_float.trunc() as u32)
@@ -284,7 +284,7 @@ macro_rules! impl_trunc {
             pub fn trunc_to_u64(self_float: $orig) -> Result<u64, Error> {
                 if self_float.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if !<$type>::in_range_u64(self_float.to_bits()) {
+                } else if InRange::<u64>::in_range(self_float.trunc()) != InRangeResult::InRange {
                     Err(Error::IntegerOverflow)
                 } else {
                     Ok(self_float.trunc() as u64)
@@ -370,52 +370,107 @@ macro_rules! impl_trunc {
     };
 }
 
-impl F32 {
-    const NEGATIVE_ZERO: u32 = 0x80000000u32;
-    const NEGATIVE_ONE: u32 = 0xbf800000u32;
-    fn in_range_i32(v: f32) -> bool {
-        // 0b0_10011110_00000000000000000000000 is bit pattern of i32::MAX + 1.0
-        // use ..(i32::MAX + 1.0) here instead of ..=i32::MAX because i32::MAX can't be exactly
-        // represented by 32bit IEEE 754 FP
-        ((i32::MIN as f32)..f32::from_bits(0b0_10011110_00000000000000000000000)).contains(&v)
-    }
+trait InRange<Target> {
+    fn in_range(self) -> InRangeResult;
+}
 
-    fn in_range_i64(bits: u32) -> bool {
-        return (bits < 0x5f000000u32) || (bits >= Self::NEGATIVE_ZERO && bits <= 0xdf000000u32);
-    }
+#[derive(PartialEq, Eq)]
+enum InRangeResult {
+    TooLarge,
+    TooSmall,
+    InRange,
+}
 
-    fn in_range_u32(v: f32) -> bool {
-        // 0b0_10011111_00000000000000000000000 is bit pattern of u32::MAX + 1.0
-        ((u32::MIN as f32)..f32::from_bits(0b0_10011111_00000000000000000000000)).contains(&v)
-    }
+trait IEEE754 {
+    const SIGN_BITS: usize;
+    const EXP_BITS: usize;
+    const FRAC_BITS: usize;
+    const BIAS: Self::BitsType;
 
-    fn in_range_u64(bits: u32) -> bool {
-        return (bits < 0x5f800000u32)
-            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    const BITS: usize = Self::SIGN_BITS + Self::EXP_BITS + Self::FRAC_BITS;
+
+    type BitsType;
+
+    fn from_bits(v: Self::BitsType) -> Self;
+}
+
+impl IEEE754 for f32 {
+    const SIGN_BITS: usize = 1;
+    const EXP_BITS: usize = 8;
+    const FRAC_BITS: usize = 23;
+    const BIAS: u32 = 127;
+
+    type BitsType = u32;
+
+    fn from_bits(v: u32) -> Self {
+        f32::from_bits(v)
     }
 }
 
-impl F64 {
-    const NEGATIVE_ZERO: u64 = 0x8000000000000000u64;
-    const NEGATIVE_ONE: u64 = 0xbff0000000000000u64;
-    fn in_range_i32(v: f64) -> bool {
-        ((i32::MIN as f64)..=(i32::MAX as f64)).contains(&v)
-    }
+impl IEEE754 for f64 {
+    const SIGN_BITS: usize = 1;
+    const EXP_BITS: usize = 11;
+    const FRAC_BITS: usize = 52;
+    const BIAS: u64 = 1023;
 
-    fn in_range_i64(bits: u64) -> bool {
-        return (bits < 0x43e0000000000000u64)
-            || (bits >= Self::NEGATIVE_ZERO && bits <= 0xc3e0000000000000u64);
-    }
+    type BitsType = u64;
 
-    fn in_range_u32(v: f64) -> bool {
-        ((u32::MIN as f64)..=(u32::MAX as f64)).contains(&v)
-    }
-
-    fn in_range_u64(bits: u64) -> bool {
-        return (bits < 0x43f0000000000000u64)
-            || (bits >= Self::NEGATIVE_ZERO && bits < Self::NEGATIVE_ONE);
+    fn from_bits(v: u64) -> Self {
+        f64::from_bits(v)
     }
 }
+
+macro_rules! impl_in_range_signed {
+    // FIXME: `target_bits` will be replaced with `<$target>::BITS` after stablized
+    ($target:ty, $target_bits:expr, $self:ty) => {
+        impl InRange<$target> for $self {
+            fn in_range(self) -> InRangeResult {
+                let min = (1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
+                    | (($target_bits - 1 + <$self>::BIAS) << <$self>::FRAC_BITS);
+                let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
+                    | (($target_bits - 1 + <$self>::BIAS) << <$self>::FRAC_BITS);
+                if <$self>::from_bits(min) > self {
+                    InRangeResult::TooSmall
+                } else if !(self < <$self>::from_bits(max_plus_one)) {
+                    InRangeResult::TooLarge
+                } else {
+                    InRangeResult::InRange
+                }
+            }
+        }
+    };
+}
+
+impl_in_range_signed!(i32, 32, f32);
+impl_in_range_signed!(i32, 32, f64);
+impl_in_range_signed!(i64, 64, f32);
+impl_in_range_signed!(i64, 64, f64);
+
+macro_rules! impl_in_range_unsigned {
+    // FIXME: `target_bits` will be replaced with `<$target>::BITS` after stablized
+    ($target:ty, $target_bits:expr, $self:ty) => {
+        impl InRange<$target> for $self {
+            fn in_range(self) -> InRangeResult {
+                let negative_zero = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS);
+                let negative_one = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS) | (<$self>::BIAS + 0) << <$self>::FRAC_BITS;
+                let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
+                    | (($target_bits + <$self>::BIAS) << <$self>::FRAC_BITS);
+                if <$self>::from_bits(negative_zero) > self || <$self>::from_bits(negative_one) >= self {
+                    InRangeResult::TooSmall
+                } else if !(self < <$self>::from_bits(max_plus_one)) {
+                    InRangeResult::TooLarge
+                } else {
+                    InRangeResult::InRange
+                }
+            }
+        }
+    };
+}
+
+impl_in_range_unsigned!(u32, 32, f32);
+impl_in_range_unsigned!(u32, 32, f64);
+impl_in_range_unsigned!(u64, 64, f32);
+impl_in_range_unsigned!(u64, 64, f64);
 
 impl_trunc!(F32, f32);
 impl_trunc!(F64, f64);
@@ -558,10 +613,10 @@ impl_nearest!(F64, f64);
 
 pub fn extend_i32(x: i32, to_bits: usize) -> i32 {
     let shift = 32 - to_bits;
-    (x << shift)  >> shift
+    (x << shift) >> shift
 }
 
 pub fn extend_i64(x: i64, to_bits: usize) -> i64 {
     let shift = 64 - to_bits;
-    (x << shift)  >> shift
+    (x << shift) >> shift
 }
