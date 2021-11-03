@@ -19,8 +19,8 @@ impl<T> fmt::Debug for GlobalAddress<T> {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
-pub struct LinkableAddress<T>(ModuleIndex, pub(crate) usize, std::marker::PhantomData<T>);
+#[derive(Eq, Hash)]
+pub struct LinkableAddress<T>(ModuleIndex, pub(crate) usize, std::marker::PhantomData<fn() -> T>);
 
 impl<T> LinkableAddress<T> {
     pub fn new_unsafe(module: ModuleIndex, index: usize) -> Self {
@@ -45,6 +45,13 @@ impl<T> fmt::Debug for LinkableAddress<T> {
         writeln!(f, "{:?}, func_index: {}", self.0, self.1)
     }
 }
+
+impl<T> PartialEq for LinkableAddress<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+
 
 pub struct LinkableCollection<T> {
     items: Vec<T>,

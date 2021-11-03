@@ -130,7 +130,7 @@ impl WastContext {
                         }
                         panic!("{}\nexpected {}, got {}", context(span), message, result,)
                     }
-                    Err(err) => panic!("{}", err),
+                    Err(err) => panic!("got wast level exception: {}", err),
                 },
                 AssertMalformed {
                     span,
@@ -298,10 +298,12 @@ impl WastContext {
                 let mut binary = module.encode()?;
                 self.validate(&binary)?;
                 let start_section = Self::extract_start_section(&binary)?;
-                let module_index = self
+                let module_index = match self
                     .instance
-                    .load_module_from_module(None, &mut binary)
-                    .map_err(|e| anyhow!("{}", e))?;
+                    .load_module_from_module(None, &mut binary) {
+                        Ok(idx) => idx,
+                        Err(e) => return Ok(Err(anyhow!("while instntiation: {}", e))),
+                    };
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
                     return Ok(simple_invoke_func(

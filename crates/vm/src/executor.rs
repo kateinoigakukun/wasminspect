@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{TruncSatTo, TruncTo, extend_i32, extend_i64};
+use crate::value::{Ref, RefType, TruncSatTo, TruncTo, extend_i32, extend_i64};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
@@ -44,6 +44,10 @@ pub enum Trap {
         actual: Type,
     },
     UndefinedFunc(usize),
+    ElementTypeMismatch {
+        expected: RefType,
+        actual: Ref,
+    },
     NoMoreInstruction,
     HostFunctionError(Box<dyn std::error::Error + Send + Sync>),
     MemoryAddrOverflow {
@@ -81,6 +85,12 @@ impl std::fmt::Display for Trap {
             ),
             _ => write!(f, "{:?}", self),
         }
+    }
+}
+
+impl From<table::Error> for Trap {
+    fn from(e: table::Error) -> Self {
+        Trap::Table(e)
     }
 }
 
@@ -291,7 +301,16 @@ impl Executor {
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
-                let func_addr = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
+                let func_ref = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
+
+                let func_addr = match func_ref {
+                    Ref::NullRef(_) => Err(Trap::UndefinedFunc(buf_index)),
+                    Ref::FuncRef(addr) => Ok(addr),
+                    other => Err(Trap::ElementTypeMismatch {
+                        expected: RefType::FuncRef,
+                        actual: other,
+                    }),
+                }?;
                 let (func, _) = store
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr.1))?;
@@ -347,6 +366,18 @@ impl Executor {
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
                 let global = store.global(addr);
                 global.borrow_mut().set_value(value);
+                Ok(Signal::Next)
+            }
+            InstructionKind::TableGet { table } => {
+                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let table = store.table(addr);
+                let index = self.stack.pop_value().map_err(Trap::Stack)?;
+                let index = index.as_i32().ok_or(Trap::UnexpectedStackValueType {
+                    expected: Type::I32,
+                    actual: index.value_type(),
+                })?;
+                let val = table.borrow().get_at(index as usize)?;
+                self.stack.push_value(Value::Ref(val));
                 Ok(Signal::Next)
             }
 
@@ -598,9 +629,9 @@ impl Executor {
             InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
             InstructionKind::F64PromoteF32 => self.unop(|x: f32| f64::from(x)),
 
-            InstructionKind::I32Extend8S =>  self.unop(|x: i32| extend_i32(x, 8)),
+            InstructionKind::I32Extend8S => self.unop(|x: i32| extend_i32(x, 8)),
             InstructionKind::I32Extend16S => self.unop(|x: i32| extend_i32(x, 16)),
-            InstructionKind::I64Extend8S =>  self.unop(|x: i64| extend_i64(x, 8)),
+            InstructionKind::I64Extend8S => self.unop(|x: i64| extend_i64(x, 8)),
             InstructionKind::I64Extend16S => self.unop(|x: i64| extend_i64(x, 16)),
             InstructionKind::I64Extend32S => self.unop(|x: i64| extend_i64(x, 32)),
 
@@ -608,14 +639,30 @@ impl Executor {
             InstructionKind::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
-            InstructionKind::I32TruncSatF32S => self.unop(|v: f32| TruncSatTo::<i32>::trunc_sat_to(v)),
-            InstructionKind::I32TruncSatF32U => self.unop(|v: f32| TruncSatTo::<u32>::trunc_sat_to(v)),
-            InstructionKind::I32TruncSatF64S => self.unop(|v: f64| TruncSatTo::<i32>::trunc_sat_to(v)),
-            InstructionKind::I32TruncSatF64U => self.unop(|v: f64| TruncSatTo::<u32>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF32S => self.unop(|v: f32| TruncSatTo::<i64>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF32U => self.unop(|v: f32| TruncSatTo::<u64>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF64S => self.unop(|v: f64| TruncSatTo::<i64>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF64U => self.unop(|v: f64| TruncSatTo::<u64>::trunc_sat_to(v)),
+            InstructionKind::I32TruncSatF32S => {
+                self.unop(|v: f32| TruncSatTo::<i32>::trunc_sat_to(v))
+            }
+            InstructionKind::I32TruncSatF32U => {
+                self.unop(|v: f32| TruncSatTo::<u32>::trunc_sat_to(v))
+            }
+            InstructionKind::I32TruncSatF64S => {
+                self.unop(|v: f64| TruncSatTo::<i32>::trunc_sat_to(v))
+            }
+            InstructionKind::I32TruncSatF64U => {
+                self.unop(|v: f64| TruncSatTo::<u32>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF32S => {
+                self.unop(|v: f32| TruncSatTo::<i64>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF32U => {
+                self.unop(|v: f32| TruncSatTo::<u64>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF64S => {
+                self.unop(|v: f64| TruncSatTo::<i64>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF64U => {
+                self.unop(|v: f64| TruncSatTo::<u64>::trunc_sat_to(v))
+            }
             other => unimplemented!("{:?}", other),
         };
         if self.stack.is_over_top_level() {

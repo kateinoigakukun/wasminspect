@@ -1,5 +1,5 @@
 use crate::module::DefaultHostModuleInstance;
-use crate::value::NumVal;
+use crate::value::{NumVal, Ref};
 
 use super::address::*;
 use super::executor::eval_const_expr;
@@ -175,7 +175,7 @@ impl std::fmt::Display for StoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidElementSegments(err) => {
-                write!(f, "elements segment does not fit: {:?}", err)
+                write!(f, "elements segment does not fit: {}", err)
             }
             Self::InvalidDataSegments(err) => write!(f, "data segment does not fit: {}", err),
             Self::InvalidHostImport(err) => write!(f, "invalid host import: {}", err),
@@ -729,21 +729,23 @@ impl Store {
                         .items
                         .get_items_reader()?
                         .into_iter()
-                        .map(|item| match item? {
-                            ElementItem::Func(index) => {
-                                Ok(Some(FuncAddr::new_unsafe(module_index, index as usize)))
-                            }
-                            ElementItem::Expr { .. } => Ok(None),
+                        .map(|item| {
+                            Ok(match item? {
+                                ElementItem::Func(index) => Some(Ref::FuncRef(
+                                    FuncAddr::new_unsafe(module_index, index as usize),
+                                )),
+                                ElementItem::Expr { .. } => None,
+                            })
                         })
-                        .collect::<Result<Vec<Option<FuncAddr>>>>()?;
+                        .collect::<Result<Vec<_>>>()?;
                     let table = self.tables.get_global(*table_addr);
                     table
                         .borrow_mut()
                         .initialize(offset as usize, data)
                         .map_err(StoreError::InvalidElementSegments)?;
                 }
-                ElementKind::Passive => unimplemented!("ElementKind::Passive"),
-                ElementKind::Declared => unimplemented!("ElementKind::Declared"),
+                ElementKind::Passive => continue,
+                ElementKind::Declared => continue,
             }
         }
         Ok(table_addrs)

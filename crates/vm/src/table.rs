@@ -1,4 +1,4 @@
-use super::address::FuncAddr;
+use crate::value::Ref;
 
 #[derive(Debug)]
 pub enum Error {
@@ -14,12 +14,12 @@ impl std::fmt::Display for Error {
         match self {
             Self::AccessOutOfBounds(Some(addr), size) => write!(
                 f,
-                "undefined element, try to access {} but size of memory is {}",
+                "out of bounds table access, try to access {} but size of memory is {}",
                 addr, size
             ),
             Self::AccessOutOfBounds(None, size) => write!(
                 f,
-                "undefined element, try to access over size of usize but size of memory is {}",
+                "out of bounds table access, try to access over size of usize but size of memory is {}",
                 size
             ),
             Self::UninitializedElement(addr) => {
@@ -32,7 +32,7 @@ impl std::fmt::Display for Error {
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct TableInstance {
-    buffer: Vec<Option<FuncAddr>>,
+    buffer: Vec<Option<Ref>>,
     pub max: Option<usize>,
     pub initial: usize,
 }
@@ -46,9 +46,10 @@ impl TableInstance {
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: Vec<Option<FuncAddr>>) -> Result<()> {
+    pub fn initialize(&mut self, offset: usize, data: Vec<Option<Ref>>) -> Result<()> {
         {
             if let Some(max_addr) = offset.checked_add(data.len()) {
+                println!("max_addr = {}, max = {:?}, self.buffer_len() = {:?}", max_addr, self.max, self.buffer_len());
                 if max_addr > self.buffer_len() {
                     return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
                 }
@@ -66,7 +67,7 @@ impl TableInstance {
         self.buffer.len()
     }
 
-    pub fn get_at(&self, index: usize) -> Result<FuncAddr> {
+    pub fn get_at(&self, index: usize) -> Result<Ref> {
         self.buffer
             .get(index)
             .ok_or(Error::AccessOutOfBounds(Some(index), self.buffer_len()))

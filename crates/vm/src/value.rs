@@ -1,5 +1,7 @@
 use wasmparser::Type;
 
+use crate::FuncAddr;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum NumVal {
     I32(i32),
@@ -14,9 +16,16 @@ pub enum RefType {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Ref {
+    NullRef(RefType),
+    FuncRef(FuncAddr),
+    ExternRef(i32)
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Value {
     Num(NumVal),
-    Ref(RefType),
+    Ref(Ref),
 }
 
 impl Value {
@@ -43,8 +52,9 @@ impl Value {
             Value::Num(NumVal::I64(_)) => Type::I64,
             Value::Num(NumVal::F32(_)) => Type::F32,
             Value::Num(NumVal::F64(_)) => Type::F64,
-            Value::Ref(RefType::FuncRef) => Type::FuncRef,
-            Value::Ref(RefType::ExternRef) => Type::ExternRef,
+            Value::Ref(Ref::NullRef(_)) => Type::FuncRef,
+            Value::Ref(Ref::FuncRef(_)) => Type::FuncRef,
+            Value::Ref(Ref::ExternRef(_)) => Type::ExternRef,
         }
     }
 
