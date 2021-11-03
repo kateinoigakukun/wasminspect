@@ -1,6 +1,5 @@
 /// Reference: https://github.com/bytecodealliance/wasmtime/blob/master/crates/wast/src/wast.rs
 use anyhow::{anyhow, bail, Context as _, Result};
-use wasmparser::WasmFeatures;
 use std::collections::HashMap;
 use std::path::Path;
 use std::str;
@@ -16,16 +15,14 @@ pub struct WastContext {
 }
 
 impl WastContext {
-    pub fn new() -> Self {
+    pub fn new(config: wasminspect_vm::Config) -> Self {
         let mut instance = WasmInstance::new();
         instance.load_host_module("spectest".to_string(), instantiate_spectest());
         Self {
             module_index_by_name: HashMap::new(),
             instance: instance,
             current: None,
-            config: wasminspect_vm::Config {
-                features: WasmFeatures::default()
-            }
+            config
         }
     }
     pub fn run_file(&mut self, path: &Path) -> Result<()> {
@@ -47,7 +44,7 @@ impl WastContext {
     }
     fn module(&mut self, module_name: Option<&str>, bytes: Vec<u8>) -> Result<()> {
         let mut bytes = bytes;
-        validate(&bytes)?;
+        self.validate(&bytes)?;
         let start_section = Self::extract_start_section(&bytes)?;
         let module_index = self
             .instance
@@ -273,7 +270,7 @@ impl WastContext {
             }
             wast::WastExecute::Module(mut module) => {
                 let mut binary = module.encode()?;
-                validate(&binary)?;
+                self.validate(&binary)?;
                 let start_section = Self::extract_start_section(&binary)?;
                 let module_index = self
                     .instance
@@ -290,6 +287,12 @@ impl WastContext {
             }
             wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
         }
+    }
+
+    fn validate(&self, bytes: &[u8]) -> wasmparser::Result<()> {
+        let mut validator = wasmparser::Validator::new();
+        validator.wasm_features(self.config.features);
+        validator.validate_all(bytes)
     }
 }
 
@@ -337,13 +340,4 @@ fn is_arithmetic_f32_nan(f: &u32) -> bool {
 
 fn is_arithmetic_f64_nan(f: &u64) -> bool {
     return (f & 0x0008000000000000) == 0x0008000000000000;
-}
-
-fn validate(bytes: &[u8]) -> wasmparser::Result<()> {
-    let mut feature = wasmparser::WasmFeatures::default();
-    // TODO: support multiple tables
-    feature.reference_types = false;
-    let mut validator = wasmparser::Validator::new();
-    validator.wasm_features(feature);
-    validator.validate_all(bytes)
 }
