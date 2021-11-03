@@ -125,14 +125,14 @@ impl Executor {
 
     pub fn pop_result(&mut self, return_ty: Vec<Type>) -> ReturnValResult {
         let mut results = vec![];
-        for ty in return_ty {
+        for ty in return_ty.into_iter().rev() {
             let val = self.stack.pop_value().map_err(ReturnValError::Stack)?;
             results.push(val);
             if val.value_type() != ty {
                 return Err(ReturnValError::TypeMismatchReturnValue(val.clone(), ty));
             }
         }
-        Ok(results)
+        Ok(results.into_iter().rev().collect())
     }
 
     pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
@@ -174,7 +174,7 @@ impl Executor {
                 self.stack.push_label(Label::Block {
                     arity: results_size,
                 });
-                self.stack.push_values(params);
+                self.stack.push_values(params.into_iter().rev());
                 Ok(Signal::Next)
             }
             InstructionKind::Loop { ty } => {
@@ -183,7 +183,7 @@ impl Executor {
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack
                     .push_label(Label::new_loop(start_loop, results_size));
-                self.stack.push_values(params);
+                self.stack.push_values(params.into_iter().rev());
                 Ok(Signal::Next)
             }
             InstructionKind::If { ty } => {
@@ -193,8 +193,8 @@ impl Executor {
                 self.stack.push_label(Label::If {
                     arity: results_size,
                 });
+                self.stack.push_values(params.into_iter().rev());
                 if val == 0 {
-                    self.stack.push_values(params);
                     let mut depth = 1;
                     loop {
                         let index = self.pc.inst_index().0 as usize;
@@ -225,16 +225,13 @@ impl Executor {
                     // When the end of a function is reached without a jump
                     let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
                     let func = store.func_global(self.pc.exec_addr());
-                    let arity = func.ty().returns.len();
-                    let mut result = vec![];
-                    for _ in 0..arity {
-                        result.push(self.stack.pop_value().map_err(Trap::Stack)?);
-                    }
+                    let results = self
+                        .stack
+                        .pop_values(func.ty().returns.len())
+                        .map_err(Trap::Stack)?;
                     self.stack.pop_label().map_err(Trap::Stack)?;
                     self.stack.pop_frame().map_err(Trap::Stack)?;
-                    for v in result {
-                        self.stack.push_value(v);
-                    }
+                    self.stack.push_values(results.into_iter().rev());
                     if let Some(ret_pc) = ret_pc {
                         self.pc = ret_pc;
                         Ok(Signal::Next)
@@ -248,9 +245,13 @@ impl Executor {
                         _ => false,
                     });
                     let label = self.stack.pop_label().map_err(Trap::Stack)?;
-                    for v in results.into_iter().rev().take(label.arity()) {
-                        self.stack.push_value(v.as_value().map_err(Trap::Stack)?);
-                    }
+                    let results = results
+                        .into_iter()
+                        .rev()
+                        .take(label.arity())
+                        .map(|v| v.as_value().map_err(Trap::Stack))
+                        .collect::<ExecResult<Vec<_>>>()?;
+                    self.stack.push_values(results);
                     Ok(Signal::Next)
                 }
             }
@@ -773,18 +774,13 @@ impl Executor {
         let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
         let func = store.func_global(self.pc.exec_addr());
         let arity = func.ty().returns.len();
-        let mut result = vec![];
-        for _ in 0..arity {
-            result.push(self.stack.pop_value().map_err(Trap::Stack)?);
-        }
+        let results = self.stack.pop_values(arity).map_err(Trap::Stack)?;
         self.stack.pop_while(|v| match v {
             StackValue::Activation(_) => false,
             _ => true,
         });
         self.stack.pop_frame().map_err(Trap::Stack)?;
-        for v in result {
-            self.stack.push_value(v);
-        }
+        self.stack.push_values(results.into_iter().rev());
 
         if let Some(ret_pc) = ret_pc {
             self.pc = ret_pc;
