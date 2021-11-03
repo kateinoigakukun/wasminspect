@@ -22,7 +22,7 @@ impl WastContext {
             module_index_by_name: HashMap::new(),
             instance: instance,
             current: None,
-            config
+            config,
         }
     }
     pub fn run_file(&mut self, path: &Path) -> Result<()> {
@@ -85,7 +85,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name()), bytes)
+                    self.module(module.name.map(|s| s.name), bytes)
                         .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
                 }
                 Register {
@@ -141,7 +141,7 @@ impl WastContext {
                         wast::QuoteModule::Module(m) => m,
                         // this is a `*.wat` parser test which we're not
                         // interested in
-                        wast::QuoteModule::Quote(_) => return Ok(()),
+                        wast::QuoteModule::Quote(_) => continue,
                     };
                     let bytes = module.encode().map_err(adjust_wast)?;
                     let err = match self.module(None, bytes) {
@@ -197,9 +197,14 @@ impl WastContext {
                 },
                 AssertInvalid {
                     span,
-                    mut module,
+                    module,
                     message,
                 } => {
+                    let mut module = match module {
+                        wast::QuoteModule::Module(m) => m,
+                        // wasminspect doesn't interested in quoted partial module
+                        wast::QuoteModule::Quote(_) => continue,
+                    };
                     let bytes = module.encode().map_err(adjust_wast)?;
                     let err = match self.module(None, bytes) {
                         Ok(()) => panic!("{}\nexpected module to fail to build", context(span)),
@@ -214,6 +219,32 @@ impl WastContext {
                             message,
                             error_message
                         )
+                    }
+                }
+                QuoteModule { span, source } => {
+                    let mut module = String::new();
+                    for src in source {
+                        module.push_str(str::from_utf8(src)?);
+                        module.push_str(" ");
+                    }
+                    let buf = wast::parser::ParseBuffer::new(&module).map_err(adjust_wast)?;
+                    let mut wat = wast::parser::parse::<wast::Wat>(&buf).map_err(|mut e| {
+                        e.set_text(&module);
+                        e
+                    })?;
+                    let binary = wat.module.encode().map_err(adjust_wast)?;
+                    self.module(wat.module.id.map(|s| s.name()), binary)
+                        .with_context(|| context(span))?;
+                }
+                AssertException { span, exec } => {
+                    match self.perform_execute(exec).with_context(|| context(span)) {
+                        Ok(Ok(values)) => {
+                            panic!("{}\nexpected trap, got {:?}", context(span), values)
+                        }
+                        Ok(Err(_)) => {
+                            todo!()
+                        }
+                        Err(err) => panic!("{}", err),
                     }
                 }
             }
@@ -258,7 +289,12 @@ impl WastContext {
         let args = args.iter().map(const_expr).collect();
         let result = self
             .instance
-            .run(module_index, Some(func_name.to_string()), args, &self.config)
+            .run(
+                module_index,
+                Some(func_name.to_string()),
+                args,
+                &self.config,
+            )
             .map_err(|e| anyhow!("{}", e))?;
         Ok(result)
     }
@@ -278,10 +314,13 @@ impl WastContext {
                     .map_err(|e| anyhow!("{}", e))?;
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
-                    return Ok(
-                        simple_invoke_func(func_addr, vec![], &mut self.instance.store, &self.config)
-                            .map_err(|e| anyhow!("Failed to exec start func: {}", e)),
-                    );
+                    return Ok(simple_invoke_func(
+                        func_addr,
+                        vec![],
+                        &mut self.instance.store,
+                        &self.config,
+                    )
+                    .map_err(|e| anyhow!("Failed to exec start func: {}", e)));
                 }
                 Ok(Ok(vec![]))
             }

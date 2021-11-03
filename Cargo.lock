@@ -1871,18 +1871,18 @@ checksum = "98930446519f63d00a836efdc22f67766ceae8dbcc1571379f2bcabc6b2b9abc"
 
 [[package]]
 name = "wast"
-version = "7.0.0"
+version = "33.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12a729d076deb29c8509fa71f2d427729f9394f9496844ed8fcab152f35d163d"
+checksum = "1d04fe175c7f78214971293e7d8875673804e736092206a3a4544dbc12811c1b"
 dependencies = [
  "leb128",
 ]
 
 [[package]]
 name = "wast"
-version = "33.0.0"
+version = "38.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d04fe175c7f78214971293e7d8875673804e736092206a3a4544dbc12811c1b"
+checksum = "ae0d7b256bef26c898fa7344a2d627e8499f5a749432ce0a05eae1a64ff0c271"
 dependencies = [
  "leb128",
 ]
@@ -1894,7 +1894,7 @@ dependencies = [
  "anyhow",
  "wasminspect-vm",
  "wasmparser",
- "wast 7.0.0",
+ "wast 38.0.1",
 ]
 
 [[package]]
