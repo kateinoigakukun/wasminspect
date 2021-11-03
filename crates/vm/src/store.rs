@@ -741,7 +741,8 @@ impl Store {
                         .initialize(offset as usize, data)
                         .map_err(StoreError::InvalidElementSegments)?;
                 }
-                _ => unimplemented!(),
+                ElementKind::Passive => unimplemented!("ElementKind::Passive"),
+                ElementKind::Declared => unimplemented!("ElementKind::Declared"),
             }
         }
         Ok(table_addrs)
