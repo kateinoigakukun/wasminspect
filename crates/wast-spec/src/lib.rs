@@ -344,17 +344,18 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
         },
         (WasmValue::Ref(RefVal::ExternRef(a)), wast::AssertExpression::RefExtern(x)) => a == x,
         (WasmValue::Ref(RefVal::NullRef(a)), wast::AssertExpression::RefNull(Some(x))) => {
-            ref_type_matchs(a, x)
+            Some(*a) == to_ref_type(x)
         }
         (_, wast::AssertExpression::V128(_)) => bail!("V128 is not supported yet"),
         _ => bail!("unexpected comparing for {:?} and {:?}", actual, expected),
     })
 }
 
-fn ref_type_matchs(actual: &RefType, expected: &wast::HeapType) -> bool {
-    match (actual, expected) {
-        (RefType::FuncRef, HeapType::Func) | (RefType::ExternRef, HeapType::Extern) => true,
-        _ => false,
+fn to_ref_type(heap_ty: &HeapType) -> Option<RefType> {
+    match heap_ty {
+        HeapType::Func => Some(RefType::FuncRef),
+        HeapType::Extern => Some(RefType::ExternRef),
+        _ => None,
     }
 }
 
@@ -366,6 +367,7 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
         wast::Instruction::F64Const(x) => WasmValue::F64(x.bits),
         wast::Instruction::V128Const(_) => panic!(),
         wast::Instruction::RefExtern(x) => WasmValue::Ref(RefVal::ExternRef(*x)),
+        wast::Instruction::RefNull(ty) => WasmValue::Ref(RefVal::NullRef(to_ref_type(ty).unwrap())),
         other => panic!("unsupported const expr inst {:?}", other),
     }
 }
