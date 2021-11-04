@@ -1,5 +1,6 @@
+use crate::elem::ElementInstance;
 use crate::module::DefaultHostModuleInstance;
-use crate::value::{NumVal, Ref};
+use crate::value::{NumVal, Ref, RefType};
 
 use super::address::*;
 use super::executor::eval_const_expr;
@@ -26,6 +27,7 @@ pub struct Store {
     tables: LinkableCollection<Rc<RefCell<TableInstance>>>,
     mems: LinkableCollection<Rc<RefCell<MemoryInstance>>>,
     globals: LinkableCollection<Rc<RefCell<dyn GlobalInstance>>>,
+    elems: LinkableCollection<Rc<RefCell<ElementInstance>>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 
@@ -39,6 +41,7 @@ impl Store {
             tables: LinkableCollection::new(),
             mems: LinkableCollection::new(),
             globals: LinkableCollection::new(),
+            elems: LinkableCollection::new(),
             modules: Vec::new(),
             module_index_by_name: HashMap::new(),
             embedded_contexts: HashMap::new(),
@@ -77,6 +80,10 @@ impl Store {
 
     pub fn memory_count(&self, addr: ModuleIndex) -> usize {
         self.mems.items(addr).map(|c| c.len()).unwrap_or(0)
+    }
+
+    pub fn elem(&self, addr: ElemAddr) -> Rc<RefCell<ElementInstance>> {
+        self.elems.get(addr).unwrap().0.clone()
     }
 
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
@@ -168,6 +175,9 @@ pub enum StoreError {
     IncompatibleImportGlobalMutability,
     IncompatibleImportTableType,
     IncompatibleImportMemoryType,
+    InvalidElementSegmentsType {
+        ty: Type,
+    },
 }
 impl std::error::Error for StoreError {}
 
@@ -214,6 +224,9 @@ impl std::fmt::Display for StoreError {
             Self::IncompatibleImportGlobalMutability => write!(f, "incompatible import type"),
             Self::IncompatibleImportTableType => write!(f, "incompatible import type"),
             Self::IncompatibleImportMemoryType => write!(f, "incompatible import type"),
+            Self::InvalidElementSegmentsType { ty } => {
+                write!(f, "invalid element segments type {:?}", ty)
+            }
         }
     }
 }
@@ -379,7 +392,7 @@ impl Store {
                 base_offset,
             )?;
         }
-        self.load_tables(tables, module_index, elem_segs)?;
+        self.load_tables_and_elems(tables, module_index, elem_segs)?;
         self.load_mems(mems, module_index, data_segs)?;
 
         let types = types.iter().map(|ty| ty.clone()).collect();
@@ -685,22 +698,24 @@ impl Store {
         Ok(())
     }
 
-    fn load_tables(
+    fn load_tables_and_elems(
         &mut self,
         tables: Vec<TableType>,
         module_index: ModuleIndex,
         element_segments: Vec<Element>,
     ) -> Result<Vec<TableAddr>> {
         let mut table_addrs = Vec::new();
+        let mut elem_addrs = Vec::new();
         if tables.is_empty() && self.tables.is_empty(module_index) {
             return Ok(table_addrs);
         }
-        for entry in tables.iter() {
-            match entry.element_type {
+        for table in tables.iter() {
+            match table.element_type {
                 Type::FuncRef => {
                     let instance = TableInstance::new(
-                        entry.initial as usize,
-                        entry.maximum.map(|mx| mx as usize),
+                        table.initial as usize,
+                        table.maximum.map(|mx| mx as usize),
+                        RefType::FuncRef,
                     );
                     let addr = self
                         .tables
@@ -712,6 +727,26 @@ impl Store {
         }
         let tables = self.tables.items(module_index).unwrap();
         for seg in element_segments {
+            let ty = match seg.ty {
+                Type::FuncRef => RefType::FuncRef,
+                Type::ExternRef => RefType::ExternRef,
+                _ => Err(StoreError::InvalidElementSegmentsType { ty: seg.ty })?,
+            };
+            let data = seg
+                .items
+                .get_items_reader()?
+                .into_iter()
+                .map(|item| {
+                    Ok(match item? {
+                        ElementItem::Func(index) => {
+                            Ref::FuncRef(FuncAddr::new_unsafe(module_index, index as usize))
+                        }
+                        ElementItem::Expr { .. } => Ref::NullRef(ty),
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let instance = ElementInstance::new(ty, data.clone());
+            let instance = Rc::new(RefCell::new(instance));
             match seg.kind {
                 ElementKind::Active {
                     table_index,
@@ -719,34 +754,26 @@ impl Store {
                 } => {
                     let table_addr = match tables.get(table_index as usize) {
                         Some(addr) => addr,
-                        None => continue,
+                        None => break,
                     };
                     let offset = match eval_const_expr(&init_expr, self, module_index)? {
                         Value::Num(NumVal::I32(v)) => v,
                         other => panic!("unexpected result value of const init expr {:?}", other),
                     };
-                    let data = seg
-                        .items
-                        .get_items_reader()?
-                        .into_iter()
-                        .map(|item| {
-                            Ok(match item? {
-                                ElementItem::Func(index) => Some(Ref::FuncRef(
-                                    FuncAddr::new_unsafe(module_index, index as usize),
-                                )),
-                                ElementItem::Expr { .. } => None,
-                            })
-                        })
-                        .collect::<Result<Vec<_>>>()?;
                     let table = self.tables.get_global(*table_addr);
                     table
                         .borrow_mut()
                         .initialize(offset as usize, data)
                         .map_err(StoreError::InvalidElementSegments)?;
+                    instance.borrow_mut().drop_elem();
                 }
-                ElementKind::Passive => continue,
-                ElementKind::Declared => continue,
+                ElementKind::Passive => {}
+                ElementKind::Declared => {
+                    instance.borrow_mut().drop_elem();
+                }
             }
+            let addr = self.elems.push(module_index, instance.clone());
+            elem_addrs.push(addr);
         }
         Ok(table_addrs)
     }

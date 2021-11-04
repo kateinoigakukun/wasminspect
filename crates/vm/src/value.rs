@@ -123,6 +123,7 @@ impl From<f64> for Value {
     }
 }
 
+// FIXME: Use `TryFrom` instead
 pub trait NativeValue: Sized {
     fn from_value(val: Value) -> Option<Self>;
     fn value_type() -> Type;

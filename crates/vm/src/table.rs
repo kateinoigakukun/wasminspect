@@ -1,4 +1,4 @@
-use crate::value::Ref;
+use crate::value::{Ref, RefType};
 
 #[derive(Debug)]
 pub enum Error {
@@ -7,6 +7,7 @@ pub enum Error {
         /* memory size */ usize,
     ),
     UninitializedElement(usize),
+    GrowOverMaximumSize(usize),
 }
 
 impl std::fmt::Display for Error {
@@ -25,6 +26,7 @@ impl std::fmt::Display for Error {
             Self::UninitializedElement(addr) => {
                 write!(f, "uninitialized element, try to access {}", addr)
             }
+            other => write!(f, "{:?}", other)
         }
     }
 }
@@ -32,24 +34,23 @@ impl std::fmt::Display for Error {
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct TableInstance {
-    buffer: Vec<Option<Ref>>,
+    buffer: Vec<Ref>,
     pub max: Option<usize>,
     pub initial: usize,
 }
 
 impl TableInstance {
-    pub fn new(initial: usize, maximum: Option<usize>) -> Self {
+    pub fn new(initial: usize, maximum: Option<usize>, ty: RefType) -> Self {
         Self {
-            buffer: std::iter::repeat(None).take(initial).collect(),
+            buffer: std::iter::repeat(Ref::NullRef(ty)).take(initial).collect(),
             initial,
             max: maximum,
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: Vec<Option<Ref>>) -> Result<()> {
+    pub fn initialize(&mut self, offset: usize, data: Vec<Ref>) -> Result<()> {
         {
             if let Some(max_addr) = offset.checked_add(data.len()) {
-                println!("max_addr = {}, max = {:?}, self.buffer_len() = {:?}", max_addr, self.max, self.buffer_len());
                 if max_addr > self.buffer_len() {
                     return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
                 }
@@ -71,7 +72,32 @@ impl TableInstance {
         self.buffer
             .get(index)
             .ok_or(Error::AccessOutOfBounds(Some(index), self.buffer_len()))
-            .and_then(|addr| addr.ok_or(Error::UninitializedElement(index)))
             .map(|addr| addr.clone())
+    }
+
+    pub fn set_at(&mut self, index: usize, val: Ref) -> Result<()> {
+        let buffer_len = self.buffer_len();
+        let entry = self
+            .buffer
+            .get_mut(index)
+            .ok_or(Error::AccessOutOfBounds(Some(index), buffer_len))?;
+        *entry = val;
+        Ok(())
+    }
+
+    pub fn grow(&mut self, n: usize, val: Ref) -> Result<()> {
+        let len = self.buffer_len() + n;
+        if self.buffer_len() > (1 << 32) {
+            return Err(Error::GrowOverMaximumSize(len));
+        }
+
+        if let Some(max) = self.max {
+            if len > max {
+                return Err(Error::GrowOverMaximumSize(max));
+            }
+        }
+        let mut extra = std::iter::repeat(val).take(n).collect();
+        self.buffer.append(&mut extra);
+        return Ok(());
     }
 }

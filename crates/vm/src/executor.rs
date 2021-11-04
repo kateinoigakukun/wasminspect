@@ -1,5 +1,6 @@
 use crate::config::Config;
-use crate::value::{Ref, RefType, TruncSatTo, TruncTo, extend_i32, extend_i64};
+use crate::value::{extend_i32, extend_i64, Ref, RefType, TruncSatTo, TruncTo};
+use crate::{ElemAddr, elem};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
@@ -29,6 +30,7 @@ pub enum Trap {
     Stack(stack::Error),
     Table(table::Error),
     Value(value::Error),
+    Element(elem::Error),
     IndirectCallTypeMismatch {
         callee_name: String,
         expected: FuncType,
@@ -41,6 +43,9 @@ pub enum Trap {
     },
     UnexpectedStackValueType {
         expected: Type,
+        actual: Type,
+    },
+    UnexpectedNonRefValueType {
         actual: Type,
     },
     UndefinedFunc(usize),
@@ -65,6 +70,7 @@ impl std::fmt::Display for Trap {
             Self::Value(e) => write!(f, "{}", e),
             Self::Table(e) => write!(f, "{}", e),
             Self::Stack(e) => write!(f, "{}", e),
+            Self::Element(e) => write!(f, "{}", e),
             Self::IndirectCallTypeMismatch {
                 callee_name,
                 expected,
@@ -76,7 +82,7 @@ impl std::fmt::Display for Trap {
  >> but actual implementation has      {:?}",
                 callee_name, expected, actual
             ),
-            Self::UndefinedFunc(addr) => write!(f, "uninitialized func at {:?}", addr),
+            Self::UndefinedFunc(addr) => write!(f, "uninitialized element at {:?}", addr),
             Self::Unreachable => write!(f, "unreachable"),
             Self::MemoryAddrOverflow { base, offset } => write!(
                 f,
@@ -91,6 +97,12 @@ impl std::fmt::Display for Trap {
 impl From<table::Error> for Trap {
     fn from(e: table::Error) -> Self {
         Trap::Table(e)
+    }
+}
+
+impl From<elem::Error> for Trap {
+    fn from(e: elem::Error) -> Self {
+        Trap::Element(e)
     }
 }
 
@@ -371,13 +383,91 @@ impl Executor {
             InstructionKind::TableGet { table } => {
                 let addr = TableAddr::new_unsafe(module_index, table as usize);
                 let table = store.table(addr);
-                let index = self.stack.pop_value().map_err(Trap::Stack)?;
-                let index = index.as_i32().ok_or(Trap::UnexpectedStackValueType {
-                    expected: Type::I32,
-                    actual: index.value_type(),
-                })?;
+                let index: i32 = self.pop_as()?;
                 let val = table.borrow().get_at(index as usize)?;
                 self.stack.push_value(Value::Ref(val));
+                Ok(Signal::Next)
+            }
+            InstructionKind::TableSet { table } => {
+                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let table = store.table(addr);
+                let ref_val = self.pop_ref()?;
+                let index: i32 = self.pop_as()?;
+                table.borrow_mut().set_at(index as usize, ref_val)?;
+                Ok(Signal::Next)
+            }
+            InstructionKind::TableSize { table } => {
+                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let table = store.table(addr);
+                let sz = table.borrow().buffer_len();
+                self.stack.push_value(Value::I32(sz as i32));
+                Ok(Signal::Next)
+            }
+
+            InstructionKind::TableGrow { table } => {
+                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let table = store.table(addr);
+                let sz = table.borrow().buffer_len();
+                let n: i32 = self.pop_as()?;
+                let ref_val = self.pop_ref()?;
+                let ret_val = match table.borrow_mut().grow(n as usize, ref_val) {
+                    Ok(_) => sz as i32,
+                    Err(_) => -1,
+                };
+                self.stack.push_value(Value::I32(ret_val));
+                Ok(Signal::Next)
+            }
+
+            InstructionKind::TableFill { table } => {
+                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let table = store.table(addr);
+                let n: i32 = self.pop_as()?;
+                let ref_val = self.pop_ref()?;
+                let index: i32 = self.pop_as()?;
+
+                for index in index..(index + n) {
+                    table.borrow_mut().set_at(index as usize, ref_val)?;
+                }
+
+                Ok(Signal::Next)
+            }
+
+            InstructionKind::TableCopy { dst_table, src_table } => {
+                let dst_addr = TableAddr::new_unsafe(module_index, dst_table as usize);
+                let dst_table = store.table(dst_addr);
+                let src_addr = TableAddr::new_unsafe(module_index, src_table as usize);
+                let src_table = store.table(src_addr);
+                let n: i32 = self.pop_as()?;
+                let src_base: i32 = self.pop_as()?;
+                let dst_base: i32 = self.pop_as()?;
+
+                for offset in 0..n {
+                    let val = src_table.borrow().get_at((src_base + offset) as usize)?;
+                    dst_table.borrow_mut().set_at((dst_base + offset) as usize, val)?;
+                }
+
+                Ok(Signal::Next)
+            }
+
+            InstructionKind::TableInit { segment, table } => {
+                let table_addr = TableAddr::new_unsafe(module_index, table as usize);
+                let elem_addr = ElemAddr::new_unsafe(module_index, segment as usize);
+                let table = store.table(table_addr);
+                let elem = store.elem(elem_addr);
+                let n: i32 = self.pop_as()?;
+                let src_base: i32 = self.pop_as()?;
+                let dst_base: i32 = self.pop_as()?;
+                println!("n = {}, src_base = {}, dst_base = {}", n, src_base, dst_base);
+                for offset in 0..n {
+                    let val = elem.borrow().get_at((src_base + offset) as usize)?;
+                    table.borrow_mut().set_at((dst_base + offset) as usize, val)?;
+                }
+                Ok(Signal::Next)
+            }
+            InstructionKind::ElemDrop { segment } => {
+                let elem_addr = ElemAddr::new_unsafe(module_index, segment as usize);
+                let elem = store.elem(elem_addr);
+                elem.borrow_mut().drop_elem();
                 Ok(Signal::Next)
             }
 
@@ -678,6 +768,18 @@ impl Executor {
             expected: T::value_type(),
             actual: value.value_type(),
         })
+    }
+    fn pop_ref(&mut self) -> ExecResult<Ref> {
+        let ref_val: Value = self.stack.pop_value().map_err(Trap::Stack)?;
+        let ref_val = match ref_val {
+            Value::Ref(r) => r,
+            _ => {
+                return Err(Trap::UnexpectedNonRefValueType {
+                    actual: ref_val.value_type(),
+                })
+            }
+        };
+        Ok(ref_val)
     }
 
     fn branch(&mut self, depth: u32, store: &Store) -> ExecResult<Signal> {

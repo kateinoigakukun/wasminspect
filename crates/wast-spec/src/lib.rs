@@ -42,7 +42,8 @@ impl WastContext {
         }
         return Ok(None);
     }
-    fn module(&mut self, module_name: Option<&str>, bytes: Vec<u8>) -> Result<()> {
+    fn module(&mut self, module_id: Option<wast::Id>, bytes: Vec<u8>) -> Result<()> {
+        let module_name = module_id.map(|id| id.name());
         let mut bytes = bytes;
         self.validate(&bytes)?;
         let start_section = Self::extract_start_section(&bytes)?;
@@ -85,7 +86,7 @@ impl WastContext {
             match directive {
                 Module(mut module) => {
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.name.map(|s| s.name), bytes)
+                    self.module(module.id, bytes)
                         .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
                 }
                 Register {
@@ -93,11 +94,11 @@ impl WastContext {
                     name,
                     module,
                 } => {
-                    let module_index = self.get_instance(module.map(|s| s.name()))?;
+                    let module_index = self.get_instance(module)?;
                     self.instance.register_name(name.to_string(), module_index);
                 }
                 Invoke(i) => {
-                    self.invoke(i.module.map(|s| s.name()), i.name, &i.args)
+                    self.invoke(i.module, i.name, &i.args)
                         .map_err(|err| anyhow!("Failed to invoke {}", err))
                         .with_context(|| context(i.span))?;
                 }
@@ -175,7 +176,7 @@ impl WastContext {
                     span,
                     call,
                     message,
-                } => match self.invoke(call.module.map(|s| s.name()), call.name, &call.args) {
+                } => match self.invoke(call.module, call.name, &call.args) {
                     Ok(values) => panic!("{}\nexpected trap, got {:?}", context(span), values),
                     Err(t) => {
                         let result = format!("{}", t);
@@ -223,7 +224,7 @@ impl WastContext {
                         e
                     })?;
                     let binary = wat.module.encode().map_err(adjust_wast)?;
-                    self.module(wat.module.id.map(|s| s.name()), binary)
+                    self.module(wat.module.id, binary)
                         .with_context(|| context(span))?;
                 }
                 AssertException { span, exec } => {
@@ -242,7 +243,8 @@ impl WastContext {
         Ok(())
     }
 
-    fn get_instance(&self, name: Option<&str>) -> Result<ModuleIndex> {
+    fn get_instance(&self, module_id: Option<wast::Id>) -> Result<ModuleIndex> {
+        let name = module_id.map(|s| s.name());
         match name {
             Some(name) => self
                 .module_index_by_name
@@ -257,8 +259,8 @@ impl WastContext {
     }
 
     /// Get the value of an exported global from an instance.
-    fn get(&mut self, instance_name: Option<&str>, field: &str) -> Result<Result<Vec<WasmValue>>> {
-        let module_index = self.get_instance(instance_name.as_ref().map(|x| &**x))?;
+    fn get(&mut self, module_id: Option<wast::Id>, field: &str) -> Result<Result<Vec<WasmValue>>> {
+        let module_index = self.get_instance(module_id)?;
         match self
             .instance
             .get_global(module_index, field)
@@ -271,11 +273,11 @@ impl WastContext {
 
     fn invoke(
         &mut self,
-        module_name: Option<&str>,
+        module_id: Option<wast::Id>,
         func_name: &str,
         args: &[wast::Expression],
     ) -> Result<Vec<WasmValue>> {
-        let module_index = self.get_instance(module_name)?;
+        let module_index = self.get_instance(module_id)?;
         let args = args.iter().map(const_expr).collect();
         let result = self
             .instance
@@ -292,7 +294,7 @@ impl WastContext {
     fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Result<Vec<WasmValue>>> {
         match exec {
             wast::WastExecute::Invoke(i) => {
-                Ok(self.invoke(i.module.map(|s| s.name()), i.name, &i.args))
+                Ok(self.invoke(i.module, i.name, &i.args))
             }
             wast::WastExecute::Module(mut module) => {
                 let mut binary = module.encode()?;
@@ -316,7 +318,7 @@ impl WastContext {
                 }
                 Ok(Ok(vec![]))
             }
-            wast::WastExecute::Get { module, global } => self.get(module.map(|s| s.name()), global),
+            wast::WastExecute::Get { module, global } => self.get(module, global),
         }
     }
 
