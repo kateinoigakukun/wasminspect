@@ -337,7 +337,7 @@ impl Executor {
                 self.stack.pop_value().map_err(Trap::Stack)?;
                 Ok(Signal::Next)
             }
-            InstructionKind::Select => {
+            InstructionKind::Select | InstructionKind::TypedSelect { .. } => {
                 let cond: i32 = self.pop_as()?;
                 let val2 = self.stack.pop_value().map_err(Trap::Stack)?;
                 let val1 = self.stack.pop_value().map_err(Trap::Stack)?;
