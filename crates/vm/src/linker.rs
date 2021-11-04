@@ -112,7 +112,7 @@ impl<T> LinkableCollection<T> {
         LinkableAddress::new_unsafe(module_index, index)
     }
 
-    pub fn remove_module(&mut self, index: &ModuleIndex) {
+    pub fn _remove_module(&mut self, index: &ModuleIndex) {
         // TODO: GC unlinked items
         self.item_addrs_by_module.remove(index);
     }
