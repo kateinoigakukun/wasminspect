@@ -1,6 +1,6 @@
 use crate::elem::ElementInstance;
 use crate::module::DefaultHostModuleInstance;
-use crate::value::{NumVal, Ref, RefType};
+use crate::value::{NumVal, RefVal, RefType};
 
 use super::address::*;
 use super::executor::eval_const_expr;
@@ -739,9 +739,9 @@ impl Store {
                 .map(|item| {
                     Ok(match item? {
                         ElementItem::Func(index) => {
-                            Ref::FuncRef(FuncAddr::new_unsafe(module_index, index as usize))
+                            RefVal::FuncRef(FuncAddr::new_unsafe(module_index, index as usize))
                         }
-                        ElementItem::Expr { .. } => Ref::NullRef(ty),
+                        ElementItem::Expr { .. } => RefVal::NullRef(ty),
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;

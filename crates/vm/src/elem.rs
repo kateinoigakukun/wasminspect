@@ -1,4 +1,4 @@
-use crate::value::{Ref, RefType};
+use crate::value::{RefVal, RefType};
 
 #[derive(Debug)]
 pub enum Error {
@@ -30,15 +30,15 @@ type Result<T> = std::result::Result<T, Error>;
 
 pub struct ElementInstance {
     _ty: RefType,
-    elem: Vec<Ref>,
+    elem: Vec<RefVal>,
 }
 
 impl ElementInstance {
-    pub fn new(ty: RefType, elem: Vec<Ref>) -> Self {
+    pub fn new(ty: RefType, elem: Vec<RefVal>) -> Self {
         Self { _ty: ty, elem }
     }
 
-    pub fn get_at(&self, index: usize) -> Result<Ref> {
+    pub fn get_at(&self, index: usize) -> Result<RefVal> {
         self.elem
             .get(index)
             .ok_or(Error::AccessOutOfBounds(Some(index), self.elem.len()))

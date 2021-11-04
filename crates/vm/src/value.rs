@@ -16,16 +16,16 @@ pub enum RefType {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Ref {
+pub enum RefVal {
     NullRef(RefType),
     FuncRef(FuncAddr),
-    ExternRef(i32)
+    ExternRef(u32)
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Value {
     Num(NumVal),
-    Ref(Ref),
+    Ref(RefVal),
 }
 
 impl Value {
@@ -52,9 +52,9 @@ impl Value {
             Value::Num(NumVal::I64(_)) => Type::I64,
             Value::Num(NumVal::F32(_)) => Type::F32,
             Value::Num(NumVal::F64(_)) => Type::F64,
-            Value::Ref(Ref::NullRef(_)) => Type::FuncRef,
-            Value::Ref(Ref::FuncRef(_)) => Type::FuncRef,
-            Value::Ref(Ref::ExternRef(_)) => Type::ExternRef,
+            Value::Ref(RefVal::NullRef(_)) => Type::FuncRef,
+            Value::Ref(RefVal::FuncRef(_)) => Type::FuncRef,
+            Value::Ref(RefVal::ExternRef(_)) => Type::ExternRef,
         }
     }
 

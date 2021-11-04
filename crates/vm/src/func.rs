@@ -1,3 +1,6 @@
+use crate::RefType;
+use crate::value::RefVal;
+
 use super::host::HostFuncBody;
 use super::inst::*;
 use super::module::*;
@@ -84,7 +87,9 @@ impl DefinedFunctionInstance {
                 Type::I64 => Value::I64(0),
                 Type::F32 => Value::F32(0),
                 Type::F64 => Value::F64(0),
-                _ => unimplemented!(),
+                Type::ExternRef => Value::Ref(RefVal::NullRef(RefType::ExternRef)),
+                Type::FuncRef => Value::Ref(RefVal::NullRef(RefType::FuncRef)),
+                _ => unimplemented!("local initialization of type {:?}", ty),
             };
             cached_local_inits.push(v);
         }

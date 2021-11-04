@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{extend_i32, extend_i64, Ref, RefType, TruncSatTo, TruncTo};
+use crate::value::{extend_i32, extend_i64, RefVal, RefType, TruncSatTo, TruncTo};
 use crate::{ElemAddr, elem};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
@@ -51,7 +51,7 @@ pub enum Trap {
     UndefinedFunc(usize),
     ElementTypeMismatch {
         expected: RefType,
-        actual: Ref,
+        actual: RefVal,
     },
     NoMoreInstruction,
     HostFunctionError(Box<dyn std::error::Error + Send + Sync>),
@@ -316,8 +316,8 @@ impl Executor {
                 let func_ref = table.borrow().get_at(buf_index).map_err(Trap::Table)?;
 
                 let func_addr = match func_ref {
-                    Ref::NullRef(_) => Err(Trap::UndefinedFunc(buf_index)),
-                    Ref::FuncRef(addr) => Ok(addr),
+                    RefVal::NullRef(_) => Err(Trap::UndefinedFunc(buf_index)),
+                    RefVal::FuncRef(addr) => Ok(addr),
                     other => Err(Trap::ElementTypeMismatch {
                         expected: RefType::FuncRef,
                         actual: other,
@@ -769,7 +769,7 @@ impl Executor {
             actual: value.value_type(),
         })
     }
-    fn pop_ref(&mut self) -> ExecResult<Ref> {
+    fn pop_ref(&mut self) -> ExecResult<RefVal> {
         let ref_val: Value = self.stack.pop_value().map_err(Trap::Stack)?;
         let ref_val = match ref_val {
             Value::Ref(r) => r,

@@ -1,4 +1,4 @@
-use crate::value::{Ref, RefType};
+use crate::value::{RefVal, RefType};
 
 #[derive(Debug)]
 pub enum Error {
@@ -34,7 +34,7 @@ impl std::fmt::Display for Error {
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct TableInstance {
-    buffer: Vec<Ref>,
+    buffer: Vec<RefVal>,
     pub max: Option<usize>,
     pub initial: usize,
 }
@@ -42,13 +42,13 @@ pub struct TableInstance {
 impl TableInstance {
     pub fn new(initial: usize, maximum: Option<usize>, ty: RefType) -> Self {
         Self {
-            buffer: std::iter::repeat(Ref::NullRef(ty)).take(initial).collect(),
+            buffer: std::iter::repeat(RefVal::NullRef(ty)).take(initial).collect(),
             initial,
             max: maximum,
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: Vec<Ref>) -> Result<()> {
+    pub fn initialize(&mut self, offset: usize, data: Vec<RefVal>) -> Result<()> {
         {
             if let Some(max_addr) = offset.checked_add(data.len()) {
                 if max_addr > self.buffer_len() {
@@ -68,14 +68,14 @@ impl TableInstance {
         self.buffer.len()
     }
 
-    pub fn get_at(&self, index: usize) -> Result<Ref> {
+    pub fn get_at(&self, index: usize) -> Result<RefVal> {
         self.buffer
             .get(index)
             .ok_or(Error::AccessOutOfBounds(Some(index), self.buffer_len()))
             .map(|addr| addr.clone())
     }
 
-    pub fn set_at(&mut self, index: usize, val: Ref) -> Result<()> {
+    pub fn set_at(&mut self, index: usize, val: RefVal) -> Result<()> {
         let buffer_len = self.buffer_len();
         let entry = self
             .buffer
@@ -85,7 +85,7 @@ impl TableInstance {
         Ok(())
     }
 
-    pub fn grow(&mut self, n: usize, val: Ref) -> Result<()> {
+    pub fn grow(&mut self, n: usize, val: RefVal) -> Result<()> {
         let len = self.buffer_len() + n;
         if self.buffer_len() > (1 << 32) {
             return Err(Error::GrowOverMaximumSize(len));

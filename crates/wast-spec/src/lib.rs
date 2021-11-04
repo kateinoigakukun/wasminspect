@@ -5,7 +5,7 @@ use std::path::Path;
 use std::str;
 mod spectest;
 pub use spectest::instantiate_spectest;
-use wasminspect_vm::{FuncAddr, ModuleIndex, NumVal, WasmInstance, WasmValue, simple_invoke_func};
+use wasminspect_vm::{FuncAddr, ModuleIndex, NumVal, RefVal, WasmInstance, WasmValue, simple_invoke_func};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -343,6 +343,7 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
             wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
             wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
         },
+        (WasmValue::Ref(RefVal::ExternRef(a)), wast::AssertExpression::RefExtern(x)) => a == x,
         (_, wast::AssertExpression::V128(_)) => bail!("V128 is not supported yet"),
         _ => bail!("unexpected comparing for {:?} and {:?}", actual, expected),
     })
@@ -355,7 +356,8 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
         wast::Instruction::F32Const(x) => WasmValue::F32(x.bits),
         wast::Instruction::F64Const(x) => WasmValue::F64(x.bits),
         wast::Instruction::V128Const(_) => panic!(),
-        _ => panic!(),
+        wast::Instruction::RefExtern(x) => WasmValue::Ref(RefVal::ExternRef(*x)),
+        other => panic!("unsupported const expr inst {:?}", other),
     }
 }
 
