@@ -151,7 +151,7 @@ impl Executor {
         for ty in return_ty.into_iter().rev() {
             let val = self.stack.pop_value().map_err(ReturnValError::Stack)?;
             results.push(val);
-            if val.value_type() != ty {
+            if !val.isa(ty) {
                 return Err(ReturnValError::TypeMismatchReturnValue(val.clone(), ty));
             }
         }
@@ -1101,6 +1101,10 @@ pub fn eval_const_expr(
         InstructionKind::I64Const { value } => Value::I64(value),
         InstructionKind::F32Const { value } => Value::F32(value.bits()),
         InstructionKind::F64Const { value } => Value::F64(value.bits()),
+        InstructionKind::RefNull { ty } => match Value::null_ref(ty) {
+            Some(v) => v,
+            None => panic!("unsupported ref type"),
+        },
         InstructionKind::GlobalGet { global_index } => {
             let addr = GlobalAddr::new_unsafe(module_index, global_index as usize);
             store.global(addr).borrow().value()

@@ -12,14 +12,15 @@ pub enum NumVal {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RefType {
-    FuncRef, ExternRef
+    FuncRef,
+    ExternRef,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RefVal {
     NullRef(RefType),
     FuncRef(FuncAddr),
-    ExternRef(u32)
+    ExternRef(u32),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -44,6 +45,28 @@ impl Value {
     #[allow(non_snake_case)]
     pub fn F64(v: u64) -> Value {
         Value::Num(NumVal::F64(v))
+    }
+
+    pub fn null_ref(ty: Type) -> Option<Value> {
+        let r = match ty {
+            Type::FuncRef => RefVal::NullRef(RefType::FuncRef),
+            Type::ExternRef => RefVal::NullRef(RefType::ExternRef),
+            _ => return None,
+        };
+        Some(Value::Ref(r))
+    }
+
+    pub fn isa(&self, ty: Type) -> bool {
+        match self {
+            Value::Num(_) => self.value_type() == ty,
+            Value::Ref(r) => match (r, ty) {
+                (RefVal::ExternRef(_), Type::ExternRef)
+                | (RefVal::FuncRef(_), Type::FuncRef)
+                | (RefVal::NullRef(RefType::ExternRef), Type::ExternRef)
+                | (RefVal::NullRef(RefType::FuncRef), Type::FuncRef) => true,
+                _ => return false,
+            },
+        }
     }
 
     pub fn value_type(&self) -> Type {
@@ -306,7 +329,7 @@ macro_rules! impl_trunc_to {
                 }
             }
         }
-    }
+    };
 }
 
 impl_trunc_to!(f32, i32);
@@ -345,7 +368,7 @@ macro_rules! impl_trunc_sat_to {
                 }
             }
         }
-    }
+    };
 }
 
 impl_trunc_sat_to!(f32, i32);
@@ -357,7 +380,6 @@ impl_trunc_sat_to!(f32, u32);
 impl_trunc_sat_to!(f32, u64);
 impl_trunc_sat_to!(f64, u32);
 impl_trunc_sat_to!(f64, u64);
-
 
 trait InRange<Target> {
     fn in_range(self) -> InRangeResult;
@@ -441,10 +463,13 @@ macro_rules! impl_in_range_unsigned {
         impl InRange<$target> for $self {
             fn in_range(self) -> InRangeResult {
                 let negative_zero = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS);
-                let negative_one = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS) | (<$self>::BIAS + 0) << <$self>::FRAC_BITS;
+                let negative_one = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS)
+                    | (<$self>::BIAS + 0) << <$self>::FRAC_BITS;
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits + <$self>::BIAS) << <$self>::FRAC_BITS);
-                if <$self>::from_bits(negative_zero) > self || <$self>::from_bits(negative_one) >= self {
+                if <$self>::from_bits(negative_zero) > self
+                    || <$self>::from_bits(negative_one) >= self
+                {
                     InRangeResult::TooSmall
                 } else if !(self < <$self>::from_bits(max_plus_one)) {
                     InRangeResult::TooLarge

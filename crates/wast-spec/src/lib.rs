@@ -3,9 +3,12 @@ use anyhow::{anyhow, bail, Context as _, Result};
 use std::collections::HashMap;
 use std::path::Path;
 use std::str;
+use wast::HeapType;
 mod spectest;
 pub use spectest::instantiate_spectest;
-use wasminspect_vm::{FuncAddr, ModuleIndex, NumVal, RefVal, WasmInstance, WasmValue, simple_invoke_func};
+use wasminspect_vm::{
+    simple_invoke_func, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue,
+};
 
 pub struct WastContext {
     module_index_by_name: HashMap<String, ModuleIndex>,
@@ -293,19 +296,15 @@ impl WastContext {
 
     fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Result<Vec<WasmValue>>> {
         match exec {
-            wast::WastExecute::Invoke(i) => {
-                Ok(self.invoke(i.module, i.name, &i.args))
-            }
+            wast::WastExecute::Invoke(i) => Ok(self.invoke(i.module, i.name, &i.args)),
             wast::WastExecute::Module(mut module) => {
                 let mut binary = module.encode()?;
                 self.validate(&binary)?;
                 let start_section = Self::extract_start_section(&binary)?;
-                let module_index = match self
-                    .instance
-                    .load_module_from_module(None, &mut binary) {
-                        Ok(idx) => idx,
-                        Err(e) => return Ok(Err(anyhow!("while instntiation: {}", e))),
-                    };
+                let module_index = match self.instance.load_module_from_module(None, &mut binary) {
+                    Ok(idx) => idx,
+                    Err(e) => return Ok(Err(anyhow!("while instntiation: {}", e))),
+                };
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
                     return Ok(simple_invoke_func(
@@ -344,9 +343,19 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
             wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
         },
         (WasmValue::Ref(RefVal::ExternRef(a)), wast::AssertExpression::RefExtern(x)) => a == x,
+        (WasmValue::Ref(RefVal::NullRef(a)), wast::AssertExpression::RefNull(Some(x))) => {
+            ref_type_matchs(a, x)
+        }
         (_, wast::AssertExpression::V128(_)) => bail!("V128 is not supported yet"),
         _ => bail!("unexpected comparing for {:?} and {:?}", actual, expected),
     })
+}
+
+fn ref_type_matchs(actual: &RefType, expected: &wast::HeapType) -> bool {
+    match (actual, expected) {
+        (RefType::FuncRef, HeapType::Func) | (RefType::ExternRef, HeapType::Extern) => true,
+        _ => false,
+    }
 }
 
 fn const_expr(expr: &wast::Expression) -> WasmValue {
