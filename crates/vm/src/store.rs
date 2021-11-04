@@ -1,6 +1,6 @@
 use crate::elem::ElementInstance;
 use crate::module::DefaultHostModuleInstance;
-use crate::value::{NumVal, RefVal, RefType};
+use crate::value::{NumVal, RefType, RefVal};
 
 use super::address::*;
 use super::executor::eval_const_expr;
@@ -174,7 +174,9 @@ pub enum StoreError {
     IncompatibleImportGlobalType(Type, Type),
     IncompatibleImportGlobalMutability,
     IncompatibleImportTableType,
-    IncompatibleImportMemoryType,
+    IncompatibleImportMemoryType {
+        message: String,
+    },
     InvalidElementSegmentsType {
         ty: Type,
     },
@@ -221,9 +223,13 @@ impl std::fmt::Display for StoreError {
                 "incompatible import type, expected {:?} but got {:?}",
                 expected, actual
             ),
-            Self::IncompatibleImportGlobalMutability => write!(f, "incompatible import type"),
-            Self::IncompatibleImportTableType => write!(f, "incompatible import type"),
-            Self::IncompatibleImportMemoryType => write!(f, "incompatible import type"),
+            Self::IncompatibleImportGlobalMutability => {
+                write!(f, "incompatible import type in global mutability")
+            }
+            Self::IncompatibleImportTableType => write!(f, "incompatible import type in table"),
+            Self::IncompatibleImportMemoryType { message } => {
+                write!(f, "incompatible import type in memory: {}", message)
+            }
             Self::InvalidElementSegmentsType { ty } => {
                 write!(f, "invalid element segments type {:?}", ty)
             }
@@ -543,15 +549,23 @@ impl Store {
             let limit_initial = memory_ty.initial;
             let limit_max = memory_ty.maximum;
             if memory.borrow().initial < limit_initial as usize {
-                Err(StoreError::IncompatibleImportMemoryType)?;
+                Err(StoreError::IncompatibleImportMemoryType {
+                    message: String::from("actual initial size is less than expected initial size"),
+                })?;
             }
             match (memory.borrow().max, limit_max) {
                 (Some(found), Some(expected)) => {
                     if found > expected as usize {
-                        Err(StoreError::IncompatibleImportMemoryType)?;
+                        Err(StoreError::IncompatibleImportMemoryType {
+                            message: String::from(
+                                "actual limit size is bigger than expected limit size",
+                            ),
+                        })?;
                     }
                 }
-                (None, Some(_)) => Err(StoreError::IncompatibleImportMemoryType)?,
+                (None, Some(_)) => Err(StoreError::IncompatibleImportMemoryType {
+                    message: String::from("actual memory doesn't have limit but expected limit size"),
+                })?,
                 _ => (),
             }
         }

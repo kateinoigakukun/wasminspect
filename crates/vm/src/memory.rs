@@ -93,6 +93,7 @@ impl MemoryInstance {
         }
         let mut extra: Vec<u8> = std::iter::repeat(0).take(n * WASM_PAGE_SIZE).collect();
         self.data.append(&mut extra);
+        self.initial = len;
         return Ok(());
     }
     pub fn raw_data_mut(&mut self) -> &mut [u8] {
