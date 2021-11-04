@@ -414,27 +414,7 @@ impl Store {
     }
     pub fn load_module(&mut self, name: Option<String>, reader: &[u8]) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
-
-        let result: Result<ModuleIndex> =
-            self.load_module_internal(name.clone(), reader, module_index);
-        match result {
-            Ok(ok) => Ok(ok),
-            Err(err) => {
-                // If fail, cleanup states
-                self.funcs.remove_module(&module_index);
-                self.tables.remove_module(&module_index);
-                self.mems.remove_module(&module_index);
-                self.globals.remove_module(&module_index);
-                let module_index = module_index.0 as usize;
-                if module_index < self.modules.len() {
-                    self.modules.remove(module_index);
-                }
-                if let Some(ref name) = name.clone() {
-                    self.module_index_by_name.remove(name);
-                }
-                Err(err)
-            }
-        }
+        self.load_module_internal(name.clone(), reader, module_index)
     }
 
     fn load_imports(
