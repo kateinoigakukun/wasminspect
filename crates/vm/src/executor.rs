@@ -1,6 +1,6 @@
 use crate::config::Config;
-use crate::value::{extend_i32, extend_i64, RefVal, RefType, TruncSatTo, TruncTo};
-use crate::{ElemAddr, elem};
+use crate::value::{extend_i32, extend_i64, RefType, RefVal, TruncSatTo, TruncTo};
+use crate::{elem, ElemAddr};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
@@ -302,12 +302,9 @@ impl Executor {
                 let addr = FuncAddr::new_unsafe(frame.module_index(), function_index as usize);
                 self.invoke(addr, store, interceptor)
             }
-            InstructionKind::CallIndirect {
-                index,
-                table_index: _,
-            } => {
+            InstructionKind::CallIndirect { index, table_index } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                let addr = TableAddr::new_unsafe(frame.module_index(), 0);
+                let addr = TableAddr::new_unsafe(frame.module_index(), table_index as usize);
                 let module = store.module(frame.module_index()).defined().unwrap();
                 let ty = module.get_type(index as usize);
                 let buf_index: i32 = self.pop_as()?;
@@ -432,7 +429,10 @@ impl Executor {
                 Ok(Signal::Next)
             }
 
-            InstructionKind::TableCopy { dst_table, src_table } => {
+            InstructionKind::TableCopy {
+                dst_table,
+                src_table,
+            } => {
                 let dst_addr = TableAddr::new_unsafe(module_index, dst_table as usize);
                 let dst_table = store.table(dst_addr);
                 let src_addr = TableAddr::new_unsafe(module_index, src_table as usize);
@@ -443,7 +443,9 @@ impl Executor {
 
                 for offset in 0..n {
                     let val = src_table.borrow().get_at((src_base + offset) as usize)?;
-                    dst_table.borrow_mut().set_at((dst_base + offset) as usize, val)?;
+                    dst_table
+                        .borrow_mut()
+                        .set_at((dst_base + offset) as usize, val)?;
                 }
 
                 Ok(Signal::Next)
@@ -457,10 +459,11 @@ impl Executor {
                 let n: i32 = self.pop_as()?;
                 let src_base: i32 = self.pop_as()?;
                 let dst_base: i32 = self.pop_as()?;
-                println!("n = {}, src_base = {}, dst_base = {}", n, src_base, dst_base);
                 for offset in 0..n {
                     let val = elem.borrow().get_at((src_base + offset) as usize)?;
-                    table.borrow_mut().set_at((dst_base + offset) as usize, val)?;
+                    table
+                        .borrow_mut()
+                        .set_at((dst_base + offset) as usize, val)?;
                 }
                 Ok(Signal::Next)
             }
