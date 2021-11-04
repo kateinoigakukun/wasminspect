@@ -15,7 +15,7 @@ impl std::fmt::Display for Error {
         match self {
             Self::AccessOutOfBounds(Some(addr), size) => write!(
                 f,
-                "out of bounds table access, try to access {} but size of memory is {}",
+                "undefined element: out of bounds table access, try to access {} but size of memory is {}",
                 addr, size
             ),
             Self::AccessOutOfBounds(None, size) => write!(
