@@ -1,7 +1,6 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
 use anyhow::{anyhow, Result};
 use log::{trace, warn};
-use wasmparser::WasmFeatures;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{cell::RefCell, usize};
@@ -10,6 +9,7 @@ use wasminspect_vm::{
     Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
+use wasmparser::WasmFeatures;
 
 type RawModule = Vec<u8>;
 
@@ -26,7 +26,39 @@ pub struct MainDebugger {
 
     opts: DebuggerOpts,
     config: wasminspect_vm::Config,
-    function_breakpoints: HashMap<String, debugger::Breakpoint>,
+    breakpoints: Breakpoints,
+}
+
+#[derive(Default)]
+struct Breakpoints {
+    function_map: HashMap<String, debugger::Breakpoint>,
+    inst_map: HashMap<usize, debugger::Breakpoint>,
+}
+
+impl Breakpoints {
+    fn should_break_func(&self, name: &String) -> bool {
+        // FIXME
+        self.function_map
+            .keys()
+            .filter(|k| name.contains(k.clone()))
+            .next()
+            .is_some()
+    }
+
+    fn should_break_inst(&self, inst: &Instruction) -> bool {
+        self.inst_map.contains_key(&inst.offset)
+    }
+
+    fn insert(&mut self, breakpoint: debugger::Breakpoint) {
+        match &breakpoint {
+            debugger::Breakpoint::Function { name } => {
+                self.function_map.insert(name.clone(), breakpoint);
+            }
+            debugger::Breakpoint::Instruction { inst_offset } => {
+                self.inst_map.insert(*inst_offset, breakpoint);
+            }
+        }
+    }
 }
 
 impl MainDebugger {
@@ -43,11 +75,11 @@ impl MainDebugger {
         Ok(Self {
             instance: None,
             main_module: None,
-            function_breakpoints: HashMap::new(),
             opts: DebuggerOpts::default(),
             config: wasminspect_vm::Config {
                 features: WasmFeatures::default(),
-            }
+            },
+            breakpoints: Default::default(),
         })
     }
 
@@ -158,11 +190,7 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn set_breakpoint(&mut self, breakpoint: debugger::Breakpoint) {
-        match &breakpoint {
-            debugger::Breakpoint::Function { name } => {
-                self.function_breakpoints.insert(name.clone(), breakpoint);
-            }
-        }
+        self.breakpoints.insert(breakpoint)
     }
 
     fn stack_values(&self) -> Vec<WasmValue> {
@@ -251,12 +279,21 @@ impl debugger::Debugger for MainDebugger {
             executor.stack.peek_frames().len()
         }
         match style {
-            StepInstIn => return Ok(executor.borrow_mut().execute_step(&store, self, &self.config)?),
+            StepInstIn => {
+                return Ok(executor
+                    .borrow_mut()
+                    .execute_step(&store, self, &self.config)?)
+            }
             StepInstOver => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                let mut last_signal =
+                    executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                 while initial_frame_depth < frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                    last_signal = executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -265,9 +302,14 @@ impl debugger::Debugger for MainDebugger {
             }
             StepOut => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                let mut last_signal =
+                    executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                 while initial_frame_depth <= frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                    last_signal = executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -281,7 +323,9 @@ impl debugger::Debugger for MainDebugger {
         let store = self.store()?;
         let executor = self.executor()?;
         loop {
-            let result = executor.borrow_mut().execute_step(&store, self, &self.config);
+            let result = executor
+                .borrow_mut()
+                .execute_step(&store, self, &self.config);
             match result {
                 Ok(Signal::Next) => continue,
                 Ok(Signal::Breakpoint) => return Ok(RunResult::Breakpoint),
@@ -349,20 +393,20 @@ impl debugger::Debugger for MainDebugger {
 impl Interceptor for MainDebugger {
     fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
         trace!("Invoke function '{}'", name);
-        let key = self
-            .function_breakpoints
-            .keys()
-            .filter(|k| name.contains(k.clone()))
-            .next();
-        if let Some(_) = key {
+        if self.breakpoints.should_break_func(name) {
             Ok(Signal::Breakpoint)
         } else {
             Ok(Signal::Next)
         }
     }
 
-    fn execute_inst(&self, inst: &Instruction) {
+    fn execute_inst(&self, inst: &Instruction) -> Result<Signal, Trap> {
         trace!("Execute {:?}", inst);
+        if self.breakpoints.should_break_inst(inst) {
+            Ok(Signal::Breakpoint)
+        } else {
+            Ok(Signal::Next)
+        }
     }
 
     fn after_store(&self, _addr: usize, _bytes: &[u8]) -> Result<Signal, Trap> {

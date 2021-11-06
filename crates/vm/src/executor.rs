@@ -165,7 +165,7 @@ impl Executor {
         config: &Config,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
-        interceptor.execute_inst(inst);
+        let signal = interceptor.execute_inst(inst)?;
         let result = match inst.kind.clone() {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),
@@ -620,6 +620,8 @@ impl Executor {
         };
         if self.stack.is_over_top_level() {
             return Ok(Signal::End);
+        } else if let Ok(Signal::Next) = result {
+            return Ok(signal);
         } else {
             return result;
         }
