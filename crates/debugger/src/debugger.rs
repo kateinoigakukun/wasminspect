@@ -391,7 +391,7 @@ impl debugger::Debugger for MainDebugger {
 }
 
 impl Interceptor for MainDebugger {
-    fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
+    fn invoke_func(&self, name: &String, executor: &Executor, store: &Store) -> Result<Signal, Trap> {
         trace!("Invoke function '{}'", name);
         if self.breakpoints.should_break_func(name) {
             Ok(Signal::Breakpoint)

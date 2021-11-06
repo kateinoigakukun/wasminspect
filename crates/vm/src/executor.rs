@@ -772,7 +772,7 @@ impl Executor {
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Return { arity });
                 self.pc = pc;
-                interceptor.invoke_func(func.name())
+                interceptor.invoke_func(func.name(), self, store)
             }
             FunctionInstance::Host(func) => {
                 let mut result = Vec::new();
