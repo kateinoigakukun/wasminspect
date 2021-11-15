@@ -3,6 +3,8 @@ use anyhow::{anyhow, Result};
 use log::{trace, warn};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::{cell::RefCell, usize};
 use wasminspect_vm::{
     CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, InstIndex, Instruction,
@@ -28,6 +30,7 @@ pub struct MainDebugger {
     preopen_dirs: Vec<(String, String)>,
     config: wasminspect_vm::Config,
     breakpoints: Breakpoints,
+    is_interrupted: Arc<AtomicBool>,
 }
 
 #[derive(Default)]
@@ -73,6 +76,8 @@ impl MainDebugger {
     }
 
     pub fn new(preopen_dirs: Vec<(String, String)>) -> Result<Self> {
+        let is_interrupted = Arc::new(AtomicBool::new(false));
+        signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&is_interrupted))?;
         Ok(Self {
             instance: None,
             main_module: None,
@@ -81,6 +86,7 @@ impl MainDebugger {
                 features: WasmFeatures::default(),
             },
             breakpoints: Default::default(),
+            is_interrupted,
             preopen_dirs,
         })
     }
@@ -370,8 +376,7 @@ impl debugger::Debugger for MainDebugger {
             store.load_host_module(name, host_module);
         }
 
-        let (main_module, basename) = if let Some((main_module, basename)) = &self.main_module
-        {
+        let (main_module, basename) = if let Some((main_module, basename)) = &self.main_module {
             (main_module, basename.clone())
         } else {
             return Err(anyhow::anyhow!("No main module registered"));
@@ -429,6 +434,9 @@ impl Interceptor for MainDebugger {
     fn execute_inst(&self, inst: &Instruction) -> Result<Signal, Trap> {
         trace!("Execute {:?}", inst);
         if self.breakpoints.should_break_inst(inst) {
+            Ok(Signal::Breakpoint)
+        } else if self.is_interrupted.swap(false, Ordering::Relaxed) {
+            println!("Interrupted by signal");
             Ok(Signal::Breakpoint)
         } else {
             Ok(Signal::Next)
