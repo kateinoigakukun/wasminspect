@@ -25,6 +25,7 @@ pub struct MainDebugger {
     main_module: Option<(RawModule, String)>,
 
     opts: DebuggerOpts,
+    preopen_dirs: Vec<(String, String)>,
     config: wasminspect_vm::Config,
     breakpoints: Breakpoints,
 }
@@ -71,7 +72,7 @@ impl MainDebugger {
         Ok(())
     }
 
-    pub fn new() -> Result<Self> {
+    pub fn new(preopen_dirs: Vec<(String, String)>) -> Result<Self> {
         Ok(Self {
             instance: None,
             main_module: None,
@@ -80,6 +81,7 @@ impl MainDebugger {
                 features: WasmFeatures::default(),
             },
             breakpoints: Default::default(),
+            preopen_dirs,
         })
     }
 
@@ -368,20 +370,37 @@ impl debugger::Debugger for MainDebugger {
             store.load_host_module(name, host_module);
         }
 
-        let (main_module_index, basename) = if let Some((main_module, basename)) = &self.main_module {
-            (store.load_module(None, &main_module)?, basename.clone())
+        let (main_module, basename) = if let Some((main_module, basename)) = &self.main_module
+        {
+            (main_module, basename.clone())
         } else {
             return Err(anyhow::anyhow!("No main module registered"));
         };
 
         let mut wasi_args = wasi_args.to_vec();
+        wasi_args.insert(0, basename);
 
-        wasi_args.push(basename);
-        let (ctx, wasi_snapshot_preview) = instantiate_wasi(&wasi_args);
-        let (_, wasi_unstable) = instantiate_wasi(&wasi_args);
+        fn collect_preopen_dirs(
+            preopen_dirs: &[(String, String)],
+        ) -> anyhow::Result<Vec<(String, cap_std::fs::Dir)>> {
+            preopen_dirs
+                .iter()
+                .map(|(guest, host)| {
+                    let dir = unsafe { cap_std::fs::Dir::open_ambient_dir(host) }?;
+                    Ok((guest.clone(), dir))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()
+        }
+
+        let (ctx, wasi_snapshot_preview) =
+            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?)?;
+        let (_, wasi_unstable) =
+            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?)?;
         store.add_embed_context(Box::new(ctx));
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
         store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+
+        let main_module_index = store.load_module(None, main_module)?;
 
         self.instance = Some(Instance {
             main_module_index,
@@ -393,7 +412,12 @@ impl debugger::Debugger for MainDebugger {
 }
 
 impl Interceptor for MainDebugger {
-    fn invoke_func(&self, name: &String, _executor: &Executor, _store: &Store) -> Result<Signal, Trap> {
+    fn invoke_func(
+        &self,
+        name: &String,
+        _executor: &Executor,
+        _store: &Store,
+    ) -> Result<Signal, Trap> {
         trace!("Invoke function '{}'", name);
         if self.breakpoints.should_break_func(name) {
             Ok(Signal::Breakpoint)

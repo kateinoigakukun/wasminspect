@@ -18,6 +18,7 @@ gimli = "0.21.0"
 log = "0.4.8"
 num-bigint = "0.4"
 shell-words = "1.0.0"
+cap-std = "0.13.0"
 
 [features]
 default = []

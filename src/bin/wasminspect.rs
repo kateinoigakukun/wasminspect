@@ -2,6 +2,17 @@ use env_logger;
 use std::io::Read;
 use structopt::StructOpt;
 use wasminspect_debugger::{self, ModuleInput};
+use anyhow::anyhow;
+
+
+fn parse_map_dirs(s: &str) -> anyhow::Result<(String, String)> {
+    let parts: Vec<&str> = s.split("::").collect();
+    if parts.len() != 2 {
+        return Err(anyhow!("must contain exactly one double colon ('::')"));
+    }
+    Ok((parts[0].into(), parts[1].into()))
+}
+
 
 #[derive(StructOpt)]
 struct Opts {
@@ -11,6 +22,9 @@ struct Opts {
     /// Tells the debugger to read in and execute the debugger commands in given file, after wasm file has been loaded
     #[structopt(short, long)]
     source: Option<String>,
+    /// Grant access to a guest directory mapped as a host directory
+    #[structopt(long = "mapdir", number_of_values = 1, value_name = "GUEST_DIR::HOST_DIR", parse(try_from_str = parse_map_dirs))]
+    map_dirs: Vec<(String, String)>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -37,7 +51,7 @@ fn main() -> anyhow::Result<()> {
         None => None,
     };
     Ok(
-        match wasminspect_debugger::run_loop(module_input, opts.source) {
+        match wasminspect_debugger::run_loop(module_input, opts.source, opts.map_dirs) {
             Err(err) => println!("{:?}", err),
             _ => {}
         },

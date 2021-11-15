@@ -45,11 +45,12 @@ pub struct ModuleInput {
 
 pub fn start_debugger<'a>(
     module_input: Option<ModuleInput>,
+    preopen_dirs: Vec<(String, String)>,
 ) -> Result<(
     process::Process<debugger::MainDebugger>,
     command::CommandContext,
 )> {
-    let mut debugger = debugger::MainDebugger::new()?;
+    let mut debugger = debugger::MainDebugger::new(preopen_dirs)?;
     let mut context = commands::command::CommandContext {
         sourcemap: Box::new(commands::sourcemap::EmptySourceMap::new()),
         subroutine: Box::new(commands::subroutine::EmptySubroutineMap::new()),
@@ -89,8 +90,12 @@ pub fn start_debugger<'a>(
     Ok((process, context))
 }
 
-pub fn run_loop(module_input: Option<ModuleInput>, init_source: Option<String>) -> Result<()> {
-    let (mut process, context) = start_debugger(module_input)?;
+pub fn run_loop(
+    module_input: Option<ModuleInput>,
+    init_source: Option<String>,
+    preopen_dirs: Vec<(String, String)>,
+) -> Result<()> {
+    let (mut process, context) = start_debugger(module_input, preopen_dirs)?;
 
     {
         let is_default = init_source.is_none();

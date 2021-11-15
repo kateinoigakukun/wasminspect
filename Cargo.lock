@@ -1777,6 +1777,7 @@ name = "wasminspect-debugger"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "cap-std",
  "clap",
  "gimli",
  "linefeed",
@@ -1845,6 +1846,8 @@ dependencies = [
 name = "wasminspect-wasi"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
+ "cap-std",
  "log",
  "wasi-cap-std-sync",
  "wasi-common",
