@@ -1,7 +1,7 @@
 use env_logger;
 use std::io::Read;
 use structopt::StructOpt;
-use wasminspect_debugger;
+use wasminspect_debugger::{self, ModuleInput};
 
 #[derive(StructOpt)]
 struct Opts {
@@ -17,17 +17,29 @@ fn main() -> anyhow::Result<()> {
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("warn"));
 
     let opts = Opts::from_args();
-    let buffer = match opts.filepath {
+    let module_input = match opts.filepath {
         Some(filepath) => {
             let mut buffer = Vec::new();
+            let filepath = std::path::Path::new(&filepath);
+            let basename = filepath
+                .file_name()
+                .expect("invalid file path")
+                .to_str()
+                .expect("invalid file name encoding")
+                .to_string();
             let mut f = std::fs::File::open(filepath)?;
             f.read_to_end(&mut buffer)?;
-            Some(buffer)
+            Some(ModuleInput {
+                bytes: buffer,
+                basename,
+            })
         }
         None => None,
     };
-    Ok(match wasminspect_debugger::run_loop(buffer, opts.source) {
-        Err(err) => println!("{:?}", err),
-        _ => {}
-    })
+    Ok(
+        match wasminspect_debugger::run_loop(module_input, opts.source) {
+            Err(err) => println!("{:?}", err),
+            _ => {}
+        },
+    )
 }

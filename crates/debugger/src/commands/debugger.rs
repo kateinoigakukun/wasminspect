@@ -40,7 +40,7 @@ pub trait Debugger {
     fn instantiate(
         &mut self,
         host_modules: std::collections::HashMap<String, RawHostModule>,
-        wasi_args: Option<&[String]>,
+        wasi_args: &[String],
     ) -> Result<()>;
     fn run(&mut self, name: Option<&str>, args: Vec<WasmValue>) -> Result<RunResult>;
     fn is_running(&self) -> bool;

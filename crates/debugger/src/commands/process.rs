@@ -18,15 +18,10 @@ impl ProcessCommand {
 enum Opts {
     #[structopt(name = "continue")]
     Continue,
-    #[structopt(name = "launch")]
-    Launch {
-        #[structopt(name = "FUNCTION NAME")]
-        name: Option<String>,
-    },
 
     /// Start WASI entry point
-    #[structopt(name = "start")]
-    Start {
+    #[structopt(name = "launch")]
+    Launch {
         #[structopt(name = "ARGS", last = true)]
         args: Vec<String>,
     },
@@ -57,11 +52,8 @@ impl<D: Debugger> Command<D> for ProcessCommand {
                     context.printer.println("Hit breakpoint");
                 }
             },
-            Opts::Launch { name } => {
-                return self.start_debugger(debugger, context, name, None);
-            }
-            Opts::Start { args } => {
-                return self.start_debugger(debugger, context, None, Some(args));
+            Opts::Launch { args } => {
+                return self.start_debugger(debugger, context, args);
             }
         }
         Ok(None)
@@ -72,8 +64,7 @@ impl ProcessCommand {
         &self,
         debugger: &mut D,
         context: &CommandContext,
-        name: Option<String>,
-        wasi_args: Option<Vec<String>>
+        wasi_args: Vec<String>
     ) -> Result<Option<CommandResult>> {
         use std::io::Write;
         if debugger.is_running() {
@@ -86,13 +77,9 @@ impl ProcessCommand {
                 return Ok(None);
             }
         }
-        if let Some(wasi_args) = wasi_args {
-            debugger.instantiate(std::collections::HashMap::new(), Some(&wasi_args))?;
-        } else {
-            debugger.instantiate(std::collections::HashMap::new(), None)?;
-        }
+        debugger.instantiate(std::collections::HashMap::new(), &wasi_args)?;
 
-        match debugger.run(name.as_ref().map(String::as_str), vec![]) {
+        match debugger.run(None, vec![]) {
             Ok(RunResult::Finish(values)) => {
                 let output = format!("{:?}", values);
                 context.printer.println(&output);

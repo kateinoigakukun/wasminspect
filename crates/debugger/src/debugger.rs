@@ -22,7 +22,7 @@ pub struct Instance {
 pub struct MainDebugger {
     pub instance: Option<Instance>,
 
-    main_module: Option<RawModule>,
+    main_module: Option<(RawModule, String)>,
 
     opts: DebuggerOpts,
     config: wasminspect_vm::Config,
@@ -62,12 +62,12 @@ impl Breakpoints {
 }
 
 impl MainDebugger {
-    pub fn load_main_module(&mut self, module: &[u8]) -> Result<()> {
+    pub fn load_main_module(&mut self, module: &[u8], name: String) -> Result<()> {
         if let Err(err) = wasmparser::validate(module) {
             warn!("{}", err);
             return Err(err.into());
         }
-        self.main_module = Some(module.to_vec());
+        self.main_module = Some((module.to_vec(), name));
         Ok(())
     }
 
@@ -361,22 +361,20 @@ impl debugger::Debugger for MainDebugger {
     fn instantiate(
         &mut self,
         host_modules: HashMap<String, RawHostModule>,
-        wasi_args: Option<&[String]>,
+        wasi_args: &[String],
     ) -> Result<()> {
         let mut store = Store::new();
         for (name, host_module) in host_modules {
             store.load_host_module(name, host_module);
         }
 
-        if let Some(wasi_args) = wasi_args {
-            let (ctx, wasi_snapshot_preview) = instantiate_wasi(wasi_args);
-            let (_, wasi_unstable) = instantiate_wasi(wasi_args);
-            store.add_embed_context(Box::new(ctx));
-            store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-            store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
-        }
+        let (ctx, wasi_snapshot_preview) = instantiate_wasi(wasi_args);
+        let (_, wasi_unstable) = instantiate_wasi(wasi_args);
+        store.add_embed_context(Box::new(ctx));
+        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
 
-        let main_module_index = if let Some(ref main_module) = self.main_module {
+        let main_module_index = if let Some((ref main_module, _)) = self.main_module {
             store.load_module(None, &main_module)?
         } else {
             return Err(anyhow::anyhow!("No main module registered"));
@@ -391,7 +389,7 @@ impl debugger::Debugger for MainDebugger {
 }
 
 impl Interceptor for MainDebugger {
-    fn invoke_func(&self, name: &String, executor: &Executor, store: &Store) -> Result<Signal, Trap> {
+    fn invoke_func(&self, name: &String, _executor: &Executor, _store: &Store) -> Result<Signal, Trap> {
         trace!("Invoke function '{}'", name);
         if self.breakpoints.should_break_func(name) {
             Ok(Signal::Breakpoint)

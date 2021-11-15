@@ -38,8 +38,13 @@ impl commands::debugger::OutputPrinter for ConsolePrinter {
     }
 }
 
+pub struct ModuleInput {
+    pub bytes: Vec<u8>,
+    pub basename: String,
+}
+
 pub fn start_debugger<'a>(
-    bytes: Option<&'a Vec<u8>>,
+    module_input: Option<ModuleInput>,
 ) -> Result<(
     process::Process<debugger::MainDebugger>,
     command::CommandContext,
@@ -51,9 +56,9 @@ pub fn start_debugger<'a>(
         printer: Box::new(ConsolePrinter {}),
     };
 
-    if let Some(ref bytes) = bytes {
-        debugger.load_main_module(bytes)?;
-        match try_load_dwarf(bytes, &mut context) {
+    if let Some(ref module_input) = module_input {
+        debugger.load_main_module(&module_input.bytes, module_input.basename.clone())?;
+        match try_load_dwarf(&module_input.bytes, &mut context) {
             Ok(_) => (),
             Err(err) => {
                 warn!("Failed to load dwarf info: {}", err);
@@ -84,8 +89,8 @@ pub fn start_debugger<'a>(
     Ok((process, context))
 }
 
-pub fn run_loop(bytes: Option<Vec<u8>>, init_source: Option<String>) -> Result<()> {
-    let (mut process, context) = start_debugger(bytes.as_ref())?;
+pub fn run_loop(module_input: Option<ModuleInput>, init_source: Option<String>) -> Result<()> {
+    let (mut process, context) = start_debugger(module_input)?;
 
     {
         let is_default = init_source.is_none();
