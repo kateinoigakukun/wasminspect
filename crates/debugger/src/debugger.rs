@@ -368,17 +368,21 @@ impl debugger::Debugger for MainDebugger {
             store.load_host_module(name, host_module);
         }
 
-        let (ctx, wasi_snapshot_preview) = instantiate_wasi(wasi_args);
-        let (_, wasi_unstable) = instantiate_wasi(wasi_args);
+        let (main_module_index, basename) = if let Some((main_module, basename)) = &self.main_module {
+            (store.load_module(None, &main_module)?, basename.clone())
+        } else {
+            return Err(anyhow::anyhow!("No main module registered"));
+        };
+
+        let mut wasi_args = wasi_args.to_vec();
+
+        wasi_args.push(basename);
+        let (ctx, wasi_snapshot_preview) = instantiate_wasi(&wasi_args);
+        let (_, wasi_unstable) = instantiate_wasi(&wasi_args);
         store.add_embed_context(Box::new(ctx));
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
         store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
 
-        let main_module_index = if let Some((ref main_module, _)) = self.main_module {
-            store.load_module(None, &main_module)?
-        } else {
-            return Err(anyhow::anyhow!("No main module registered"));
-        };
         self.instance = Some(Instance {
             main_module_index,
             store,
