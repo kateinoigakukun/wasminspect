@@ -26,15 +26,16 @@ fn wasi_proc_exit(status: i32) -> Result<(), Trap> {
 pub fn instantiate_wasi(
     args: &[String],
     preopen_dirs: Vec<(String, Dir)>,
+    envs: &[(String, String)],
 ) -> anyhow::Result<(WasiContext, HashMap<String, HostValue>)> {
     let builder = WasiCtxBuilder::new();
-    let mut builder = builder.inherit_stdio().args(args).unwrap();
+    let mut builder = builder.inherit_stdio().args(args)?.envs(envs)?;
 
     for (name, dir) in preopen_dirs.into_iter() {
         builder = builder.preopened_dir(dir, name)?;
     }
 
-    let wasi_ctx = builder.build().unwrap();
+    let wasi_ctx = builder.build()?;
 
     let mut module: HashMap<String, HostValue> = HashMap::new();
 

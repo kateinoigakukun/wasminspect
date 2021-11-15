@@ -28,6 +28,8 @@ pub struct MainDebugger {
 
     opts: DebuggerOpts,
     preopen_dirs: Vec<(String, String)>,
+    envs: Vec<(String, String)>,
+
     config: wasminspect_vm::Config,
     breakpoints: Breakpoints,
     is_interrupted: Arc<AtomicBool>,
@@ -75,7 +77,7 @@ impl MainDebugger {
         Ok(())
     }
 
-    pub fn new(preopen_dirs: Vec<(String, String)>) -> Result<Self> {
+    pub fn new(preopen_dirs: Vec<(String, String)>, envs: Vec<(String, String)>) -> Result<Self> {
         let is_interrupted = Arc::new(AtomicBool::new(false));
         signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&is_interrupted))?;
         Ok(Self {
@@ -88,6 +90,7 @@ impl MainDebugger {
             breakpoints: Default::default(),
             is_interrupted,
             preopen_dirs,
+            envs,
         })
     }
 
@@ -398,9 +401,9 @@ impl debugger::Debugger for MainDebugger {
         }
 
         let (ctx, wasi_snapshot_preview) =
-            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?)?;
+            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?, &self.envs)?;
         let (_, wasi_unstable) =
-            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?)?;
+            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?, &self.envs)?;
         store.add_embed_context(Box::new(ctx));
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
         store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
