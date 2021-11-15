@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{TruncSatTo, TruncTo, extend_i32, extend_i64};
+use crate::value::{extend_i32, extend_i64, TruncSatTo, TruncTo};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
@@ -153,7 +153,14 @@ impl Executor {
             Some(inst) => inst,
             None => return Err(Trap::NoMoreInstruction),
         };
-        return self.execute_inst(&inst, module_index, store, interceptor, config);
+
+        let signal = interceptor.execute_inst(inst)?;
+        let result = self.execute_inst(&inst, module_index, store, interceptor, config)?;
+        Ok(match (signal, result) {
+            (_, Signal::End) => Signal::End,
+            (signal, Signal::Next) => signal,
+            (_, other) => other,
+        })
     }
 
     fn execute_inst<I: Interceptor>(
@@ -165,8 +172,7 @@ impl Executor {
         config: &Config,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
-        let signal = interceptor.execute_inst(inst)?;
-        let result = match inst.kind.clone() {
+        let result = match &inst.kind {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),
             InstructionKind::Block { ty } => {
@@ -255,11 +261,11 @@ impl Executor {
                     Ok(Signal::Next)
                 }
             }
-            InstructionKind::Br { relative_depth } => self.branch(relative_depth, store),
+            InstructionKind::Br { relative_depth } => self.branch(*relative_depth, store),
             InstructionKind::BrIf { relative_depth } => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 if val != Value::I32(0) {
-                    self.branch(relative_depth, store)
+                    self.branch(*relative_depth, store)
                 } else {
                     Ok(Signal::Next)
                 }
@@ -277,7 +283,7 @@ impl Executor {
             InstructionKind::Return => self.do_return(store),
             InstructionKind::Call { function_index } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                let addr = FuncAddr::new_unsafe(frame.module_index(), function_index as usize);
+                let addr = FuncAddr::new_unsafe(frame.module_index(), *function_index as usize);
                 self.invoke(addr, store, interceptor)
             }
             InstructionKind::CallIndirect {
@@ -287,7 +293,7 @@ impl Executor {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = TableAddr::new_unsafe(frame.module_index(), 0);
                 let module = store.module(frame.module_index()).defined().unwrap();
-                let ty = module.get_type(index as usize);
+                let ty = module.get_type(*index as usize);
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
@@ -325,25 +331,25 @@ impl Executor {
                     .stack
                     .current_frame()
                     .map_err(Trap::Stack)?
-                    .local(local_index as usize);
+                    .local(*local_index as usize);
                 self.stack.push_value(value);
                 Ok(Signal::Next)
             }
-            InstructionKind::LocalSet { local_index } => self.set_local(local_index as usize),
+            InstructionKind::LocalSet { local_index } => self.set_local(*local_index as usize),
             InstructionKind::LocalTee { local_index } => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 self.stack.push_value(val);
                 self.stack.push_value(val);
-                self.set_local(local_index as usize)
+                self.set_local(*local_index as usize)
             }
             InstructionKind::GlobalGet { global_index } => {
-                let addr = GlobalAddr::new_unsafe(module_index, global_index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
                 let global = store.global(addr);
                 self.stack.push_value(global.borrow().value());
                 Ok(Signal::Next)
             }
             InstructionKind::GlobalSet { global_index } => {
-                let addr = GlobalAddr::new_unsafe(module_index, global_index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
                 let global = store.global(addr);
                 global.borrow_mut().set_value(value);
@@ -438,11 +444,11 @@ impl Executor {
             }
 
             InstructionKind::I32Const { value } => {
-                self.stack.push_value(Value::I32(value));
+                self.stack.push_value(Value::I32(*value));
                 Ok(Signal::Next)
             }
             InstructionKind::I64Const { value } => {
-                self.stack.push_value(Value::I64(value));
+                self.stack.push_value(Value::I64(*value));
                 Ok(Signal::Next)
             }
             InstructionKind::F32Const { value } => {
@@ -598,9 +604,9 @@ impl Executor {
             InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
             InstructionKind::F64PromoteF32 => self.unop(|x: f32| f64::from(x)),
 
-            InstructionKind::I32Extend8S =>  self.unop(|x: i32| extend_i32(x, 8)),
+            InstructionKind::I32Extend8S => self.unop(|x: i32| extend_i32(x, 8)),
             InstructionKind::I32Extend16S => self.unop(|x: i32| extend_i32(x, 16)),
-            InstructionKind::I64Extend8S =>  self.unop(|x: i64| extend_i64(x, 8)),
+            InstructionKind::I64Extend8S => self.unop(|x: i64| extend_i64(x, 8)),
             InstructionKind::I64Extend16S => self.unop(|x: i64| extend_i64(x, 16)),
             InstructionKind::I64Extend32S => self.unop(|x: i64| extend_i64(x, 32)),
 
@@ -608,20 +614,34 @@ impl Executor {
             InstructionKind::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
-            InstructionKind::I32TruncSatF32S => self.unop(|v: f32| TruncSatTo::<i32>::trunc_sat_to(v)),
-            InstructionKind::I32TruncSatF32U => self.unop(|v: f32| TruncSatTo::<u32>::trunc_sat_to(v)),
-            InstructionKind::I32TruncSatF64S => self.unop(|v: f64| TruncSatTo::<i32>::trunc_sat_to(v)),
-            InstructionKind::I32TruncSatF64U => self.unop(|v: f64| TruncSatTo::<u32>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF32S => self.unop(|v: f32| TruncSatTo::<i64>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF32U => self.unop(|v: f32| TruncSatTo::<u64>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF64S => self.unop(|v: f64| TruncSatTo::<i64>::trunc_sat_to(v)),
-            InstructionKind::I64TruncSatF64U => self.unop(|v: f64| TruncSatTo::<u64>::trunc_sat_to(v)),
+            InstructionKind::I32TruncSatF32S => {
+                self.unop(|v: f32| TruncSatTo::<i32>::trunc_sat_to(v))
+            }
+            InstructionKind::I32TruncSatF32U => {
+                self.unop(|v: f32| TruncSatTo::<u32>::trunc_sat_to(v))
+            }
+            InstructionKind::I32TruncSatF64S => {
+                self.unop(|v: f64| TruncSatTo::<i32>::trunc_sat_to(v))
+            }
+            InstructionKind::I32TruncSatF64U => {
+                self.unop(|v: f64| TruncSatTo::<u32>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF32S => {
+                self.unop(|v: f32| TruncSatTo::<i64>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF32U => {
+                self.unop(|v: f32| TruncSatTo::<u64>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF64S => {
+                self.unop(|v: f64| TruncSatTo::<i64>::trunc_sat_to(v))
+            }
+            InstructionKind::I64TruncSatF64U => {
+                self.unop(|v: f64| TruncSatTo::<u64>::trunc_sat_to(v))
+            }
             other => unimplemented!("{:?}", other),
         };
         if self.stack.is_over_top_level() {
             return Ok(Signal::End);
-        } else if let Ok(Signal::Next) = result {
-            return Ok(signal);
         } else {
             return result;
         }
@@ -805,14 +825,14 @@ impl Executor {
     }
 
     /// Returns a pair of arities for parameter and result
-    fn get_type_arity(&self, ty: TypeOrFuncType, store: &Store) -> ExecResult<(usize, usize)> {
+    fn get_type_arity(&self, ty: &TypeOrFuncType, store: &Store) -> ExecResult<(usize, usize)> {
         Ok(match ty {
             TypeOrFuncType::Type(Type::EmptyBlockType) => (0, 0),
             TypeOrFuncType::Type(_) => (0, 1),
             TypeOrFuncType::FuncType(type_id) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let module = store.module(frame.module_index()).defined().unwrap();
-                let ty = module.get_type(type_id as usize);
+                let ty = module.get_type(*type_id as usize);
                 (ty.params.len(), ty.returns.len())
             }
         })
