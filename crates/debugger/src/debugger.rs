@@ -435,7 +435,6 @@ impl Interceptor for MainDebugger {
     }
 
     fn execute_inst(&self, inst: &Instruction) -> Result<Signal, Trap> {
-        trace!("Execute {:?}", inst);
         if self.breakpoints.should_break_inst(inst) {
             Ok(Signal::Breakpoint)
         } else if self.is_interrupted.swap(false, Ordering::Relaxed) {
