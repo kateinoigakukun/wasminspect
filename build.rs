@@ -25,7 +25,6 @@ fn main() -> Result<()> {
 fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
     let temporary_disabled_tests = [
         "bulk.wast",
-        "memory_fill.wast",
         "memory_init.wast",
     ];
 
