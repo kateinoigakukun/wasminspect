@@ -386,6 +386,18 @@ impl Store {
             // buf.drain(..consumed);
         }
 
+        let instance = DefinedModuleInstance::new_from_module(
+            module_index,
+            types.clone(),
+            exports,
+            start_func,
+        );
+        self.modules.push(ModuleInstance::Defined(instance));
+
+        if let Some(name) = name {
+            self.module_index_by_name.insert(name, module_index);
+        }
+
         self.load_imports(imports, module_index, &types)?;
         self.load_globals(globals, module_index)?;
         if let Some(base_offset) = code_section_base_offset {
@@ -401,15 +413,6 @@ impl Store {
         self.load_tables_and_elems(tables, module_index, elem_segs)?;
         self.load_mems(mems, module_index, data_segs)?;
 
-        let types = types.iter().map(|ty| ty.clone()).collect();
-
-        let instance =
-            DefinedModuleInstance::new_from_module(module_index, types, exports, start_func);
-        self.modules.push(ModuleInstance::Defined(instance));
-        if let Some(name) = name {
-            self.module_index_by_name.insert(name, module_index);
-        }
-
         Ok(module_index)
     }
     pub fn load_module(&mut self, name: Option<String>, reader: &[u8]) -> Result<ModuleIndex> {
@@ -420,18 +423,6 @@ impl Store {
         match result {
             Ok(ok) => Ok(ok),
             Err(err) => {
-                // If fail, cleanup states
-                self.funcs.remove_module(&module_index);
-                self.tables.remove_module(&module_index);
-                self.mems.remove_module(&module_index);
-                self.globals.remove_module(&module_index);
-                let module_index = module_index.0 as usize;
-                if module_index < self.modules.len() {
-                    self.modules.remove(module_index);
-                }
-                if let Some(ref name) = name.clone() {
-                    self.module_index_by_name.remove(name);
-                }
                 Err(err)
             }
         }
@@ -564,7 +555,9 @@ impl Store {
                     }
                 }
                 (None, Some(_)) => Err(StoreError::IncompatibleImportMemoryType {
-                    message: String::from("actual memory doesn't have limit but expected limit size"),
+                    message: String::from(
+                        "actual memory doesn't have limit but expected limit size",
+                    ),
                 })?,
                 _ => (),
             }
@@ -605,6 +598,9 @@ impl Store {
         let found = self.tables.get_global(resolved_addr);
         // Validation
         {
+            if Into::<Type>::into(found.borrow().ty) != table_ty.element_type {
+                Err(StoreError::IncompatibleImportTableType)?;
+            }
             if found.borrow().initial < table_ty.initial as usize {
                 Err(StoreError::IncompatibleImportTableType)?;
             }
@@ -724,20 +720,20 @@ impl Store {
             return Ok(table_addrs);
         }
         for table in tables.iter() {
-            match table.element_type {
-                Type::FuncRef => {
-                    let instance = TableInstance::new(
-                        table.initial as usize,
-                        table.maximum.map(|mx| mx as usize),
-                        RefType::FuncRef,
-                    );
-                    let addr = self
-                        .tables
-                        .push(module_index, Rc::new(RefCell::new(instance)));
-                    table_addrs.push(addr);
-                }
-                _ => (),
-            }
+            let ty = match table.element_type {
+                Type::FuncRef => RefType::FuncRef,
+                Type::ExternRef => RefType::ExternRef,
+                other => unimplemented!("unexpected table element type {:?}", other),
+            };
+            let instance = TableInstance::new(
+                table.initial as usize,
+                table.maximum.map(|mx| mx as usize),
+                ty,
+            );
+            let addr = self
+                .tables
+                .push(module_index, Rc::new(RefCell::new(instance)));
+            table_addrs.push(addr);
         }
         let tables = self.tables.items(module_index).unwrap();
         for seg in element_segments {

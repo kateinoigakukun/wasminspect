@@ -1,4 +1,4 @@
-use crate::value::{RefVal, RefType};
+use crate::value::{RefType, RefVal};
 
 #[derive(Debug)]
 pub enum Error {
@@ -37,14 +37,18 @@ pub struct TableInstance {
     buffer: Vec<RefVal>,
     pub max: Option<usize>,
     pub initial: usize,
+    pub ty: RefType,
 }
 
 impl TableInstance {
     pub fn new(initial: usize, maximum: Option<usize>, ty: RefType) -> Self {
         Self {
-            buffer: std::iter::repeat(RefVal::NullRef(ty)).take(initial).collect(),
+            buffer: std::iter::repeat(RefVal::NullRef(ty))
+                .take(initial)
+                .collect(),
             initial,
             max: maximum,
+            ty,
         }
     }
 

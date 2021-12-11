@@ -16,6 +16,15 @@ pub enum RefType {
     ExternRef,
 }
 
+impl Into<Type> for RefType {
+    fn into(self) -> Type {
+        match self {
+            RefType::FuncRef => Type::FuncRef,
+            RefType::ExternRef => Type::ExternRef,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RefVal {
     NullRef(RefType),
