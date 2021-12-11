@@ -1,3 +1,4 @@
+use crate::data::DataInstance;
 use crate::elem::ElementInstance;
 use crate::module::DefaultHostModuleInstance;
 use crate::value::{NumVal, RefType, RefVal};
@@ -28,6 +29,7 @@ pub struct Store {
     mems: LinkableCollection<Rc<RefCell<MemoryInstance>>>,
     globals: LinkableCollection<Rc<RefCell<dyn GlobalInstance>>>,
     elems: LinkableCollection<Rc<RefCell<ElementInstance>>>,
+    data: LinkableCollection<Rc<RefCell<DataInstance>>>,
     modules: Vec<ModuleInstance>,
     module_index_by_name: HashMap<String, ModuleIndex>,
 
@@ -42,6 +44,7 @@ impl Store {
             mems: LinkableCollection::new(),
             globals: LinkableCollection::new(),
             elems: LinkableCollection::new(),
+            data: LinkableCollection::new(),
             modules: Vec::new(),
             module_index_by_name: HashMap::new(),
             embedded_contexts: HashMap::new(),
@@ -84,6 +87,10 @@ impl Store {
 
     pub fn elem(&self, addr: ElemAddr) -> Rc<RefCell<ElementInstance>> {
         self.elems.get(addr).unwrap().0.clone()
+    }
+
+    pub fn data(&self, addr: DataAddr) -> Rc<RefCell<DataInstance>> {
+        self.data.get(addr).unwrap().0.clone()
     }
 
     pub fn module(&self, module_index: ModuleIndex) -> &ModuleInstance {
@@ -814,7 +821,7 @@ impl Store {
 
         let mems = self.mems.items(module_index).unwrap();
         for seg in data_segments {
-            match seg.kind {
+            let instance = match seg.kind {
                 DataKind::Active {
                     memory_index,
                     init_expr,
@@ -835,9 +842,13 @@ impl Store {
                     mem.borrow_mut()
                         .store(offset as usize, seg.data)
                         .map_err(StoreError::InvalidDataSegments)?;
+                    DataInstance::new(vec![])
                 }
-                other => unimplemented!("{:?}", other),
-            }
+                DataKind::Passive => {
+                    DataInstance::new(seg.data.to_vec())
+                }
+            };
+            self.data.push(module_index, Rc::new(RefCell::new(instance)));
         }
         Ok(mem_addrs)
     }

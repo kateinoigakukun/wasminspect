@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::value::{extend_i32, extend_i64, RefType, RefVal, TruncSatTo, TruncTo};
-use crate::{elem, ElemAddr};
+use crate::{data, elem, DataAddr, ElemAddr};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use super::func::*;
@@ -31,6 +31,7 @@ pub enum Trap {
     Table(table::Error),
     Value(value::Error),
     Element(elem::Error),
+    Data(data::Error),
     IndirectCallTypeMismatch {
         callee_name: String,
         expected: FuncType,
@@ -71,6 +72,7 @@ impl std::fmt::Display for Trap {
             Self::Table(e) => write!(f, "{}", e),
             Self::Stack(e) => write!(f, "{}", e),
             Self::Element(e) => write!(f, "{}", e),
+            Self::Data(e) => write!(f, "{}", e),
             Self::IndirectCallTypeMismatch {
                 callee_name,
                 expected,
@@ -109,6 +111,12 @@ impl From<elem::Error> for Trap {
 impl From<memory::Error> for Trap {
     fn from(e: memory::Error) -> Self {
         Trap::Memory(e)
+    }
+}
+
+impl From<data::Error> for Trap {
+    fn from(e: data::Error) -> Self {
+        Trap::Data(e)
     }
 }
 
@@ -622,6 +630,28 @@ impl Executor {
                 mem.borrow_mut()
                     .store(offset, &std::iter::repeat(val).take(n).collect::<Vec<_>>())?;
 
+                Ok(Signal::Next)
+            }
+            InstructionKind::MemoryInit { segment, mem } => {
+                let mem_addr = MemoryAddr::new_unsafe(module_index, *mem as usize);
+                let seg_addr = DataAddr::new_unsafe(module_index, *segment as usize);
+                let mem = store.memory(mem_addr);
+                let data = store.data(seg_addr);
+                let n = self.pop_as::<i32>()? as usize;
+                let src_base = self.pop_as::<i32>()? as usize;
+                let dst_base = self.pop_as::<i32>()? as usize;
+
+                mem.borrow().validate_region(dst_base, n)?;
+                data.borrow().validate_region(src_base, n)?;
+
+                mem.borrow_mut()
+                    .store(dst_base, &data.borrow().raw()[src_base..(src_base + n)])?;
+                Ok(Signal::Next)
+            }
+            InstructionKind::DataDrop { segment } => {
+                let data_addr = DataAddr::new_unsafe(module_index, *segment as usize);
+                let data = store.data(data_addr);
+                data.borrow_mut().drop_bytes();
                 Ok(Signal::Next)
             }
 

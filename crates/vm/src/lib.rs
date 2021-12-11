@@ -18,6 +18,7 @@ mod store;
 mod table;
 mod value;
 mod config;
+mod data;
 
 pub use self::address::*;
 pub use self::executor::{simple_invoke_func, Executor, Signal};
