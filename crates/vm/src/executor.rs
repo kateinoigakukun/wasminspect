@@ -567,6 +567,12 @@ impl Executor {
                 Ok(Signal::Next)
             }
 
+            InstructionKind::RefNull { ty } => {
+                let null_ref = Value::null_ref(*ty)
+                    .expect("invalid null_ref type should be validated before execution");
+                self.stack.push_value(null_ref);
+                Ok(Signal::Next)
+            }
             InstructionKind::RefIsNull => {
                 let ref_val = self.pop_ref()?;
                 let ret_val = match ref_val {
