@@ -29,7 +29,6 @@ fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
         "memory_fill.wast",
         "memory_init.wast",
         "ref_func.wast",
-        "ref_is_null.wast",
         "table_copy.wast",
         "table_fill.wast",
         "table_grow.wast",
