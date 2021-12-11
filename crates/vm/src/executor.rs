@@ -84,7 +84,7 @@ impl std::fmt::Display for Trap {
  >> but actual implementation has      {:?}",
                 callee_name, expected, actual
             ),
-            Self::UndefinedFunc(addr) => write!(f, "uninitialized element at {:?}", addr),
+            Self::UndefinedFunc(addr) => write!(f, "uninitialized element {:?}", addr),
             Self::Unreachable => write!(f, "unreachable"),
             Self::MemoryAddrOverflow { base, offset } => write!(
                 f,
