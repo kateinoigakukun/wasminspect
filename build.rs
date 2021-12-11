@@ -23,6 +23,23 @@ fn main() -> Result<()> {
 }
 
 fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
+    let temporary_disabled_tests = [
+        "bulk.wast",
+        "memory_copy.wast",
+        "memory_fill.wast",
+        "memory_init.wast",
+        "ref_func.wast",
+        "ref_is_null.wast",
+        "ref_null.wast",
+        "table_copy.wast",
+        "table_fill.wast",
+        "table_get.wast",
+        "table_grow.wast",
+        "table_init.wast",
+        "table_set.wast",
+        "table_size.wast",
+    ];
+
     let path = path.as_ref();
     let mut dir_entries: Vec<_> = path
         .read_dir()?
@@ -32,6 +49,10 @@ fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
             let ext = p.extension()?;
             // Only look at wast files.
             if ext != "wast" {
+                return None;
+            }
+            // Skip temporary disabled tests.
+            if temporary_disabled_tests.contains(&p.file_name()?.to_str()?) {
                 return None;
             }
             // Ignore files starting with `.`, which could be editor temporary files
