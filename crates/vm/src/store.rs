@@ -422,9 +422,7 @@ impl Store {
             self.load_module_internal(name.clone(), reader, module_index);
         match result {
             Ok(ok) => Ok(ok),
-            Err(err) => {
-                Err(err)
-            }
+            Err(err) => Err(err),
         }
     }
 
@@ -746,13 +744,20 @@ impl Store {
                 .items
                 .get_items_reader()?
                 .into_iter()
-                .map(|item| {
-                    Ok(match item? {
-                        ElementItem::Func(index) => {
-                            RefVal::FuncRef(FuncAddr::new_unsafe(module_index, index as usize))
+                .map(|item| match item? {
+                    ElementItem::Func(index) => Ok(RefVal::FuncRef(FuncAddr::new_unsafe(
+                        module_index,
+                        index as usize,
+                    ))),
+                    ElementItem::Expr(init_expr) => {
+                        match eval_const_expr(&init_expr, self, module_index)? {
+                            Value::Num(n) => unreachable!(
+                                "unexpected num value returned by init_expr in segment: {:?}",
+                                n
+                            ),
+                            Value::Ref(r) => Ok(r),
                         }
-                        ElementItem::Expr { .. } => RefVal::NullRef(ty),
-                    })
+                    }
                 })
                 .collect::<Result<Vec<_>>>()?;
             let instance = ElementInstance::new(ty, data.clone());

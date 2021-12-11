@@ -1,4 +1,4 @@
-use crate::value::{RefVal, RefType};
+use crate::value::{RefType, RefVal};
 
 #[derive(Debug)]
 pub enum Error {
@@ -25,7 +25,6 @@ impl std::fmt::Display for Error {
     }
 }
 
-
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct ElementInstance {
@@ -36,6 +35,18 @@ pub struct ElementInstance {
 impl ElementInstance {
     pub fn new(ty: RefType, elem: Vec<RefVal>) -> Self {
         Self { _ty: ty, elem }
+    }
+
+    pub fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
+        let len = self.elem.len();
+        if let Some(max_addr) = offset.checked_add(size) {
+            if max_addr > len {
+                return Err(Error::AccessOutOfBounds(Some(max_addr), len));
+            }
+        } else {
+            return Err(Error::AccessOutOfBounds(None, len));
+        }
+        Ok(())
     }
 
     pub fn get_at(&self, index: usize) -> Result<RefVal> {

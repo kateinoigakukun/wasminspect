@@ -469,14 +469,16 @@ impl Executor {
                 let elem_addr = ElemAddr::new_unsafe(module_index, *segment as usize);
                 let table = store.table(table_addr);
                 let elem = store.elem(elem_addr);
-                let n: i32 = self.pop_as()?;
-                let src_base: i32 = self.pop_as()?;
-                let dst_base: i32 = self.pop_as()?;
+                let n = self.pop_as::<i32>()? as usize;
+                let src_base = self.pop_as::<i32>()? as usize;
+                let dst_base = self.pop_as::<i32>()? as usize;
+
+                table.borrow().validate_region(dst_base, n)?;
+                elem.borrow().validate_region(src_base, n)?;
+
                 for offset in 0..n {
-                    let val = elem.borrow().get_at((src_base + offset) as usize)?;
-                    table
-                        .borrow_mut()
-                        .set_at((dst_base + offset) as usize, val)?;
+                    let val = elem.borrow().get_at(src_base + offset)?;
+                    table.borrow_mut().set_at(dst_base + offset, val)?;
                 }
                 Ok(Signal::Next)
             }
