@@ -424,12 +424,14 @@ impl Executor {
             InstructionKind::TableFill { table } => {
                 let addr = TableAddr::new_unsafe(module_index, *table as usize);
                 let table = store.table(addr);
-                let n: i32 = self.pop_as()?;
+                let n = self.pop_as::<i32>()? as usize;
                 let ref_val = self.pop_ref()?;
-                let index: i32 = self.pop_as()?;
+                let index = self.pop_as::<i32>()? as usize;
+
+                table.borrow().validate_region(index, n)?;
 
                 for index in index..(index + n) {
-                    table.borrow_mut().set_at(index as usize, ref_val)?;
+                    table.borrow_mut().set_at(index, ref_val)?;
                 }
 
                 Ok(Signal::Next)
