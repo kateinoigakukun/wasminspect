@@ -28,7 +28,6 @@ fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
         "memory_copy.wast",
         "memory_fill.wast",
         "memory_init.wast",
-        "table_size.wast",
     ];
 
     let path = path.as_ref();
