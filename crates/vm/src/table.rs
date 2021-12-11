@@ -7,7 +7,10 @@ pub enum Error {
         /* memory size */ usize,
     ),
     UninitializedElement(usize),
-    GrowOverMaximumSize(usize),
+    GrowOverMaximumSize {
+        base: usize,
+        growing: usize,
+    },
 }
 
 impl std::fmt::Display for Error {
@@ -93,14 +96,18 @@ impl TableInstance {
     }
 
     pub fn grow(&mut self, n: usize, val: RefVal) -> Result<()> {
-        let len = self.buffer_len() + n;
-        if self.buffer_len() > (1 << 32) {
-            return Err(Error::GrowOverMaximumSize(len));
-        }
+        let base_len = self.buffer_len();
+        let len = base_len.checked_add(n).ok_or(Error::GrowOverMaximumSize {
+            base: base_len,
+            growing: n,
+        })?;
 
         if let Some(max) = self.max {
             if len > max {
-                return Err(Error::GrowOverMaximumSize(max));
+                return Err(Error::GrowOverMaximumSize {
+                    base: base_len,
+                    growing: n,
+                });
             }
         }
         let mut extra = std::iter::repeat(val).take(n).collect();
