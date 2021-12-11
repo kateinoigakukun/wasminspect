@@ -1,3 +1,4 @@
+use cap_std::fs::Dir;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use wasi_cap_std_sync::WasiCtxBuilder;
@@ -22,9 +23,20 @@ fn wasi_proc_exit(status: i32) -> Result<(), Trap> {
     std::process::exit(status);
 }
 
-pub fn instantiate_wasi(args: &[String]) -> (WasiContext, HashMap<String, HostValue>) {
+pub fn instantiate_wasi(
+    args: &[String],
+    preopen_dirs: Vec<(String, Dir)>,
+    envs: &[(String, String)],
+) -> anyhow::Result<(WasiContext, HashMap<String, HostValue>)> {
     let builder = WasiCtxBuilder::new();
-    let wasi_ctx = builder.inherit_stdio().args(args).unwrap().build().unwrap();
+    let mut builder = builder.inherit_stdio().args(args)?.envs(envs)?;
+
+    for (name, dir) in preopen_dirs.into_iter() {
+        builder = builder.preopened_dir(dir, name)?;
+    }
+
+    let wasi_ctx = builder.build()?;
+
     let mut module: HashMap<String, HostValue> = HashMap::new();
 
     wasminspect_wasi_macro::define_wasi_fn_for_wasminspect!(
@@ -35,5 +47,5 @@ pub fn instantiate_wasi(args: &[String]) -> (WasiContext, HashMap<String, HostVa
     let context = WasiContext {
         ctx: RefCell::new(wasi_ctx),
     };
-    (context, module)
+    Ok((context, module))
 }

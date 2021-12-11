@@ -147,7 +147,7 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             log::debug!("Start debugger thread");
-            let (process, dbg_context) = wasminspect_debugger::start_debugger(None).unwrap();
+            let (process, dbg_context) = wasminspect_debugger::start_debugger(None, vec![]).unwrap();
             let process = Rc::new(RefCell::new(process));
 
             let mut last_line: Option<String> = None;

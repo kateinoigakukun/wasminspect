@@ -14,7 +14,7 @@ fn load_file(filename: &str) -> anyhow::Result<Vec<u8>> {
 
 #[test]
 fn test_load_and_execute() -> anyhow::Result<()> {
-    let (mut process, _) = start_debugger(None)?;
+    let (mut process, _) = start_debugger(None, vec![], vec![])?;
     let example_dir = std::path::Path::new(file!())
         .parent()
         .unwrap()
@@ -24,8 +24,8 @@ fn test_load_and_execute() -> anyhow::Result<()> {
     let mut host_modules = HashMap::new();
     let args = vec![];
     host_modules.insert("spectest".to_string(), spectest);
-    process.debugger.load_main_module(&bytes)?;
-    process.debugger.instantiate(host_modules, Some(&args))?;
+    process.debugger.load_main_module(&bytes, String::from("calc.wasm"))?;
+    process.debugger.instantiate(host_modules, &args)?;
     process.debugger.run(Some("add"), vec![WasmValue::I32(1), WasmValue::I32(2)])?;
     Ok(())
 }

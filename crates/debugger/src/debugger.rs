@@ -1,15 +1,17 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
 use anyhow::{anyhow, Result};
 use log::{trace, warn};
-use wasmparser::WasmFeatures;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::{cell::RefCell, usize};
 use wasminspect_vm::{
     CallFrame, DefinedModuleInstance, Executor, FuncAddr, FunctionInstance, InstIndex, Instruction,
     Interceptor, MemoryAddr, ModuleIndex, ProgramCounter, Signal, Store, Trap, WasmValue,
 };
 use wasminspect_wasi::instantiate_wasi;
+use wasmparser::WasmFeatures;
 
 type RawModule = Vec<u8>;
 
@@ -22,32 +24,73 @@ pub struct Instance {
 pub struct MainDebugger {
     pub instance: Option<Instance>,
 
-    main_module: Option<RawModule>,
+    main_module: Option<(RawModule, String)>,
 
     opts: DebuggerOpts,
+    preopen_dirs: Vec<(String, String)>,
+    envs: Vec<(String, String)>,
+
     config: wasminspect_vm::Config,
-    function_breakpoints: HashMap<String, debugger::Breakpoint>,
+    breakpoints: Breakpoints,
+    is_interrupted: Arc<AtomicBool>,
+}
+
+#[derive(Default)]
+struct Breakpoints {
+    function_map: HashMap<String, debugger::Breakpoint>,
+    inst_map: HashMap<usize, debugger::Breakpoint>,
+}
+
+impl Breakpoints {
+    fn should_break_func(&self, name: &String) -> bool {
+        // FIXME
+        self.function_map
+            .keys()
+            .filter(|k| name.contains(k.clone()))
+            .next()
+            .is_some()
+    }
+
+    fn should_break_inst(&self, inst: &Instruction) -> bool {
+        self.inst_map.contains_key(&inst.offset)
+    }
+
+    fn insert(&mut self, breakpoint: debugger::Breakpoint) {
+        match &breakpoint {
+            debugger::Breakpoint::Function { name } => {
+                self.function_map.insert(name.clone(), breakpoint);
+            }
+            debugger::Breakpoint::Instruction { inst_offset } => {
+                self.inst_map.insert(*inst_offset, breakpoint);
+            }
+        }
+    }
 }
 
 impl MainDebugger {
-    pub fn load_main_module(&mut self, module: &[u8]) -> Result<()> {
+    pub fn load_main_module(&mut self, module: &[u8], name: String) -> Result<()> {
         if let Err(err) = wasmparser::validate(module) {
             warn!("{}", err);
             return Err(err.into());
         }
-        self.main_module = Some(module.to_vec());
+        self.main_module = Some((module.to_vec(), name));
         Ok(())
     }
 
-    pub fn new() -> Result<Self> {
+    pub fn new(preopen_dirs: Vec<(String, String)>, envs: Vec<(String, String)>) -> Result<Self> {
+        let is_interrupted = Arc::new(AtomicBool::new(false));
+        signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&is_interrupted))?;
         Ok(Self {
             instance: None,
             main_module: None,
-            function_breakpoints: HashMap::new(),
             opts: DebuggerOpts::default(),
             config: wasminspect_vm::Config {
                 features: WasmFeatures::default(),
-            }
+            },
+            breakpoints: Default::default(),
+            is_interrupted,
+            preopen_dirs,
+            envs,
         })
     }
 
@@ -158,11 +201,7 @@ impl debugger::Debugger for MainDebugger {
     }
 
     fn set_breakpoint(&mut self, breakpoint: debugger::Breakpoint) {
-        match &breakpoint {
-            debugger::Breakpoint::Function { name } => {
-                self.function_breakpoints.insert(name.clone(), breakpoint);
-            }
-        }
+        self.breakpoints.insert(breakpoint)
     }
 
     fn stack_values(&self) -> Vec<WasmValue> {
@@ -251,12 +290,21 @@ impl debugger::Debugger for MainDebugger {
             executor.stack.peek_frames().len()
         }
         match style {
-            StepInstIn => return Ok(executor.borrow_mut().execute_step(&store, self, &self.config)?),
+            StepInstIn => {
+                return Ok(executor
+                    .borrow_mut()
+                    .execute_step(&store, self, &self.config)?)
+            }
             StepInstOver => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                let mut last_signal =
+                    executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                 while initial_frame_depth < frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                    last_signal = executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -265,9 +313,14 @@ impl debugger::Debugger for MainDebugger {
             }
             StepOut => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
-                let mut last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                let mut last_signal =
+                    executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                 while initial_frame_depth <= frame_depth(&executor.borrow()) {
-                    last_signal = executor.borrow_mut().execute_step(&store, self, &self.config)?;
+                    last_signal = executor
+                        .borrow_mut()
+                        .execute_step(&store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
@@ -281,7 +334,9 @@ impl debugger::Debugger for MainDebugger {
         let store = self.store()?;
         let executor = self.executor()?;
         loop {
-            let result = executor.borrow_mut().execute_step(&store, self, &self.config);
+            let result = executor
+                .borrow_mut()
+                .execute_step(&store, self, &self.config);
             match result {
                 Ok(Signal::Next) => continue,
                 Ok(Signal::Breakpoint) => return Ok(RunResult::Breakpoint),
@@ -317,26 +372,44 @@ impl debugger::Debugger for MainDebugger {
     fn instantiate(
         &mut self,
         host_modules: HashMap<String, RawHostModule>,
-        wasi_args: Option<&[String]>,
+        wasi_args: &[String],
     ) -> Result<()> {
         let mut store = Store::new();
         for (name, host_module) in host_modules {
             store.load_host_module(name, host_module);
         }
 
-        if let Some(wasi_args) = wasi_args {
-            let (ctx, wasi_snapshot_preview) = instantiate_wasi(wasi_args);
-            let (_, wasi_unstable) = instantiate_wasi(wasi_args);
-            store.add_embed_context(Box::new(ctx));
-            store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-            store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
-        }
-
-        let main_module_index = if let Some(ref main_module) = self.main_module {
-            store.load_module(None, &main_module)?
+        let (main_module, basename) = if let Some((main_module, basename)) = &self.main_module {
+            (main_module, basename.clone())
         } else {
             return Err(anyhow::anyhow!("No main module registered"));
         };
+
+        let mut wasi_args = wasi_args.to_vec();
+        wasi_args.insert(0, basename);
+
+        fn collect_preopen_dirs(
+            preopen_dirs: &[(String, String)],
+        ) -> anyhow::Result<Vec<(String, cap_std::fs::Dir)>> {
+            preopen_dirs
+                .iter()
+                .map(|(guest, host)| {
+                    let dir = unsafe { cap_std::fs::Dir::open_ambient_dir(host) }?;
+                    Ok((guest.clone(), dir))
+                })
+                .collect::<anyhow::Result<Vec<_>>>()
+        }
+
+        let (ctx, wasi_snapshot_preview) =
+            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?, &self.envs)?;
+        let (_, wasi_unstable) =
+            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?, &self.envs)?;
+        store.add_embed_context(Box::new(ctx));
+        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
+
+        let main_module_index = store.load_module(None, main_module)?;
+
         self.instance = Some(Instance {
             main_module_index,
             store,
@@ -347,22 +420,29 @@ impl debugger::Debugger for MainDebugger {
 }
 
 impl Interceptor for MainDebugger {
-    fn invoke_func(&self, name: &String) -> Result<Signal, Trap> {
+    fn invoke_func(
+        &self,
+        name: &String,
+        _executor: &Executor,
+        _store: &Store,
+    ) -> Result<Signal, Trap> {
         trace!("Invoke function '{}'", name);
-        let key = self
-            .function_breakpoints
-            .keys()
-            .filter(|k| name.contains(k.clone()))
-            .next();
-        if let Some(_) = key {
+        if self.breakpoints.should_break_func(name) {
             Ok(Signal::Breakpoint)
         } else {
             Ok(Signal::Next)
         }
     }
 
-    fn execute_inst(&self, inst: &Instruction) {
-        trace!("Execute {:?}", inst);
+    fn execute_inst(&self, inst: &Instruction) -> Result<Signal, Trap> {
+        if self.breakpoints.should_break_inst(inst) {
+            Ok(Signal::Breakpoint)
+        } else if self.is_interrupted.swap(false, Ordering::Relaxed) {
+            println!("Interrupted by signal");
+            Ok(Signal::Breakpoint)
+        } else {
+            Ok(Signal::Next)
+        }
     }
 
     fn after_store(&self, _addr: usize, _bytes: &[u8]) -> Result<Signal, Trap> {

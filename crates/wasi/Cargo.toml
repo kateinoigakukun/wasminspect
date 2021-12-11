@@ -12,3 +12,5 @@ log = "0.4"
 wasminspect-vm = { path = "../vm" }
 wasminspect-wasi-macro = { path = "./macro" }
 wasmparser = "0.81.0"
+cap-std = "0.13.0"
+anyhow = "1.0.0"

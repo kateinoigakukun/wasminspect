@@ -175,7 +175,14 @@ impl Executor {
             Some(inst) => inst,
             None => return Err(Trap::NoMoreInstruction),
         };
-        return self.execute_inst(&inst, module_index, store, interceptor, config);
+
+        let signal = interceptor.execute_inst(inst)?;
+        let result = self.execute_inst(&inst, module_index, store, interceptor, config)?;
+        Ok(match (signal, result) {
+            (_, Signal::End) => Signal::End,
+            (signal, Signal::Next) => signal,
+            (_, other) => other,
+        })
     }
 
     fn execute_inst<I: Interceptor>(
@@ -187,8 +194,7 @@ impl Executor {
         config: &Config,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
-        interceptor.execute_inst(inst);
-        let result = match inst.kind.clone() {
+        let result = match &inst.kind {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),
             InstructionKind::Block { ty } => {
@@ -277,11 +283,11 @@ impl Executor {
                     Ok(Signal::Next)
                 }
             }
-            InstructionKind::Br { relative_depth } => self.branch(relative_depth, store),
+            InstructionKind::Br { relative_depth } => self.branch(*relative_depth, store),
             InstructionKind::BrIf { relative_depth } => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 if val != Value::I32(0) {
-                    self.branch(relative_depth, store)
+                    self.branch(*relative_depth, store)
                 } else {
                     Ok(Signal::Next)
                 }
@@ -299,14 +305,14 @@ impl Executor {
             InstructionKind::Return => self.do_return(store),
             InstructionKind::Call { function_index } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                let addr = FuncAddr::new_unsafe(frame.module_index(), function_index as usize);
+                let addr = FuncAddr::new_unsafe(frame.module_index(), *function_index as usize);
                 self.invoke(addr, store, interceptor)
             }
             InstructionKind::CallIndirect { index, table_index } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
-                let addr = TableAddr::new_unsafe(frame.module_index(), table_index as usize);
+                let addr = TableAddr::new_unsafe(frame.module_index(), *table_index as usize);
                 let module = store.module(frame.module_index()).defined().unwrap();
-                let ty = module.get_type(index as usize);
+                let ty = module.get_type(*index as usize);
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
@@ -353,32 +359,32 @@ impl Executor {
                     .stack
                     .current_frame()
                     .map_err(Trap::Stack)?
-                    .local(local_index as usize);
+                    .local(*local_index as usize);
                 self.stack.push_value(value);
                 Ok(Signal::Next)
             }
-            InstructionKind::LocalSet { local_index } => self.set_local(local_index as usize),
+            InstructionKind::LocalSet { local_index } => self.set_local(*local_index as usize),
             InstructionKind::LocalTee { local_index } => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 self.stack.push_value(val);
                 self.stack.push_value(val);
-                self.set_local(local_index as usize)
+                self.set_local(*local_index as usize)
             }
             InstructionKind::GlobalGet { global_index } => {
-                let addr = GlobalAddr::new_unsafe(module_index, global_index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
                 let global = store.global(addr);
                 self.stack.push_value(global.borrow().value());
                 Ok(Signal::Next)
             }
             InstructionKind::GlobalSet { global_index } => {
-                let addr = GlobalAddr::new_unsafe(module_index, global_index as usize);
+                let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
                 let global = store.global(addr);
                 global.borrow_mut().set_value(value);
                 Ok(Signal::Next)
             }
             InstructionKind::TableGet { table } => {
-                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let addr = TableAddr::new_unsafe(module_index, *table as usize);
                 let table = store.table(addr);
                 let index: i32 = self.pop_as()?;
                 let val = table.borrow().get_at(index as usize)?;
@@ -386,7 +392,7 @@ impl Executor {
                 Ok(Signal::Next)
             }
             InstructionKind::TableSet { table } => {
-                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let addr = TableAddr::new_unsafe(module_index, *table as usize);
                 let table = store.table(addr);
                 let ref_val = self.pop_ref()?;
                 let index: i32 = self.pop_as()?;
@@ -394,7 +400,7 @@ impl Executor {
                 Ok(Signal::Next)
             }
             InstructionKind::TableSize { table } => {
-                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let addr = TableAddr::new_unsafe(module_index, *table as usize);
                 let table = store.table(addr);
                 let sz = table.borrow().buffer_len();
                 self.stack.push_value(Value::I32(sz as i32));
@@ -402,7 +408,7 @@ impl Executor {
             }
 
             InstructionKind::TableGrow { table } => {
-                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let addr = TableAddr::new_unsafe(module_index, *table as usize);
                 let table = store.table(addr);
                 let sz = table.borrow().buffer_len();
                 let n: i32 = self.pop_as()?;
@@ -416,7 +422,7 @@ impl Executor {
             }
 
             InstructionKind::TableFill { table } => {
-                let addr = TableAddr::new_unsafe(module_index, table as usize);
+                let addr = TableAddr::new_unsafe(module_index, *table as usize);
                 let table = store.table(addr);
                 let n: i32 = self.pop_as()?;
                 let ref_val = self.pop_ref()?;
@@ -433,9 +439,9 @@ impl Executor {
                 dst_table,
                 src_table,
             } => {
-                let dst_addr = TableAddr::new_unsafe(module_index, dst_table as usize);
+                let dst_addr = TableAddr::new_unsafe(module_index, *dst_table as usize);
                 let dst_table = store.table(dst_addr);
-                let src_addr = TableAddr::new_unsafe(module_index, src_table as usize);
+                let src_addr = TableAddr::new_unsafe(module_index, *src_table as usize);
                 let src_table = store.table(src_addr);
                 let n: i32 = self.pop_as()?;
                 let src_base: i32 = self.pop_as()?;
@@ -452,8 +458,8 @@ impl Executor {
             }
 
             InstructionKind::TableInit { segment, table } => {
-                let table_addr = TableAddr::new_unsafe(module_index, table as usize);
-                let elem_addr = ElemAddr::new_unsafe(module_index, segment as usize);
+                let table_addr = TableAddr::new_unsafe(module_index, *table as usize);
+                let elem_addr = ElemAddr::new_unsafe(module_index, *segment as usize);
                 let table = store.table(table_addr);
                 let elem = store.elem(elem_addr);
                 let n: i32 = self.pop_as()?;
@@ -468,7 +474,7 @@ impl Executor {
                 Ok(Signal::Next)
             }
             InstructionKind::ElemDrop { segment } => {
-                let elem_addr = ElemAddr::new_unsafe(module_index, segment as usize);
+                let elem_addr = ElemAddr::new_unsafe(module_index, *segment as usize);
                 let elem = store.elem(elem_addr);
                 elem.borrow_mut().drop_elem();
                 Ok(Signal::Next)
@@ -562,11 +568,11 @@ impl Executor {
             }
 
             InstructionKind::I32Const { value } => {
-                self.stack.push_value(Value::I32(value));
+                self.stack.push_value(Value::I32(*value));
                 Ok(Signal::Next)
             }
             InstructionKind::I64Const { value } => {
-                self.stack.push_value(Value::I64(value));
+                self.stack.push_value(Value::I64(*value));
                 Ok(Signal::Next)
             }
             InstructionKind::F32Const { value } => {
@@ -922,7 +928,7 @@ impl Executor {
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Return { arity });
                 self.pc = pc;
-                interceptor.invoke_func(func.name())
+                interceptor.invoke_func(func.name(), self, store)
             }
             FunctionInstance::Host(func) => {
                 let mut result = Vec::new();
@@ -955,14 +961,14 @@ impl Executor {
     }
 
     /// Returns a pair of arities for parameter and result
-    fn get_type_arity(&self, ty: TypeOrFuncType, store: &Store) -> ExecResult<(usize, usize)> {
+    fn get_type_arity(&self, ty: &TypeOrFuncType, store: &Store) -> ExecResult<(usize, usize)> {
         Ok(match ty {
             TypeOrFuncType::Type(Type::EmptyBlockType) => (0, 0),
             TypeOrFuncType::Type(_) => (0, 1),
             TypeOrFuncType::FuncType(type_id) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let module = store.module(frame.module_index()).defined().unwrap();
-                let ty = module.get_type(type_id as usize);
+                let ty = module.get_type(*type_id as usize);
                 (ty.params.len(), ty.returns.len())
             }
         })
