@@ -112,11 +112,6 @@ impl<T> LinkableCollection<T> {
         LinkableAddress::new_unsafe(module_index, index)
     }
 
-    pub fn _remove_module(&mut self, index: &ModuleIndex) {
-        // TODO: GC unlinked items
-        self.item_addrs_by_module.remove(index);
-    }
-
     pub fn items(&self, module_index: ModuleIndex) -> Option<Vec<GlobalAddress<T>>> {
         let item_addrs = self.item_addrs_by_module.get(&module_index)?;
         Some(
