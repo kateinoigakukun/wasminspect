@@ -1,6 +1,7 @@
 #![recursion_limit = "1024"]
 
 mod address;
+mod elem;
 mod executor;
 mod export;
 mod func;
@@ -17,6 +18,7 @@ mod store;
 mod table;
 mod value;
 mod config;
+mod data;
 
 pub use self::address::*;
 pub use self::executor::{simple_invoke_func, Executor, Signal};
@@ -34,6 +36,9 @@ pub use self::stack::{CallFrame, ProgramCounter};
 pub use self::store::Store;
 pub use self::table::TableInstance as HostTable;
 pub use self::value::Value as WasmValue;
+pub use self::value::NumVal;
+pub use self::value::RefType;
+pub use self::value::RefVal;
 pub use self::config::Config;
 
 pub const WASM_PAGE_SIZE: usize = 0x10000;

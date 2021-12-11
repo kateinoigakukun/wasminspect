@@ -14,10 +14,6 @@ fn run_wast(wast: &str) -> anyhow::Result<()> {
     cfg.features.multi_memory = feature_found(wast, "multi-memory");
     cfg.features.module_linking = feature_found(wast, "module-linking");
     cfg.features.threads = feature_found(wast, "threads");
-    cfg.features.reference_types = cfg.features.simd || feature_found(wast, "reference-types");
-    cfg.features.bulk_memory = cfg.features.memory64
-        || cfg.features.multi_memory
-        || feature_found(wast, "bulk-memory-operations");
 
     let mut context = WastContext::new(cfg);
     match context.run_file(wast) {

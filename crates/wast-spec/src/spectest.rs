@@ -117,7 +117,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         )),
     );
 
-    let table = Rc::new(RefCell::new(HostTable::new(10, Some(20))));
+    let table = Rc::new(RefCell::new(HostTable::new(10, Some(20), RefType::FuncRef)));
     module.insert("table".to_string(), HostValue::Table(table));
 
     let mem = Rc::new(RefCell::new(HostMemory::new(1, Some(2))));

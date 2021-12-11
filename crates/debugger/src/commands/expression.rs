@@ -60,8 +60,8 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
                         .ok_or(anyhow!("failed to get base local"))?,
                 };
                 let offset = match offset {
-                    WasmValue::I32(v) => v as u64,
-                    WasmValue::I64(v) => v as u64,
+                    WasmValue::Num(NumVal::I32(v)) => v as u64,
+                    WasmValue::Num(NumVal::I64(v)) => v as u64,
                     _ => Err(anyhow!("unexpected frame base value: {:?}", offset))?,
                 };
                 FrameBase::WasmFrameBase(offset)
@@ -76,7 +76,7 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
                     .ok_or(anyhow!("failed to get rbp"))?
                     .clone();
                 let offset = match offset {
-                    WasmValue::I32(v) => v as u64,
+                    WasmValue::Num(NumVal::I32(v)) => v as u64,
                     _ => Err(anyhow!("unexpected frame base value: {:?}", offset))?,
                 };
                 FrameBase::RBP(offset)

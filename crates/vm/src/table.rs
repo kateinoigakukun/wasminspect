@@ -1,4 +1,4 @@
-use super::address::FuncAddr;
+use crate::value::{RefType, RefVal};
 
 #[derive(Debug)]
 pub enum Error {
@@ -7,6 +7,10 @@ pub enum Error {
         /* memory size */ usize,
     ),
     UninitializedElement(usize),
+    GrowOverMaximumSize {
+        base: usize,
+        growing: usize,
+    },
 }
 
 impl std::fmt::Display for Error {
@@ -14,17 +18,18 @@ impl std::fmt::Display for Error {
         match self {
             Self::AccessOutOfBounds(Some(addr), size) => write!(
                 f,
-                "undefined element, try to access {} but size of memory is {}",
+                "undefined element: out of bounds table access, try to access {} but size of memory is {}",
                 addr, size
             ),
             Self::AccessOutOfBounds(None, size) => write!(
                 f,
-                "undefined element, try to access over size of usize but size of memory is {}",
+                "out of bounds table access, try to access over size of usize but size of memory is {}",
                 size
             ),
             Self::UninitializedElement(addr) => {
                 write!(f, "uninitialized element, try to access {}", addr)
             }
+            other => write!(f, "{:?}", other)
         }
     }
 }
@@ -32,30 +37,37 @@ impl std::fmt::Display for Error {
 type Result<T> = std::result::Result<T, Error>;
 
 pub struct TableInstance {
-    buffer: Vec<Option<FuncAddr>>,
+    buffer: Vec<RefVal>,
     pub max: Option<usize>,
     pub initial: usize,
+    pub ty: RefType,
 }
 
 impl TableInstance {
-    pub fn new(initial: usize, maximum: Option<usize>) -> Self {
+    pub fn new(initial: usize, maximum: Option<usize>, ty: RefType) -> Self {
         Self {
-            buffer: std::iter::repeat(None).take(initial).collect(),
+            buffer: std::iter::repeat(RefVal::NullRef(ty))
+                .take(initial)
+                .collect(),
             initial,
             max: maximum,
+            ty,
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: Vec<Option<FuncAddr>>) -> Result<()> {
-        {
-            if let Some(max_addr) = offset.checked_add(data.len()) {
-                if max_addr > self.buffer_len() {
-                    return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
-                }
-            } else {
-                return Err(Error::AccessOutOfBounds(None, self.buffer_len()));
+    pub fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
+        if let Some(max_addr) = offset.checked_add(size) {
+            if max_addr > self.buffer_len() {
+                return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
             }
+        } else {
+            return Err(Error::AccessOutOfBounds(None, self.buffer_len()));
         }
+        Ok(())
+    }
+
+    pub fn initialize(&mut self, offset: usize, data: Vec<RefVal>) -> Result<()> {
+        self.validate_region(offset, data.len())?;
         for (index, func_addr) in data.into_iter().enumerate() {
             self.buffer[offset + index] = func_addr;
         }
@@ -66,11 +78,40 @@ impl TableInstance {
         self.buffer.len()
     }
 
-    pub fn get_at(&self, index: usize) -> Result<FuncAddr> {
+    pub fn get_at(&self, index: usize) -> Result<RefVal> {
         self.buffer
             .get(index)
             .ok_or(Error::AccessOutOfBounds(Some(index), self.buffer_len()))
-            .and_then(|addr| addr.ok_or(Error::UninitializedElement(index)))
             .map(|addr| addr.clone())
+    }
+
+    pub fn set_at(&mut self, index: usize, val: RefVal) -> Result<()> {
+        let buffer_len = self.buffer_len();
+        let entry = self
+            .buffer
+            .get_mut(index)
+            .ok_or(Error::AccessOutOfBounds(Some(index), buffer_len))?;
+        *entry = val;
+        Ok(())
+    }
+
+    pub fn grow(&mut self, n: usize, val: RefVal) -> Result<()> {
+        let base_len = self.buffer_len();
+        let len = base_len.checked_add(n).ok_or(Error::GrowOverMaximumSize {
+            base: base_len,
+            growing: n,
+        })?;
+
+        if let Some(max) = self.max {
+            if len > max {
+                return Err(Error::GrowOverMaximumSize {
+                    base: base_len,
+                    growing: n,
+                });
+            }
+        }
+        let mut extra = std::iter::repeat(val).take(n).collect();
+        self.buffer.append(&mut extra);
+        return Ok(());
     }
 }

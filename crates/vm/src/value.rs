@@ -1,47 +1,119 @@
 use wasmparser::Type;
 
+use crate::FuncAddr;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Value {
+pub enum NumVal {
     I32(i32),
     I64(i64),
     F32(u32),
     F64(u64),
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum RefType {
+    FuncRef,
+    ExternRef,
+}
+
+impl Into<Type> for RefType {
+    fn into(self) -> Type {
+        match self {
+            RefType::FuncRef => Type::FuncRef,
+            RefType::ExternRef => Type::ExternRef,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum RefVal {
+    NullRef(RefType),
+    FuncRef(FuncAddr),
+    ExternRef(u32),
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Value {
+    Num(NumVal),
+    Ref(RefVal),
+}
+
 impl Value {
+    #[allow(non_snake_case)]
+    pub fn I32(v: i32) -> Value {
+        Value::Num(NumVal::I32(v))
+    }
+    #[allow(non_snake_case)]
+    pub fn I64(v: i64) -> Value {
+        Value::Num(NumVal::I64(v))
+    }
+    #[allow(non_snake_case)]
+    pub fn F32(v: u32) -> Value {
+        Value::Num(NumVal::F32(v))
+    }
+    #[allow(non_snake_case)]
+    pub fn F64(v: u64) -> Value {
+        Value::Num(NumVal::F64(v))
+    }
+
+    pub fn null_ref(ty: Type) -> Option<Value> {
+        let r = match ty {
+            Type::FuncRef => RefVal::NullRef(RefType::FuncRef),
+            Type::ExternRef => RefVal::NullRef(RefType::ExternRef),
+            _ => return None,
+        };
+        Some(Value::Ref(r))
+    }
+
+    pub fn isa(&self, ty: Type) -> bool {
+        match self {
+            Value::Num(_) => self.value_type() == ty,
+            Value::Ref(r) => match (r, ty) {
+                (RefVal::ExternRef(_), Type::ExternRef)
+                | (RefVal::FuncRef(_), Type::FuncRef)
+                | (RefVal::NullRef(RefType::ExternRef), Type::ExternRef)
+                | (RefVal::NullRef(RefType::FuncRef), Type::FuncRef) => true,
+                _ => return false,
+            },
+        }
+    }
+
     pub fn value_type(&self) -> Type {
         match self {
-            Value::I32(_) => Type::I32,
-            Value::I64(_) => Type::I64,
-            Value::F32(_) => Type::F32,
-            Value::F64(_) => Type::F64,
+            Value::Num(NumVal::I32(_)) => Type::I32,
+            Value::Num(NumVal::I64(_)) => Type::I64,
+            Value::Num(NumVal::F32(_)) => Type::F32,
+            Value::Num(NumVal::F64(_)) => Type::F64,
+            Value::Ref(RefVal::NullRef(_)) => Type::FuncRef,
+            Value::Ref(RefVal::FuncRef(_)) => Type::FuncRef,
+            Value::Ref(RefVal::ExternRef(_)) => Type::ExternRef,
         }
     }
 
     pub fn as_i32(self) -> Option<i32> {
         match self {
-            Value::I32(v) => Some(v),
+            Value::Num(NumVal::I32(v)) => Some(v),
             _ => None,
         }
     }
 
     pub fn as_i64(self) -> Option<i64> {
         match self {
-            Value::I64(v) => Some(v),
+            Value::Num(NumVal::I64(v)) => Some(v),
             _ => None,
         }
     }
 
     pub fn as_f32(self) -> Option<f32> {
         match self {
-            Value::F32(v) => Some(f32::from_bits(v)),
+            Value::Num(NumVal::F32(v)) => Some(f32::from_bits(v)),
             _ => None,
         }
     }
 
     pub fn as_f64(self) -> Option<f64> {
         match self {
-            Value::F64(v) => Some(f64::from_bits(v)),
+            Value::Num(NumVal::F64(v)) => Some(f64::from_bits(v)),
             _ => None,
         }
     }
@@ -83,6 +155,7 @@ impl From<f64> for Value {
     }
 }
 
+// FIXME: Use `TryFrom` instead
 pub trait NativeValue: Sized {
     fn from_value(val: Value) -> Option<Self>;
     fn value_type() -> Type;
@@ -93,7 +166,7 @@ macro_rules! impl_native_value {
         impl NativeValue for $type {
             fn from_value(val: Value) -> Option<Self> {
                 match val {
-                    Value::$case(val) => Some(val as $type),
+                    Value::Num(NumVal::$case(val)) => Some(val as $type),
                     _ => None,
                 }
             }
@@ -113,7 +186,7 @@ impl_native_value!(u64, I64);
 impl NativeValue for f32 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::F32(val) => Some(f32::from_bits(val)),
+            Value::Num(NumVal::F32(val)) => Some(f32::from_bits(val)),
             _ => None,
         }
     }
@@ -126,7 +199,7 @@ impl NativeValue for f32 {
 impl NativeValue for f64 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::F64(val) => Some(f64::from_bits(val)),
+            Value::Num(NumVal::F64(val)) => Some(f64::from_bits(val)),
             _ => None,
         }
     }
@@ -265,7 +338,7 @@ macro_rules! impl_trunc_to {
                 }
             }
         }
-    }
+    };
 }
 
 impl_trunc_to!(f32, i32);
@@ -304,7 +377,7 @@ macro_rules! impl_trunc_sat_to {
                 }
             }
         }
-    }
+    };
 }
 
 impl_trunc_sat_to!(f32, i32);
@@ -316,7 +389,6 @@ impl_trunc_sat_to!(f32, u32);
 impl_trunc_sat_to!(f32, u64);
 impl_trunc_sat_to!(f64, u32);
 impl_trunc_sat_to!(f64, u64);
-
 
 trait InRange<Target> {
     fn in_range(self) -> InRangeResult;
@@ -400,10 +472,13 @@ macro_rules! impl_in_range_unsigned {
         impl InRange<$target> for $self {
             fn in_range(self) -> InRangeResult {
                 let negative_zero = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS);
-                let negative_one = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS) | (<$self>::BIAS + 0) << <$self>::FRAC_BITS;
+                let negative_one = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS)
+                    | (<$self>::BIAS + 0) << <$self>::FRAC_BITS;
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits + <$self>::BIAS) << <$self>::FRAC_BITS);
-                if <$self>::from_bits(negative_zero) > self || <$self>::from_bits(negative_one) >= self {
+                if <$self>::from_bits(negative_zero) > self
+                    || <$self>::from_bits(negative_one) >= self
+                {
                     InRangeResult::TooSmall
                 } else if !(self < <$self>::from_bits(max_plus_one)) {
                     InRangeResult::TooLarge

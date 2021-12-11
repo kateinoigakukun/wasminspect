@@ -19,3 +19,9 @@ pub type ResolvedMemoryAddr = GlobalAddress<Rc<RefCell<MemoryInstance>>>;
 use super::global::GlobalInstance;
 pub type GlobalAddr = LinkableAddress<Rc<RefCell<dyn GlobalInstance>>>;
 pub type ResolvedGlobalAddr = GlobalAddress<Rc<RefCell<dyn GlobalInstance>>>;
+
+use super::elem::ElementInstance;
+pub type ElemAddr = LinkableAddress<Rc<RefCell<ElementInstance>>>;
+
+use super::data::DataInstance;
+pub type DataAddr = LinkableAddress<Rc<RefCell<DataInstance>>>;

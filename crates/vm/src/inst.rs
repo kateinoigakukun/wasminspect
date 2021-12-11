@@ -31,19 +31,9 @@ where
 impl WasmInstPayloadFrom<BrTable<'_>> for BrTableData {
     type Error = wasmparser::BinaryReaderError;
     fn from_payload(table: BrTable) -> Result<Self, Self::Error> {
-        let mut ids = vec![];
-        let mut default = None;
-        for target in table.targets() {
-            let target = target?;
-            if target.1 {
-                default = Some(target.0);
-            } else {
-                ids.push(target.0);
-            }
-        }
         Ok(BrTableData {
-            table: ids,
-            default: default.unwrap(),
+            table: table.targets().collect::<Result<Vec<_>, _>>()?,
+            default: table.default(),
         })
     }
 }

@@ -15,12 +15,12 @@ impl<T> Copy for GlobalAddress<T> {}
 
 impl<T> fmt::Debug for GlobalAddress<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "GlobalAddress({})", self.0)
+        write!(f, "GlobalAddress({})", self.0)
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
-pub struct LinkableAddress<T>(ModuleIndex, pub(crate) usize, std::marker::PhantomData<T>);
+#[derive(Eq, Hash)]
+pub struct LinkableAddress<T>(ModuleIndex, pub(crate) usize, std::marker::PhantomData<fn() -> T>);
 
 impl<T> LinkableAddress<T> {
     pub fn new_unsafe(module: ModuleIndex, index: usize) -> Self {
@@ -42,9 +42,16 @@ impl<T> Copy for LinkableAddress<T> {}
 
 impl<T> fmt::Debug for LinkableAddress<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{:?}, func_index: {}", self.0, self.1)
+        write!(f, "{:?}, func_index: {}", self.0, self.1)
     }
 }
+
+impl<T> PartialEq for LinkableAddress<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+
 
 pub struct LinkableCollection<T> {
     items: Vec<T>,
@@ -103,11 +110,6 @@ impl<T> LinkableCollection<T> {
         let index = addrs.len();
         addrs.push(globa_index);
         LinkableAddress::new_unsafe(module_index, index)
-    }
-
-    pub fn remove_module(&mut self, index: &ModuleIndex) {
-        // TODO: GC unlinked items
-        self.item_addrs_by_module.remove(index);
     }
 
     pub fn items(&self, module_index: ModuleIndex) -> Option<Vec<GlobalAddress<T>>> {
