@@ -582,6 +582,13 @@ impl Executor {
                 self.stack.push_value(ret_val);
                 Ok(Signal::Next)
             }
+            InstructionKind::RefFunc { function_index } => {
+                let ref_val = Value::Ref(RefVal::FuncRef(
+                    FuncAddr::new_unsafe(module_index, *function_index as usize),
+                ));
+                self.stack.push_value(ref_val);
+                Ok(Signal::Next)
+            }
             InstructionKind::I32Const { value } => {
                 self.stack.push_value(Value::I32(*value));
                 Ok(Signal::Next)
@@ -1126,6 +1133,9 @@ pub fn eval_const_expr(
             Some(v) => v,
             None => panic!("unsupported ref type"),
         },
+        InstructionKind::RefFunc { function_index } => Value::Ref(RefVal::FuncRef(
+            FuncAddr::new_unsafe(module_index, function_index as usize),
+        )),
         InstructionKind::GlobalGet { global_index } => {
             let addr = GlobalAddr::new_unsafe(module_index, global_index as usize);
             store.global(addr).borrow().value()
