@@ -33,7 +33,6 @@ fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
         "ref_null.wast",
         "table_copy.wast",
         "table_fill.wast",
-        "table_get.wast",
         "table_grow.wast",
         "table_init.wast",
         "table_set.wast",

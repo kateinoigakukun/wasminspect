@@ -567,6 +567,15 @@ impl Executor {
                 Ok(Signal::Next)
             }
 
+            InstructionKind::RefIsNull => {
+                let ref_val = self.pop_ref()?;
+                let ret_val = match ref_val {
+                    RefVal::NullRef(_) => Value::I32(1),
+                    _ => Value::I32(0),
+                };
+                self.stack.push_value(ret_val);
+                Ok(Signal::Next)
+            }
             InstructionKind::I32Const { value } => {
                 self.stack.push_value(Value::I32(*value));
                 Ok(Signal::Next)
