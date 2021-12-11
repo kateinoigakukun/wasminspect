@@ -106,6 +106,12 @@ impl From<elem::Error> for Trap {
     }
 }
 
+impl From<memory::Error> for Trap {
+    fn from(e: memory::Error) -> Self {
+        Trap::Memory(e)
+    }
+}
+
 pub enum Signal {
     Next,
     Breakpoint,
@@ -573,6 +579,49 @@ impl Executor {
                         self.stack.push_value(Value::I32(-1));
                     }
                 }
+                Ok(Signal::Next)
+            }
+            InstructionKind::MemoryCopy { src, dst } => {
+                let dst_addr = MemoryAddr::new_unsafe(module_index, *dst as usize);
+                let dst_mem = store.memory(dst_addr);
+                let src_addr = MemoryAddr::new_unsafe(module_index, *src as usize);
+                let src_mem = store.memory(src_addr);
+                let n = self.pop_as::<i32>()? as usize;
+                let src_base = self.pop_as::<i32>()? as usize;
+                let dst_base = self.pop_as::<i32>()? as usize;
+
+                src_mem.borrow().validate_region(src_base, n)?;
+
+                let values = (0..n)
+                    .map(|offset| -> ExecResult<_> {
+                        Ok(src_mem.borrow().load_as::<u8>(src_base + offset)?)
+                    })
+                    .collect::<ExecResult<Vec<_>>>()?;
+
+                dst_mem.borrow().validate_region(dst_base, n)?;
+                dst_mem.borrow_mut().store(dst_base, &values)?;
+
+                Ok(Signal::Next)
+            }
+            InstructionKind::MemoryFill { mem } => {
+                let addr = MemoryAddr::new_unsafe(module_index, *mem as usize);
+                let mem = store.memory(addr);
+                let n = self.pop_as::<i32>()? as usize;
+                let val = self.pop_as::<i32>()?;
+                let val = {
+                    let mut buf: Vec<u8> = std::iter::repeat(0)
+                        .take(std::mem::size_of::<i32>())
+                        .collect();
+                    val.into_le(&mut buf);
+                    buf[0]
+                };
+                let offset = self.pop_as::<i32>()? as usize;
+
+                mem.borrow().validate_region(offset, n)?;
+
+                mem.borrow_mut()
+                    .store(offset, &std::iter::repeat(val).take(n).collect::<Vec<_>>())?;
+
                 Ok(Signal::Next)
             }
 
