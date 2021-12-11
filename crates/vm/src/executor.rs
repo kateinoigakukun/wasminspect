@@ -443,15 +443,20 @@ impl Executor {
                 let dst_table = store.table(dst_addr);
                 let src_addr = TableAddr::new_unsafe(module_index, *src_table as usize);
                 let src_table = store.table(src_addr);
-                let n: i32 = self.pop_as()?;
-                let src_base: i32 = self.pop_as()?;
-                let dst_base: i32 = self.pop_as()?;
+                let n = self.pop_as::<i32>()? as usize;
+                let src_base = self.pop_as::<i32>()? as usize;
+                let dst_base = self.pop_as::<i32>()? as usize;
 
+                let values = (0..n)
+                    .map(|offset| -> ExecResult<_> {
+                        Ok(src_table.borrow().get_at(src_base + offset)?)
+                    })
+                    .collect::<ExecResult<Vec<_>>>()?;
+                src_table.borrow().validate_region(src_base, n)?;
+                dst_table.borrow().validate_region(dst_base, n)?;
                 for offset in 0..n {
-                    let val = src_table.borrow().get_at((src_base + offset) as usize)?;
-                    dst_table
-                        .borrow_mut()
-                        .set_at((dst_base + offset) as usize, val)?;
+                    let val = values[offset];
+                    dst_table.borrow_mut().set_at(dst_base + offset, val)?;
                 }
 
                 Ok(Signal::Next)
@@ -583,9 +588,10 @@ impl Executor {
                 Ok(Signal::Next)
             }
             InstructionKind::RefFunc { function_index } => {
-                let ref_val = Value::Ref(RefVal::FuncRef(
-                    FuncAddr::new_unsafe(module_index, *function_index as usize),
-                ));
+                let ref_val = Value::Ref(RefVal::FuncRef(FuncAddr::new_unsafe(
+                    module_index,
+                    *function_index as usize,
+                )));
                 self.stack.push_value(ref_val);
                 Ok(Signal::Next)
             }

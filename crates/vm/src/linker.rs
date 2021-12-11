@@ -15,7 +15,7 @@ impl<T> Copy for GlobalAddress<T> {}
 
 impl<T> fmt::Debug for GlobalAddress<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "GlobalAddress({})", self.0)
+        write!(f, "GlobalAddress({})", self.0)
     }
 }
 
@@ -42,7 +42,7 @@ impl<T> Copy for LinkableAddress<T> {}
 
 impl<T> fmt::Debug for LinkableAddress<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{:?}, func_index: {}", self.0, self.1)
+        write!(f, "{:?}, func_index: {}", self.0, self.1)
     }
 }
 

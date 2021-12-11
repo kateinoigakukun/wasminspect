@@ -52,16 +52,19 @@ impl TableInstance {
         }
     }
 
-    pub fn initialize(&mut self, offset: usize, data: Vec<RefVal>) -> Result<()> {
-        {
-            if let Some(max_addr) = offset.checked_add(data.len()) {
-                if max_addr > self.buffer_len() {
-                    return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
-                }
-            } else {
-                return Err(Error::AccessOutOfBounds(None, self.buffer_len()));
+    pub fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
+        if let Some(max_addr) = offset.checked_add(size) {
+            if max_addr > self.buffer_len() {
+                return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
             }
+        } else {
+            return Err(Error::AccessOutOfBounds(None, self.buffer_len()));
         }
+        Ok(())
+    }
+
+    pub fn initialize(&mut self, offset: usize, data: Vec<RefVal>) -> Result<()> {
+        self.validate_region(offset, data.len())?;
         for (index, func_addr) in data.into_iter().enumerate() {
             self.buffer[offset + index] = func_addr;
         }
