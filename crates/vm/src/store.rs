@@ -807,7 +807,6 @@ impl Store {
             mem_addrs.push(addr);
         }
 
-        let mut offsets_and_value = Vec::new();
         let mems = self.mems.items(module_index).unwrap();
         for seg in data_segments {
             match seg.kind {
@@ -827,16 +826,13 @@ impl Store {
                     mem.borrow()
                         .validate_region(offset as usize, seg.data.len())
                         .map_err(StoreError::InvalidDataSegments)?;
-                    offsets_and_value.push((mem, offset, seg.data));
+
+                    mem.borrow_mut()
+                        .store(offset as usize, seg.data)
+                        .map_err(StoreError::InvalidDataSegments)?;
                 }
                 other => unimplemented!("{:?}", other),
             }
-        }
-
-        for (mem, offset, value) in offsets_and_value {
-            mem.borrow_mut()
-                .store(offset as usize, value)
-                .map_err(StoreError::InvalidDataSegments)?;
         }
         Ok(mem_addrs)
     }
