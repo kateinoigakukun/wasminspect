@@ -7,7 +7,7 @@ use wast::HeapType;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{
-    simple_invoke_func, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue,
+    simple_invoke_func, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue, F32, F64,
 };
 
 pub struct WastContext {
@@ -335,12 +335,12 @@ fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<
         (WasmValue::Num(NumVal::F32(a)), wast::AssertExpression::F32(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
-            wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
+            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
         },
         (WasmValue::Num(NumVal::F64(a)), wast::AssertExpression::F64(x)) => match x {
             wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
             wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
-            wast::NanPattern::Value(expected_value) => *a == expected_value.bits,
+            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
         },
         (WasmValue::Ref(RefVal::ExternRef(a)), wast::AssertExpression::RefExtern(x)) => a == x,
         (WasmValue::Ref(RefVal::NullRef(a)), wast::AssertExpression::RefNull(Some(x))) => {
@@ -372,18 +372,18 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
     }
 }
 
-fn is_canonical_f32_nan(f: &u32) -> bool {
-    return (f & 0x7fffffff) == 0x7fc00000;
+fn is_canonical_f32_nan(f: &F32) -> bool {
+    return (f.to_bits() & 0x7fffffff) == 0x7fc00000;
 }
 
-fn is_canonical_f64_nan(f: &u64) -> bool {
-    return (f & 0x7fffffffffffffff) == 0x7ff8000000000000;
+fn is_canonical_f64_nan(f: &F64) -> bool {
+    return (f.to_bits() & 0x7fffffffffffffff) == 0x7ff8000000000000;
 }
 
-fn is_arithmetic_f32_nan(f: &u32) -> bool {
-    return (f & 0x00400000) == 0x00400000;
+fn is_arithmetic_f32_nan(f: &F32) -> bool {
+    return (f.to_bits() & 0x00400000) == 0x00400000;
 }
 
-fn is_arithmetic_f64_nan(f: &u64) -> bool {
-    return (f & 0x0008000000000000) == 0x0008000000000000;
+fn is_arithmetic_f64_nan(f: &F64) -> bool {
+    return (f.to_bits() & 0x0008000000000000) == 0x0008000000000000;
 }
