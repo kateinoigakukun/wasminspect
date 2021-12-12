@@ -120,11 +120,11 @@ impl CallFrame {
     fn new(
         module_index: ModuleIndex,
         exec_addr: ExecutableFuncAddr,
-        local_inits: &[Value],
+        default_locals: &[Value],
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        let mut locals = local_inits.to_vec();
+        let mut locals = default_locals.to_vec();
         for (i, arg) in args.into_iter().enumerate() {
             locals[i] = arg;
         }
@@ -145,7 +145,7 @@ impl CallFrame {
         Self::new(
             func.module_index(),
             exec_addr,
-            &func.cached_local_inits,
+            func.default_locals(),
             args,
             pc,
         )

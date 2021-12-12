@@ -50,14 +50,12 @@ pub struct DefinedFunctionInstance {
     name: String,
     ty: FuncType,
     module_index: ModuleIndex,
-    locals: Vec<Type>,
     instructions: Vec<Instruction>,
-    // cache
-    pub cached_local_inits: Vec<Value>,
+    default_locals: Vec<Value>,
 }
 
 impl DefinedFunctionInstance {
-    pub fn new(
+    pub(crate) fn new(
         name: String,
         ty: FuncType,
         module_index: ModuleIndex,
@@ -78,9 +76,11 @@ impl DefinedFunctionInstance {
             instructions.push(inst);
         }
 
+        // Compute default local values here instead of frame initialization
+        // to avoid re-computation
         let mut local_tys = ty.params.to_vec();
         local_tys.append(&mut locals.to_vec());
-        let mut cached_local_inits = Vec::new();
+        let mut default_locals = Vec::new();
         for ty in local_tys {
             let v = match ty {
                 Type::I32 => Value::I32(0),
@@ -91,16 +91,15 @@ impl DefinedFunctionInstance {
                 Type::FuncRef => Value::Ref(RefVal::NullRef(RefType::FuncRef)),
                 _ => unimplemented!("local initialization of type {:?}", ty),
             };
-            cached_local_inits.push(v);
+            default_locals.push(v);
         }
 
         Ok(Self {
             name,
             ty,
             module_index,
-            locals,
             instructions,
-            cached_local_inits,
+            default_locals,
         })
     }
 
@@ -116,16 +115,16 @@ impl DefinedFunctionInstance {
         self.module_index
     }
 
-    pub fn instructions(&self) -> &[Instruction] {
+    pub(crate) fn instructions(&self) -> &[Instruction] {
         &self.instructions
     }
 
-    pub fn locals(&self) -> &[Type] {
-        &self.locals
+    pub(crate) fn inst(&self, index: InstIndex) -> Option<&Instruction> {
+        self.instructions.get(index.0 as usize)
     }
 
-    pub fn inst(&self, index: InstIndex) -> Option<&Instruction> {
-        self.instructions.get(index.0 as usize)
+    pub(crate) fn default_locals(&self) -> &[Value] {
+        &self.default_locals
     }
 }
 

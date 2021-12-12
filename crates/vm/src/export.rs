@@ -56,7 +56,7 @@ pub enum ExternalValue {
 }
 
 impl ExternalValue {
-    pub fn ty(&self) -> &str {
+    pub(crate) fn type_name(&self) -> &str {
         match self {
             Self::Func(_) => "function",
             Self::Global(_) => "global",

@@ -1,18 +1,17 @@
+use crate::address::*;
 use crate::data::DataInstance;
 use crate::elem::ElementInstance;
-use crate::module::DefaultHostModuleInstance;
-use crate::value::{NumVal, RefType, RefVal};
-
-use crate::address::*;
 use crate::executor::eval_const_expr;
 use crate::func::{DefinedFunctionInstance, FunctionInstance, NativeFunctionInstance};
-use crate::global::{GlobalInstance};
+use crate::global::GlobalInstance;
 use crate::host::HostValue;
 use crate::linker::LinkableCollection;
 use crate::memory::{self, MemoryInstance};
-use crate::module::{self, DefinedModuleInstance, HostExport, ModuleIndex, ModuleInstance};
+use crate::module::{
+    self, DefinedModuleInstance, HostExport, HostModuleInstance, ModuleIndex, ModuleInstance,
+};
 use crate::table::{self, TableInstance};
-use crate::value::Value;
+use crate::value::{NumVal, RefType, RefVal, Value};
 use anyhow::{Context, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -87,7 +86,7 @@ impl Store {
         &self.modules[module_index.0 as usize]
     }
 
-    pub fn module_by_name(&self, name: String) -> &ModuleInstance {
+    pub(crate) fn module_by_name(&self, name: String) -> &ModuleInstance {
         if let Some(index) = self.module_index_by_name.get(&name) {
             self.module(*index)
         } else {
@@ -126,8 +125,8 @@ impl Store {
                 }
             }
         }
-        let instance = DefaultHostModuleInstance::new(values);
-        self.modules.push(ModuleInstance::Host(Box::new(instance)));
+        let instance = HostModuleInstance::new(values);
+        self.modules.push(ModuleInstance::Host(instance));
         self.module_index_by_name.insert(name, module_index);
     }
 
@@ -849,11 +848,5 @@ impl Store {
                 .push(module_index, Rc::new(RefCell::new(instance)));
         }
         Ok(mem_addrs)
-    }
-}
-
-impl std::fmt::Debug for Store {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "")
     }
 }
