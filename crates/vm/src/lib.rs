@@ -1,5 +1,3 @@
-#![recursion_limit = "1024"]
-
 mod address;
 mod config;
 mod data;
