@@ -863,12 +863,7 @@ impl Executor {
 
     fn branch(&mut self, depth: u32, store: &Store) -> ExecResult<Signal> {
         let depth = depth as usize;
-        let label = {
-            let labels = self.stack.current_frame_labels().map_err(Trap::Stack)?;
-            let labels_len = labels.len();
-            assert!(depth < labels_len);
-            *labels[labels_len - depth - 1]
-        };
+        let label = *self.stack.frame_label(depth).map_err(Trap::Stack)?;
 
         let arity = label.arity();
 

@@ -20,6 +20,7 @@ pub enum Error {
         actual: StackValueType,
     },
     NoCallFrame,
+    NotEnoughFrames,
     Overflow,
 }
 
@@ -293,14 +294,15 @@ impl Stack {
         }
     }
 
-    pub fn current_frame_labels(&self) -> Result<Vec<&Label>> {
-        Ok(self.stack[self.current_frame_index()?..]
+    pub fn frame_label(&self, depth: usize) -> Result<&Label> {
+        let mut labels = self.stack[self.current_frame_index()?..]
             .iter()
+            .rev()
             .filter_map(|v| match v {
                 StackValue::Label(label) => Some(label),
                 _ => None,
-            })
-            .collect())
+            });
+        labels.nth(depth).ok_or(Error::NotEnoughFrames)
     }
 
     fn latest(&self) -> &StackValue {
