@@ -36,9 +36,11 @@ impl HostValue {
     }
 }
 
+type HostCode = dyn Fn(&[Value], &mut Vec<Value>, &mut HostContext, &Store) -> Result<(), Trap>;
+
 pub struct HostFuncBody {
     ty: FuncType,
-    code: Box<dyn Fn(&[Value], &mut Vec<Value>, &mut HostContext, &Store) -> Result<(), Trap>>,
+    code: Box<HostCode>,
 }
 
 impl HostFuncBody {
@@ -68,7 +70,7 @@ impl HostFuncBody {
             let mut ctx = HostContext { mem: raw_mem };
             (self.code)(param, results, &mut ctx, store)
         } else {
-            let mut ctx = HostContext { mem: &mut vec![] };
+            let mut ctx = HostContext { mem: &mut [] };
             (self.code)(param, results, &mut ctx, store)
         }
     }

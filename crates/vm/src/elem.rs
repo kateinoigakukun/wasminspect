@@ -52,8 +52,8 @@ impl ElementInstance {
     pub fn get_at(&self, index: usize) -> Result<RefVal> {
         self.elem
             .get(index)
-            .ok_or(Error::AccessOutOfBounds(Some(index), self.elem.len()))
-            .map(|addr| addr.clone())
+            .ok_or_else(|| Error::AccessOutOfBounds(Some(index), self.elem.len()))
+            .map(|addr| *addr)
     }
 
     pub fn drop_elem(&mut self) {

@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use std::io::Read;
 
+#[derive(Default)]
 pub struct WasmInstance {
     pub store: Store,
 }
@@ -49,9 +50,7 @@ impl WasmInstance {
 
 impl WasmInstance {
     pub fn new() -> Self {
-        Self {
-            store: Store::new(),
-        }
+        Default::default()
     }
 
     pub fn get_global(&self, module_index: ModuleIndex, field: &str) -> Option<Value> {
@@ -69,19 +68,17 @@ impl WasmInstance {
     ) -> Result<Vec<Value>, WasmError> {
         let module = self.store.module(module_index).defined().unwrap();
         let func_addr = if let Some(func_name) = func_name {
-            if let Some(Some(func_addr)) = module.exported_func(&func_name).ok() {
+            if let Ok(Some(func_addr)) = module.exported_func(&func_name) {
                 func_addr
             } else {
                 return Err(WasmError::EntryFunctionNotFound(func_name.clone()));
             }
         } else if let Some(start_func_addr) = module.start_func_addr() {
             *start_func_addr
+        } else if let Ok(Some(func_addr)) = module.exported_func("_start") {
+            func_addr
         } else {
-            if let Some(Some(func_addr)) = module.exported_func("_start").ok() {
-                func_addr
-            } else {
-                return Err(WasmError::EntryFunctionNotFound("_start".to_string()));
-            }
+            return Err(WasmError::EntryFunctionNotFound("_start".to_string()));
         };
         simple_invoke_func(func_addr, arguments, &mut self.store, config)
     }

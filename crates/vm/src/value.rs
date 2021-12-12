@@ -73,9 +73,9 @@ pub enum RefType {
     ExternRef,
 }
 
-impl Into<wasmparser::Type> for RefType {
-    fn into(self) -> wasmparser::Type {
-        match self {
+impl From<RefType> for wasmparser::Type {
+    fn from(from: RefType) -> Self {
+        match from {
             RefType::FuncRef => wasmparser::Type::FuncRef,
             RefType::ExternRef => wasmparser::Type::ExternRef,
         }

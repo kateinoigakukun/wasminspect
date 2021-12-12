@@ -81,8 +81,8 @@ impl TableInstance {
     pub fn get_at(&self, index: usize) -> Result<RefVal> {
         self.buffer
             .get(index)
-            .ok_or(Error::AccessOutOfBounds(Some(index), self.buffer_len()))
-            .map(|addr| addr.clone())
+            .ok_or_else(|| Error::AccessOutOfBounds(Some(index), self.buffer_len()))
+            .map(|addr| *addr)
     }
 
     pub fn set_at(&mut self, index: usize, val: RefVal) -> Result<()> {
@@ -112,6 +112,6 @@ impl TableInstance {
         }
         let mut extra = std::iter::repeat(val).take(n).collect();
         self.buffer.append(&mut extra);
-        return Ok(());
+        Ok(())
     }
 }

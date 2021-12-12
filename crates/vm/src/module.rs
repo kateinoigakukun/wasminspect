@@ -59,21 +59,21 @@ impl DefinedModuleInstance {
             types,
             exports: exports
                 .iter()
-                .map(|e| ExportInstance::new_from_entry(e.clone(), module_index))
+                .map(|e| ExportInstance::new_from_entry(*e, module_index))
                 .collect(),
-            start_func: start_func,
+            start_func,
         }
     }
 
     pub fn exported_by_name(&self, name: &str) -> Option<&ExportInstance> {
-        self.exports.iter().filter(|e| *e.name() == name).next()
+        self.exports.iter().find(|e| *e.name() == name)
     }
 
     pub fn exported_global(&self, name: &str) -> DefinedModuleResult<Option<GlobalAddr>> {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {
-                ExternalValue::Global(addr) => Ok(Some(addr.clone())),
+                ExternalValue::Global(addr) => Ok(Some(*addr)),
                 _ => Err(DefinedModuleError::TypeMismatch(
                     "global",
                     e.value().ty().to_string(),
@@ -87,7 +87,7 @@ impl DefinedModuleInstance {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {
-                ExternalValue::Func(addr) => Ok(Some(addr.clone())),
+                ExternalValue::Func(addr) => Ok(Some(*addr)),
                 _ => Err(DefinedModuleError::TypeMismatch(
                     "function",
                     e.value().ty().to_string(),
@@ -101,7 +101,7 @@ impl DefinedModuleInstance {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {
-                ExternalValue::Table(addr) => Ok(Some(addr.clone())),
+                ExternalValue::Table(addr) => Ok(Some(*addr)),
                 _ => Err(DefinedModuleError::TypeMismatch(
                     "table",
                     e.value().ty().to_string(),
@@ -115,7 +115,7 @@ impl DefinedModuleInstance {
         let export = self.exported_by_name(name);
         match export {
             Some(e) => match e.value() {
-                ExternalValue::Memory(addr) => Ok(Some(addr.clone())),
+                ExternalValue::Memory(addr) => Ok(Some(*addr)),
                 _ => Err(DefinedModuleError::TypeMismatch(
                     "memory",
                     e.value().ty().to_string(),

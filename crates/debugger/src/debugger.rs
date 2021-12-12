@@ -419,7 +419,7 @@ impl debugger::Debugger for MainDebugger {
 impl Interceptor for MainDebugger {
     fn invoke_func(
         &self,
-        name: &String,
+        name: &str,
         _executor: &Executor,
         _store: &Store,
     ) -> Result<Signal, Trap> {

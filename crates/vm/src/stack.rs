@@ -120,11 +120,11 @@ impl CallFrame {
     fn new(
         module_index: ModuleIndex,
         exec_addr: ExecutableFuncAddr,
-        local_inits: &Vec<Value>,
+        local_inits: &[Value],
         args: Vec<Value>,
         pc: Option<ProgramCounter>,
     ) -> Self {
-        let mut locals = local_inits.clone();
+        let mut locals = local_inits.to_vec();
         for (i, arg) in args.into_iter().enumerate() {
             locals[i] = arg;
         }
@@ -179,7 +179,7 @@ impl StackValue {
             Self::Activation(_) => StackValueType::Activation,
         }
     }
-    pub fn as_value(self) -> Result<Value> {
+    pub fn into_value(self) -> Result<Value> {
         match self {
             Self::Value(val) => Ok(val),
             _ => Err(Error::MismatchStackValueType {
@@ -188,7 +188,7 @@ impl StackValue {
             }),
         }
     }
-    fn as_label(self) -> Result<Label> {
+    fn into_label(self) -> Result<Label> {
         match self {
             Self::Label(val) => Ok(val),
             _ => Err(Error::MismatchStackValueType {
@@ -197,7 +197,7 @@ impl StackValue {
             }),
         }
     }
-    fn as_activation(self) -> Result<CallFrame> {
+    fn into_activation(self) -> Result<CallFrame> {
         match self {
             Self::Activation(val) => Ok(val),
             _ => Err(Error::MismatchStackValueType {
@@ -207,7 +207,7 @@ impl StackValue {
         }
     }
 
-    fn as_activation_ref(&self) -> Result<&CallFrame> {
+    fn as_activation(&self) -> Result<&CallFrame> {
         match self {
             Self::Activation(val) => Ok(val),
             _ => Err(Error::MismatchStackValueType {
@@ -278,20 +278,18 @@ impl Stack {
 
     pub fn current_frame_index(&self) -> Result<usize> {
         self.frame_index
-            .last()
-            .map(|v| *v)
+            .last().cloned()
             .ok_or(Error::NoCallFrame)
     }
 
     pub fn is_func_top_level(&self) -> Result<bool> {
         match self.stack[self.current_frame_index()?..]
             .iter()
-            .filter(|v| match v {
+            .find(|v| match v {
                 StackValue::Label(Label::Return { .. }) => false,
                 StackValue::Label(_) => true,
                 _ => false,
             })
-            .next()
         {
             Some(_) => Ok(false),
             None => Ok(true),
@@ -330,7 +328,7 @@ impl Stack {
 
     pub fn pop_value(&mut self) -> Result<Value> {
         match self.stack.pop() {
-            Some(val) => val.as_value(),
+            Some(val) => val.into_value(),
             None => Err(Error::PopEmptyStack),
         }
     }
@@ -341,7 +339,7 @@ impl Stack {
 
     pub fn pop_label(&mut self) -> Result<Label> {
         match self.stack.pop() {
-            Some(val) => val.as_label(),
+            Some(val) => val.into_label(),
             None => Err(Error::PopEmptyStack),
         }
     }
@@ -356,14 +354,14 @@ impl Stack {
     }
 
     pub fn current_frame(&self) -> Result<&CallFrame> {
-        self.stack[self.current_frame_index()?].as_activation_ref()
+        self.stack[self.current_frame_index()?].as_activation()
     }
 
     pub fn pop_frame(&mut self) -> Result<CallFrame> {
         match self.stack.pop() {
             Some(val) => {
                 self.frame_index.pop();
-                val.as_activation()
+                val.into_activation()
             }
             None => Err(Error::PopEmptyStack),
         }

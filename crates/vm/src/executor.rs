@@ -288,7 +288,7 @@ impl Executor {
                     let results = results
                         .into_iter()
                         .rev()
-                        .map(|v| v.as_value().map_err(Trap::Stack))
+                        .map(|v| v.into_value().map_err(Trap::Stack))
                         .collect::<ExecResult<Vec<_>>>()?;
                     self.stack.push_values(results);
                     Ok(Signal::Next)

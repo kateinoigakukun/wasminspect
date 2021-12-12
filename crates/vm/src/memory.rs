@@ -61,7 +61,7 @@ impl MemoryInstance {
 
     pub fn store(&mut self, offset: usize, data: &[u8]) -> Result<()> {
         self.validate_region(offset, data.len())?;
-        for (index, byte) in data.into_iter().enumerate() {
+        for (index, byte) in data.iter().enumerate() {
             self.data[offset + index] = *byte;
         }
         Ok(())
@@ -94,7 +94,7 @@ impl MemoryInstance {
         let mut extra: Vec<u8> = std::iter::repeat(0).take(n * WASM_PAGE_SIZE).collect();
         self.data.append(&mut extra);
         self.initial = len;
-        return Ok(());
+        Ok(())
     }
     pub fn raw_data_mut(&mut self) -> &mut [u8] {
         &mut self.data
