@@ -6,7 +6,7 @@ edition = "2018"
 description = "An Interactive Debugger for WebAssembly"
 license-file = "LICENSE"
 repository = "https://github.com/kateinoigakukun/wasminspect"
-documentation = "https://github.com/kateinoigakukun/wasminspect/blob/master/docs/tutorial.md"
+documentation = "https://github.com/kateinoigakukun/wasminspect/blob/main/docs/tutorial.md"
 
 [[bin]]
 name = "wasminspect"
