@@ -1,5 +1,3 @@
-#![feature(link_args)]
-
 use std::ffi;
 
 extern "C" {

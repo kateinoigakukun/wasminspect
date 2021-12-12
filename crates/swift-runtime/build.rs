@@ -1,6 +1,6 @@
 use std::env;
 
-static SWIFT_RUNTIME_LIB_DIR: &'static str = "SWIFT_RUNTIME_LIB_DIR";
+static SWIFT_RUNTIME_LIB_DIR: &str = "SWIFT_RUNTIME_LIB_DIR";
 
 fn main() {
     let runtime_lib_dir = match env::var(SWIFT_RUNTIME_LIB_DIR) {

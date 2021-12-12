@@ -27,7 +27,8 @@ wasminspect support some Swift specific features. To enable these features, plea
 On macOS:
 
 ```sh
-$ cargo +nightly build --features swift-extension
+$ export SWIFT_RUNTIME_LIB_DIR=$(xcrun -show-sdk-path)/usr/lib/swift
+$ cargo build --features swift-extension
 ```
 
 On Linux:
