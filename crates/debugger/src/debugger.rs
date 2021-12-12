@@ -42,13 +42,10 @@ struct Breakpoints {
 }
 
 impl Breakpoints {
-    fn should_break_func(&self, name: &String) -> bool {
+    fn should_break_func(&self, name: &str) -> bool {
         // FIXME
         self.function_map
-            .keys()
-            .filter(|k| name.contains(k.clone()))
-            .next()
-            .is_some()
+            .keys().any(|k| name.contains(Clone::clone(&k)))
     }
 
     fn should_break_inst(&self, inst: &Instruction) -> bool {
