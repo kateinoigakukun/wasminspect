@@ -1,3 +1,4 @@
+#![allow(clippy::float_cmp)]
 use wasmparser::Type;
 
 use crate::FuncAddr;
@@ -68,13 +69,10 @@ impl Value {
     pub fn isa(&self, ty: Type) -> bool {
         match self {
             Value::Num(_) => self.value_type() == ty,
-            Value::Ref(r) => match (r, ty) {
-                (RefVal::ExternRef(_), Type::ExternRef)
+            Value::Ref(r) => matches!((r, ty), (RefVal::ExternRef(_), Type::ExternRef)
                 | (RefVal::FuncRef(_), Type::FuncRef)
                 | (RefVal::NullRef(RefType::ExternRef), Type::ExternRef)
-                | (RefVal::NullRef(RefType::FuncRef), Type::FuncRef) => true,
-                _ => return false,
-            },
+                | (RefVal::NullRef(RefType::FuncRef), Type::FuncRef)),
         }
     }
 
@@ -467,7 +465,7 @@ macro_rules! impl_in_range_signed {
                     | (($target_bits - 1 + <$self>::BIAS) << <$self>::FRAC_BITS);
                 if <$self>::from_bits(min) > self {
                     InRangeResult::TooSmall
-                } else if !(self < <$self>::from_bits(max_plus_one)) {
+                } else if self >= <$self>::from_bits(max_plus_one) {
                     InRangeResult::TooLarge
                 } else {
                     InRangeResult::InRange
@@ -496,7 +494,7 @@ macro_rules! impl_in_range_unsigned {
                     || <$self>::from_bits(negative_one) >= self
                 {
                     InRangeResult::TooSmall
-                } else if !(self < <$self>::from_bits(max_plus_one)) {
+                } else if self >= <$self>::from_bits(max_plus_one) {
                     InRangeResult::TooLarge
                 } else {
                     InRangeResult::InRange
@@ -585,9 +583,6 @@ macro_rules! impl_min_max {
                     let bits = another.to_bits() | <$type>::arithmetic_bits();
                     return <$orig>::from_bits(bits);
                 }
-                if another.is_nan() {
-                    return another;
-                }
                 // min(0.0, -0.0) returns 0.0 in rust, but wasm expects
                 // to return -0.0
                 // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmin
@@ -655,4 +650,14 @@ pub fn extend_i32(x: i32, to_bits: usize) -> i32 {
 pub fn extend_i64(x: i64, to_bits: usize) -> i64 {
     let shift = 64 - to_bits;
     (x << shift) >> shift
+}
+
+#[cfg(test)]
+mod tests {
+    use super::F32;
+
+    #[test]
+    fn floating_value_min() {
+        assert_eq!(F32::min(0.0, -0.0).to_bits(), (-0.0_f32).to_bits());
+    }
 }
