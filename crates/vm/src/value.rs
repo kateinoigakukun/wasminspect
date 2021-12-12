@@ -1,6 +1,5 @@
 #![allow(clippy::float_cmp)]
 
-
 #[derive(Debug)]
 pub enum Error {
     ZeroDivision,
@@ -443,6 +442,7 @@ trait IEEE754 {
     type BitsType;
 
     fn from_bits(v: Self::BitsType) -> Self;
+    fn to_bits(self) -> Self::BitsType;
 }
 
 impl IEEE754 for f32 {
@@ -455,6 +455,9 @@ impl IEEE754 for f32 {
 
     fn from_bits(v: u32) -> Self {
         f32::from_bits(v)
+    }
+    fn to_bits(self) -> Self::BitsType {
+        f32::to_bits(self)
     }
 }
 
@@ -469,6 +472,9 @@ impl IEEE754 for f64 {
     fn from_bits(v: u64) -> Self {
         f64::from_bits(v)
     }
+    fn to_bits(self) -> Self::BitsType {
+        f64::to_bits(self)
+    }
 }
 
 macro_rules! impl_in_range_signed {
@@ -476,8 +482,10 @@ macro_rules! impl_in_range_signed {
     ($target:ty, $target_bits:expr, $self:ty) => {
         impl InRange<$target> for $self {
             fn in_range(self) -> InRangeResult {
+                // -1 * 1.0 * 2^($target_bits - 1)
                 let min = (1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits - 1 + <$self>::BIAS) << <$self>::FRAC_BITS);
+                // +1 * 1.0 * 2^($target_bits - 1)
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits - 1 + <$self>::BIAS) << <$self>::FRAC_BITS);
                 if <$self>::from_bits(min) > self {
@@ -505,6 +513,7 @@ macro_rules! impl_in_range_unsigned {
                 let negative_zero = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS);
                 let negative_one = 1 << (<$self>::EXP_BITS + <$self>::FRAC_BITS)
                     | (<$self>::BIAS + 0) << <$self>::FRAC_BITS;
+                // +1 * 1.0 * 2^($target_bits - 1)
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits + <$self>::BIAS) << <$self>::FRAC_BITS);
                 if <$self>::from_bits(negative_zero) > self
@@ -526,30 +535,34 @@ impl_in_range_unsigned!(u32, 32, f64);
 impl_in_range_unsigned!(u64, 64, f32);
 impl_in_range_unsigned!(u64, 64, f64);
 
-pub enum I32 {}
-pub enum I64 {}
-pub enum U32 {}
-pub enum U64 {}
+pub(crate) enum I32 {}
+pub(crate) enum I64 {}
+pub(crate) enum U32 {}
+pub(crate) enum U64 {}
+
+pub(crate) trait Copysign {
+    fn copysign(&self, other: Self) -> Self;
+}
 
 macro_rules! impl_copysign {
-    ($type:ty, $orig:ty, $size:ty) => {
-        impl $type {
-            pub fn copysign(&self, rhs: $type) -> $orig {
-                let sign_mask: $size = 1 << (std::mem::size_of::<$orig>() * 8 - 1);
+    ($type:ty) => {
+        impl Copysign for $type {
+            fn copysign(&self, rhs: $type) -> $type {
+                let sign_mask = 1 << (std::mem::size_of::<$type>() * 8 - 1);
                 let sign = rhs.to_bits() & sign_mask;
-                <$orig>::from_bits((self.to_bits() & (!sign_mask)) | sign)
+                Self((self.to_bits() & (!sign_mask)) | sign)
             }
         }
     };
 }
 
-impl_copysign!(F32, f32, u32);
-impl_copysign!(F64, f64, u64);
+impl_copysign!(F32);
+impl_copysign!(F64);
 
 macro_rules! impl_try_wrapping {
     ($type:ty, $orig:ty) => {
         impl $type {
-            pub fn try_wrapping_div(this: $orig, another: $orig) -> Result<$orig, Error> {
+            pub(crate) fn try_wrapping_div(this: $orig, another: $orig) -> Result<$orig, Error> {
                 if another == 0 {
                     Err(Error::ZeroDivision)
                 } else {
@@ -562,7 +575,7 @@ macro_rules! impl_try_wrapping {
                 }
             }
 
-            pub fn try_wrapping_rem(this: $orig, another: $orig) -> Result<$orig, Error> {
+            pub(crate) fn try_wrapping_rem(this: $orig, another: $orig) -> Result<$orig, Error> {
                 if another == 0 {
                     Err(Error::ZeroDivision)
                 } else {
@@ -593,7 +606,7 @@ impl F64 {
 macro_rules! impl_min_max {
     ($type:ty, $orig:ty) => {
         impl $type {
-            pub fn min(this: $orig, another: $orig) -> $orig {
+            pub(crate) fn min(this: $orig, another: $orig) -> $orig {
                 if this.is_nan() {
                     let bits = this.to_bits() | <$type>::arithmetic_bits();
                     return <$orig>::from_bits(bits);
@@ -612,7 +625,7 @@ macro_rules! impl_min_max {
                 return this.min(another);
             }
 
-            pub fn max(this: $orig, another: $orig) -> $orig {
+            pub(crate) fn max(this: $orig, another: $orig) -> $orig {
                 if this.is_nan() {
                     let bits = this.to_bits() | <$type>::arithmetic_bits();
                     return <$orig>::from_bits(bits);
@@ -640,7 +653,7 @@ impl_min_max!(F64, f64);
 macro_rules! impl_nearest {
     ($type:ty, $orig:ty) => {
         impl $type {
-            pub fn nearest(&self) -> $orig {
+            pub(crate) fn nearest(&self) -> $orig {
                 let this = self.to_float();
                 let round = this.round();
                 if this.fract().abs() != 0.5 {
@@ -664,14 +677,14 @@ impl_nearest!(F32, f32);
 impl_nearest!(F64, f64);
 
 impl I32 {
-    pub fn extend_i32(x: i32, to_bits: usize) -> i32 {
+    pub(crate) fn extend_with_width(x: i32, to_bits: usize) -> i32 {
         let shift = 32 - to_bits;
         (x << shift) >> shift
     }
 }
 
 impl I64 {
-    pub fn extend_i64(x: i64, to_bits: usize) -> i64 {
+    pub(crate) fn extend_with_width(x: i64, to_bits: usize) -> i64 {
         let shift = 64 - to_bits;
         (x << shift) >> shift
     }

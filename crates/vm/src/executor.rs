@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{RefType, RefVal, TruncSatTo, TruncTo};
+use crate::value::{RefType, RefVal, TruncSatTo, TruncTo, Copysign};
 use crate::{data, elem, DataAddr, ElemAddr};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
@@ -833,11 +833,11 @@ impl Executor {
             InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
             InstructionKind::F64PromoteF32 => self.unop(|x: F32| f64::from(x.to_float())),
 
-            InstructionKind::I32Extend8S => self.unop(|x: i32| I32::extend_i32(x, 8)),
-            InstructionKind::I32Extend16S => self.unop(|x: i32| I32::extend_i32(x, 16)),
-            InstructionKind::I64Extend8S => self.unop(|x: i64| I64::extend_i64(x, 8)),
-            InstructionKind::I64Extend16S => self.unop(|x: i64| I64::extend_i64(x, 16)),
-            InstructionKind::I64Extend32S => self.unop(|x: i64| I64::extend_i64(x, 32)),
+            InstructionKind::I32Extend8S => self.unop(|x: i32| I32::extend_with_width(x, 8)),
+            InstructionKind::I32Extend16S => self.unop(|x: i32| I32::extend_with_width(x, 16)),
+            InstructionKind::I64Extend8S => self.unop(|x: i64| I64::extend_with_width(x, 8)),
+            InstructionKind::I64Extend16S => self.unop(|x: i64| I64::extend_with_width(x, 16)),
+            InstructionKind::I64Extend32S => self.unop(|x: i64| I64::extend_with_width(x, 32)),
 
             InstructionKind::I32ReinterpretF32 => self.unop(|v: F32| v.to_bits() as i32),
             InstructionKind::I64ReinterpretF64 => self.unop(|v: F64| v.to_bits() as i64),
