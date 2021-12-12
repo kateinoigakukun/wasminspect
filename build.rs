@@ -42,7 +42,7 @@ fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
                 return None;
             }
             // Ignore files starting with `.`, which could be editor temporary files
-            if p.file_stem()?.to_str()?.starts_with(".") {
+            if p.file_stem()?.to_str()?.starts_with('.') {
                 return None;
             }
             Some(p)

@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use env_logger;
+
 use std::io::Read;
 use structopt::StructOpt;
 use wasminspect_debugger::{self, ModuleInput};
@@ -61,10 +61,11 @@ fn main() -> anyhow::Result<()> {
         }
         None => None,
     };
+    match wasminspect_debugger::run_loop(module_input, opts.source, opts.map_dirs, opts.envs) {
+        Err(err) => println!("{:?}", err),
+        _ => {}
+    };
     Ok(
-        match wasminspect_debugger::run_loop(module_input, opts.source, opts.map_dirs, opts.envs) {
-            Err(err) => println!("{:?}", err),
-            _ => {}
-        },
+        (),
     )
 }
