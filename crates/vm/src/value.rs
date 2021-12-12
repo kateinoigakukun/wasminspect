@@ -388,25 +388,26 @@ impl_trunc_to!(F64, u64);
 /// This trait corresponds to `To_trunc_sat_Self` instruction semantics.
 /// - https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-u
 /// - https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-s
-pub trait TruncSatTo<To> {
-    fn trunc_sat_to(self) -> To;
+pub trait TruncSat<To> {
+    fn trunc_sat(self) -> To;
 }
 
 macro_rules! impl_trunc_sat_to {
     ($self:ty, $to:ty) => {
-        impl TruncSatTo<$to> for $self {
-            fn trunc_sat_to(self) -> $to {
-                if self.is_nan() {
+        impl TruncSat<$to> for $self {
+            fn trunc_sat(self) -> $to {
+                let this = self.to_native();
+                if this.is_nan() {
                     0
-                } else if self == <$self>::INFINITY {
+                } else if this == <$self as IEEE754>::NativeType::INFINITY {
                     <$to>::MAX
-                } else if self == <$self>::NEG_INFINITY {
+                } else if this == <$self as IEEE754>::NativeType::NEG_INFINITY {
                     <$to>::MIN
                 } else {
-                    let trunc = self.trunc();
-                    if trunc < <$to>::MIN as $self {
+                    let trunc = this.trunc();
+                    if trunc < <$to>::MIN as <$self as IEEE754>::NativeType {
                         <$to>::MIN
-                    } else if trunc > <$to>::MAX as $self {
+                    } else if trunc > <$to>::MAX as <$self as IEEE754>::NativeType {
                         <$to>::MAX
                     } else {
                         trunc as $to
@@ -417,15 +418,15 @@ macro_rules! impl_trunc_sat_to {
     };
 }
 
-impl_trunc_sat_to!(f32, i32);
-impl_trunc_sat_to!(f32, i64);
-impl_trunc_sat_to!(f64, i32);
-impl_trunc_sat_to!(f64, i64);
+impl_trunc_sat_to!(F32, i32);
+impl_trunc_sat_to!(F32, i64);
+impl_trunc_sat_to!(F64, i32);
+impl_trunc_sat_to!(F64, i64);
 
-impl_trunc_sat_to!(f32, u32);
-impl_trunc_sat_to!(f32, u64);
-impl_trunc_sat_to!(f64, u32);
-impl_trunc_sat_to!(f64, u64);
+impl_trunc_sat_to!(F32, u32);
+impl_trunc_sat_to!(F32, u64);
+impl_trunc_sat_to!(F64, u32);
+impl_trunc_sat_to!(F64, u64);
 
 /// Check this value is in range of `Target` basic number type
 trait InRange<Target> {

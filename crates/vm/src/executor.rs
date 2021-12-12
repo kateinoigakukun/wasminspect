@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{RefType, RefVal, TruncSatTo, TruncTo, Copysign, Nearest};
+use crate::value::{Copysign, Nearest, RefType, RefVal, TruncSat, TruncTo};
 use crate::{data, elem, DataAddr, ElemAddr};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
@@ -843,30 +843,14 @@ impl Executor {
             InstructionKind::I64ReinterpretF64 => self.unop(|v: F64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
-            InstructionKind::I32TruncSatF32S => {
-                self.unop(|v: F32| TruncSatTo::<i32>::trunc_sat_to(v.to_float()))
-            }
-            InstructionKind::I32TruncSatF32U => {
-                self.unop(|v: F32| TruncSatTo::<u32>::trunc_sat_to(v.to_float()))
-            }
-            InstructionKind::I32TruncSatF64S => {
-                self.unop(|v: F64| TruncSatTo::<i32>::trunc_sat_to(v.to_float()))
-            }
-            InstructionKind::I32TruncSatF64U => {
-                self.unop(|v: F64| TruncSatTo::<u32>::trunc_sat_to(v.to_float()))
-            }
-            InstructionKind::I64TruncSatF32S => {
-                self.unop(|v: F32| TruncSatTo::<i64>::trunc_sat_to(v.to_float()))
-            }
-            InstructionKind::I64TruncSatF32U => {
-                self.unop(|v: F32| TruncSatTo::<u64>::trunc_sat_to(v.to_float()))
-            }
-            InstructionKind::I64TruncSatF64S => {
-                self.unop(|v: F64| TruncSatTo::<i64>::trunc_sat_to(v.to_float()))
-            }
-            InstructionKind::I64TruncSatF64U => {
-                self.unop(|v: F64| TruncSatTo::<u64>::trunc_sat_to(v.to_float()))
-            }
+            InstructionKind::I32TruncSatF32S => self.unop(|v: F32| TruncSat::<i32>::trunc_sat(v)),
+            InstructionKind::I32TruncSatF32U => self.unop(|v: F32| TruncSat::<u32>::trunc_sat(v)),
+            InstructionKind::I32TruncSatF64S => self.unop(|v: F64| TruncSat::<i32>::trunc_sat(v)),
+            InstructionKind::I32TruncSatF64U => self.unop(|v: F64| TruncSat::<u32>::trunc_sat(v)),
+            InstructionKind::I64TruncSatF32S => self.unop(|v: F32| TruncSat::<i64>::trunc_sat(v)),
+            InstructionKind::I64TruncSatF32U => self.unop(|v: F32| TruncSat::<u64>::trunc_sat(v)),
+            InstructionKind::I64TruncSatF64S => self.unop(|v: F64| TruncSat::<i64>::trunc_sat(v)),
+            InstructionKind::I64TruncSatF64U => self.unop(|v: F64| TruncSat::<u64>::trunc_sat(v)),
             other => unimplemented!("{:?}", other),
         };
         if self.stack.is_over_top_level() {
