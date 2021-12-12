@@ -12,10 +12,10 @@ fn emit_func_extern(
     module_id: &Ident,
 ) -> TokenStream {
     let to_wasmparser_ty = |abi_ty: &WasmType| match abi_ty {
-        &WasmType::I32 => quote! { ::wasmparser::Type::I32 },
-        &WasmType::I64 => quote! { ::wasmparser::Type::I64 },
-        &WasmType::F32 => quote! { ::wasmparser::Type::F32 },
-        &WasmType::F64 => quote! { ::wasmparser::Type::F64 },
+        WasmType::I32 => quote! { ::wasmparser::Type::I32 },
+        WasmType::I64 => quote! { ::wasmparser::Type::I64 },
+        WasmType::F32 => quote! { ::wasmparser::Type::F32 },
+        WasmType::F64 => quote! { ::wasmparser::Type::F64 },
     };
 
     let mut param_types = Vec::new();
@@ -27,10 +27,10 @@ fn emit_func_extern(
     let mut arg_values = Vec::new();
     for (idx, param) in params.iter().enumerate() {
         let cast_fn = match param {
-            &WasmType::I32 => quote! { as_i32 },
-            &WasmType::I64 => quote! { as_i64 },
-            &WasmType::F32 => quote! { as_f32 },
-            &WasmType::F64 => quote! { as_f64 },
+            WasmType::I32 => quote! { as_i32 },
+            WasmType::I64 => quote! { as_i64 },
+            WasmType::F32 => quote! { as_f32 },
+            WasmType::F64 => quote! { as_f64 },
         };
         let idx_lit = Literal::usize_unsuffixed(idx);
         arg_values.push(quote! { args[#idx_lit].#cast_fn().unwrap() });
@@ -46,10 +46,10 @@ fn emit_func_extern(
     if let Some(ret_ty) = returns.first() {
         assert!(returns.len() == 1);
         let (primitive_ty, ty_case) = match ret_ty {
-            &WasmType::I32 => (quote! { i32 }, quote! { WasmValue::I32 }),
-            &WasmType::I64 => (quote! { i64 }, quote! { WasmValue::I64 }),
-            &WasmType::F32 => (quote! { f32 }, quote! { WasmValue::F32 }),
-            &WasmType::F64 => (quote! { f64 }, quote! { WasmValue::F64 }),
+            WasmType::I32 => (quote! { i32 }, quote! { WasmValue::I32 }),
+            WasmType::I64 => (quote! { i64 }, quote! { WasmValue::I64 }),
+            WasmType::F32 => (quote! { f32 }, quote! { WasmValue::F32 }),
+            WasmType::F64 => (quote! { f64 }, quote! { WasmValue::F64 }),
         };
         ret_value = quote! { ret.push(#ty_case(result as #primitive_ty)); };
     }

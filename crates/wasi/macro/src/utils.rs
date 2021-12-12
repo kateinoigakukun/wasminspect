@@ -13,7 +13,7 @@ pub(crate) fn witx_path_from_arg(arg: TokenTree) -> PathBuf {
     }
 
     let root = PathBuf::from(std::env::var("WASI_ROOT").expect("WASI_ROOT"));
-    return root.join(&string);
+    root.join(&string)
 }
 
 fn parse_string_literal(literal: Literal) -> String {
@@ -38,7 +38,7 @@ fn parse_string_literal(literal: Literal) -> String {
 
 pub(crate) fn witx_target_module_map_ident(arg: TokenTree) -> String {
     if let TokenTree::Ident(id) = arg {
-        return id.to_string();
+        id.to_string()
     } else {
         panic!("arguments must be string literals");
     }

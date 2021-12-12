@@ -23,7 +23,7 @@ impl WastContext {
         instance.load_host_module("spectest".to_string(), instantiate_spectest());
         Self {
             module_index_by_name: HashMap::new(),
-            instance: instance,
+            instance,
             current: None,
             config,
         }
@@ -43,7 +43,7 @@ impl WastContext {
                 _ => continue,
             }
         }
-        return Ok(None);
+        Ok(None)
     }
     fn module(&mut self, module_id: Option<wast::Id>, bytes: Vec<u8>) -> Result<()> {
         let module_name = module_id.map(|id| id.name());
@@ -148,11 +148,8 @@ impl WastContext {
                         wast::QuoteModule::Quote(_) => continue,
                     };
                     let bytes = module.encode().map_err(adjust_wast)?;
-                    match self.module(None, bytes) {
-                        Ok(()) => {
-                            panic!("{}\nexpected module to fail to instantiate", context(span))
-                        }
-                        Err(_) => (),
+                    if let Ok(()) = self.module(None, bytes) {
+                        panic!("{}\nexpected module to fail to instantiate", context(span))
                     };
                 }
                 AssertUnlinkable {
@@ -219,7 +216,7 @@ impl WastContext {
                     let mut module = String::new();
                     for src in source {
                         module.push_str(str::from_utf8(src)?);
-                        module.push_str(" ");
+                        module.push(' ');
                     }
                     let buf = wast::parser::ParseBuffer::new(&module).map_err(adjust_wast)?;
                     let mut wat = wast::parser::parse::<wast::Wat>(&buf).map_err(|mut e| {
@@ -251,10 +248,9 @@ impl WastContext {
         match name {
             Some(name) => self
                 .module_index_by_name
-                .get(name)
-                .map(|i| i.clone())
-                .ok_or(anyhow!("module not found with name {}", name)),
-            None => match self.current.clone() {
+                .get(name).copied()
+                .ok_or_else(|| anyhow!("module not found with name {}", name)),
+            None => match self.current {
                 Some(current) => Ok(current),
                 None => panic!(),
             },
@@ -373,17 +369,17 @@ fn const_expr(expr: &wast::Expression) -> WasmValue {
 }
 
 fn is_canonical_f32_nan(f: &F32) -> bool {
-    return (f.to_bits() & 0x7fffffff) == 0x7fc00000;
+    (f.to_bits() & 0x7fffffff) == 0x7fc00000
 }
 
 fn is_canonical_f64_nan(f: &F64) -> bool {
-    return (f.to_bits() & 0x7fffffffffffffff) == 0x7ff8000000000000;
+    (f.to_bits() & 0x7fffffffffffffff) == 0x7ff8000000000000
 }
 
 fn is_arithmetic_f32_nan(f: &F32) -> bool {
-    return (f.to_bits() & 0x00400000) == 0x00400000;
+    (f.to_bits() & 0x00400000) == 0x00400000
 }
 
 fn is_arithmetic_f64_nan(f: &F64) -> bool {
-    return (f.to_bits() & 0x0008000000000000) == 0x0008000000000000;
+    (f.to_bits() & 0x0008000000000000) == 0x0008000000000000
 }

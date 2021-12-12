@@ -99,8 +99,7 @@ impl InnerBorrowChecker {
         // unborrows while always keeping at least one borrow outstanding, and
         // we will run out of borrow handles.
         self.next_handle = BorrowHandle(
-            h.0.checked_add(1)
-                .ok_or_else(|| GuestError::BorrowCheckerOutOfHandles)?,
+            h.0.checked_add(1).ok_or(GuestError::BorrowCheckerOutOfHandles)?,
         );
         Ok(h)
     }
@@ -207,20 +206,19 @@ mod test {
         let r1 = Region::new(0, 10);
         let r2 = Region::new(10, 10);
         assert!(!r1.overlaps(r2));
-        assert_eq!(bs.has_outstanding_borrows(), false, "start with no borrows");
+        assert!(!bs.has_outstanding_borrows(), "start with no borrows");
         let h1 = bs.mut_borrow(r1).expect("can borrow r1");
-        assert_eq!(bs.has_outstanding_borrows(), true, "h1 is outstanding");
+        assert!(bs.has_outstanding_borrows(), "h1 is outstanding");
         let h2 = bs.mut_borrow(r2).expect("can borrow r2");
 
         assert!(bs.mut_borrow(r2).is_err(), "can't borrow r2 twice");
         bs.mut_unborrow(h2);
-        assert_eq!(
+        assert!(
             bs.has_outstanding_borrows(),
-            true,
             "h1 is still outstanding"
         );
         bs.mut_unborrow(h1);
-        assert_eq!(bs.has_outstanding_borrows(), false, "no remaining borrows");
+        assert!(!bs.has_outstanding_borrows(), "no remaining borrows");
 
         let _h3 = bs
             .mut_borrow(r2)
@@ -232,20 +230,19 @@ mod test {
         let r1 = Region::new(0, 10);
         let r2 = Region::new(10, 10);
         assert!(!r1.overlaps(r2));
-        assert_eq!(bs.has_outstanding_borrows(), false, "start with no borrows");
+        assert!(!bs.has_outstanding_borrows(), "start with no borrows");
         let h1 = bs.shared_borrow(r1).expect("can borrow r1");
-        assert_eq!(bs.has_outstanding_borrows(), true, "h1 is outstanding");
+        assert!(bs.has_outstanding_borrows(), "h1 is outstanding");
         let h2 = bs.shared_borrow(r2).expect("can borrow r2");
         let h3 = bs.shared_borrow(r2).expect("can shared borrow r2 twice");
 
         bs.shared_unborrow(h2);
-        assert_eq!(
+        assert!(
             bs.has_outstanding_borrows(),
-            true,
             "h1, h3 still outstanding"
         );
         bs.shared_unborrow(h1);
         bs.shared_unborrow(h3);
-        assert_eq!(bs.has_outstanding_borrows(), false, "no remaining borrows");
+        assert!(!bs.has_outstanding_borrows(), "no remaining borrows");
     }
 }
