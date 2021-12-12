@@ -792,8 +792,8 @@ impl Executor {
             InstructionKind::F32Sub => self.binop(|a: F32, b: F32| a.to_float() - b.to_float()),
             InstructionKind::F32Mul => self.binop(|a: F32, b: F32| a.to_float() * b.to_float()),
             InstructionKind::F32Div => self.binop(|a: F32, b: F32| a.to_float() / b.to_float()),
-            InstructionKind::F32Min => self.binop(|a: F32, b: F32| F32::min(a.to_float(), b.to_float())),
-            InstructionKind::F32Max => self.binop(|a: F32, b: F32| F32::max(a.to_float(), b.to_float())),
+            InstructionKind::F32Min => self.binop(|a: F32, b: F32| F32::min(a, b)),
+            InstructionKind::F32Max => self.binop(|a: F32, b: F32| F32::max(a, b)),
             InstructionKind::F32Copysign => self.binop(|a: F32, b: F32| a.copysign(b)),
 
             InstructionKind::F64Abs => self.unop(|v: F64| v.to_float().abs()),
@@ -807,8 +807,8 @@ impl Executor {
             InstructionKind::F64Sub => self.binop(|a: F64, b: F64| a.to_float() - b.to_float()),
             InstructionKind::F64Mul => self.binop(|a: F64, b: F64| a.to_float() * b.to_float()),
             InstructionKind::F64Div => self.binop(|a: F64, b: F64| a.to_float() / b.to_float()),
-            InstructionKind::F64Min => self.binop(|a: F64, b: F64| F64::min(a.to_float(), b.to_float())),
-            InstructionKind::F64Max => self.binop(|a: F64, b: F64| F64::max(a.to_float(), b.to_float())),
+            InstructionKind::F64Min => self.binop(|a: F64, b: F64| F64::min(a, b)),
+            InstructionKind::F64Max => self.binop(|a: F64, b: F64| F64::max(a, b)),
             InstructionKind::F64Copysign => self.binop(|a: F64, b: F64| a.copysign(b)),
 
             InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),

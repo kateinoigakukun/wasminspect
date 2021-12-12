@@ -642,9 +642,11 @@ impl F64 {
 }
 
 macro_rules! impl_min_max {
-    ($type:ty, $orig:ty) => {
+    ($type:ty) => {
         impl $type {
-            pub(crate) fn min(this: $orig, another: $orig) -> $type {
+            pub(crate) fn min(lhs: $type, rhs: $type) -> $type {
+                let this = lhs.to_native();
+                let another = rhs.to_native();
                 if this.is_nan() {
                     let bits = this.to_bits() | <$type>::arithmetic_bits();
                     return <$type>::from_bits(bits);
@@ -663,7 +665,9 @@ macro_rules! impl_min_max {
                 return <$type>::from_native(this.min(another));
             }
 
-            pub(crate) fn max(this: $orig, another: $orig) -> $type {
+            pub(crate) fn max(lhs: $type, rhs: $type) -> $type {
+                let this = lhs.to_native();
+                let another = rhs.to_native();
                 if this.is_nan() {
                     let bits = this.to_bits() | <$type>::arithmetic_bits();
                     return <$type>::from_bits(bits);
@@ -685,8 +689,8 @@ macro_rules! impl_min_max {
     };
 }
 
-impl_min_max!(F32, f32);
-impl_min_max!(F64, f64);
+impl_min_max!(F32);
+impl_min_max!(F64);
 
 pub(crate) trait Nearest {
     fn nearest(&self) -> Self;
@@ -735,10 +739,15 @@ impl I64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::value::IEEE754;
+
     use super::F32;
 
     #[test]
     fn floating_value_min() {
-        assert_eq!(F32::min(0.0, -0.0).to_bits(), (-0.0_f32).to_bits());
+        assert_eq!(
+            F32::min(F32::from_native(0.0), F32::from_native(-0.0)).to_bits(),
+            (-0.0_f32).to_bits()
+        );
     }
 }
