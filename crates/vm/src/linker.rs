@@ -69,14 +69,16 @@ pub struct LinkableCollection<T> {
     item_addrs_by_module: HashMap<ModuleIndex, Vec<usize>>,
 }
 
-impl<T> LinkableCollection<T> {
-    pub fn new() -> Self {
+impl<T> Default for LinkableCollection<T> {
+    fn default() -> Self {
         Self {
             items: Vec::new(),
             item_addrs_by_module: HashMap::new(),
         }
     }
+}
 
+impl<T> LinkableCollection<T> {
     pub fn resolve(&self, address: LinkableAddress<T>) -> Option<GlobalAddress<T>> {
         let raw_address = self.item_addrs_by_module.get(&address.0)?.get(address.1)?;
         Some(GlobalAddress(*raw_address, std::marker::PhantomData))
