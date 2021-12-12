@@ -2,7 +2,7 @@ use std::ops::{AddAssign, SubAssign};
 
 use super::utils::*;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 use gimli::Unit;
 use num_bigint::{BigInt, BigUint, Sign};
 
@@ -23,14 +23,14 @@ pub fn format_object<R: gimli::Reader>(
             let byte_size = entry
                 .attr_value(gimli::DW_AT_byte_size)?
                 .and_then(|attr| attr.udata_value())
-                .ok_or(anyhow!("Failed to get byte_size"))?;
+                .with_context(|| "Failed to get byte_size".to_string())?;
             let encoding = entry
                 .attr_value(gimli::DW_AT_encoding)?
                 .and_then(|attr| match attr {
                     gimli::AttributeValue::Encoding(encoding) => Some(encoding),
                     _ => None,
                 })
-                .ok_or(anyhow!("Failed to get type encoding"))?;
+                .with_context(|| "Failed to get type encoding".to_string())?;
             let mut bytes = Vec::new();
             bytes.extend_from_slice(&memory[0..(byte_size as usize)]);
 
@@ -90,5 +90,5 @@ fn from_signed_bytes_le(bytes: &[u8]) -> BigInt {
     } else {
         v.add_assign(1);
     }
-    return v;
+    v
 }

@@ -35,7 +35,7 @@ impl SetOpts {
                 let raw = address.trim_start_matches("0x");
                 usize::from_str_radix(raw, 16)?
             } else {
-                usize::from_str_radix(&address, 10)?
+                address.parse::<usize>()?
             };
             Ok(Breakpoint::Instruction { inst_offset: address })
         } else {

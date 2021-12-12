@@ -4,9 +4,9 @@ pub enum ColumnType {
     Column(u64),
 }
 
-impl Into<u64> for ColumnType {
-    fn into(self) -> u64 {
-        match self {
+impl From<ColumnType> for u64 {
+    fn from(val: ColumnType) -> Self {
+        match val {
             ColumnType::Column(c) => c,
             ColumnType::LeftEdge => 0,
         }

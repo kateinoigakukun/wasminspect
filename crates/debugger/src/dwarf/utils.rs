@@ -1,5 +1,4 @@
 use anyhow::Result;
-use gimli;
 
 pub(crate) fn clone_string_attribute<R: gimli::Reader>(
     dwarf: &gimli::Dwarf<R>,

@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 
 use anyhow::{anyhow, Result};
-use gimli;
 use log::debug;
 use std::collections::HashMap;
 
@@ -171,14 +170,10 @@ fn parse_base_type<R: gimli::Reader>(
         Some(attr) => clone_string_attribute(dwarf, unit, attr)?,
         None => "<null>".to_string(), // return Err(anyhow!("Failed to get name")),
     };
-    let byte_size = match node
+    let byte_size = node
         .entry()
         .attr_value(gimli::DW_AT_byte_size)?
-        .and_then(|attr| attr.udata_value())
-    {
-        Some(s) => s,
-        None => 0, // return Err(anyhow!("Failed to get byte_size")),
-    };
+        .and_then(|attr| attr.udata_value()).unwrap_or(0);
     Ok(BaseTypeInfo { name, byte_size })
 }
 
@@ -230,10 +225,8 @@ fn parse_partial_struct_type<R: gimli::Reader>(
     {
         ty.byte_size = byte_size;
     };
-    if let Some(declaration) = node.entry().attr_value(gimli::DW_AT_declaration)? {
-        if let gimli::AttributeValue::Flag(flag) = declaration {
-            ty.declaration = flag;
-        }
+    if let Some(gimli::AttributeValue::Flag(flag)) = node.entry().attr_value(gimli::DW_AT_declaration)? {
+        ty.declaration = flag;
     }
     Ok(ty)
 }

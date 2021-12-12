@@ -18,9 +18,9 @@ pub enum RunResult {
 
 #[derive(Clone, Copy)]
 pub enum StepStyle {
-    StepInstIn,
-    StepInstOver,
-    StepOut,
+    InstIn,
+    InstOver,
+    Out,
 }
 
 pub struct FunctionFrame {

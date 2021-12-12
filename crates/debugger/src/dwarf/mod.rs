@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 use gimli::{
     AttributeValue, CompilationUnitHeader, DebugAbbrev, DebugAddr, DebugInfo, DebugInfoOffset,
     DebugLine, DebugLineStr, DebugLoc, DebugLocLists, DebugRanges, DebugRngLists, DebugStr,
@@ -17,7 +17,7 @@ use utils::*;
 type Reader<'input> = gimli::EndianSlice<'input, LittleEndian>;
 pub type Dwarf<'input> = gimli::Dwarf<Reader<'input>>;
 
-pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
+pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
     const EMPTY_SECTION: &[u8] = &[];
     let parser = wasmparser::Parser::new(0);
     let mut sections = HashMap::new();
@@ -29,7 +29,7 @@ pub fn parse_dwarf<'a>(module: &'a [u8]) -> Result<Dwarf<'a>> {
             _ => continue,
         }
     }
-    let try_get = |key: &str| sections.get(key).ok_or(anyhow!("no {}", key));
+    let try_get = |key: &str| sections.get(key).with_context(|| format!("no {}", key));
     let endian = LittleEndian;
     let debug_str = DebugStr::new(try_get(".debug_str")?, endian);
     let debug_abbrev = DebugAbbrev::new(try_get(".debug_abbrev")?, endian);
@@ -75,7 +75,7 @@ pub struct DwarfDebugInfo {
     pub sourcemap: DwarfSourceMap,
     pub subroutine: DwarfSubroutineMap,
 }
-pub fn transform_dwarf<'a>(buffer: &'a [u8]) -> Result<DwarfDebugInfo> {
+pub fn transform_dwarf(buffer: &[u8]) -> Result<DwarfDebugInfo> {
     let dwarf = parse_dwarf(buffer)?;
     let mut headers = dwarf.units();
     let mut sourcemaps = Vec::new();
@@ -160,15 +160,15 @@ pub enum WasmLoc {
 fn read_wasm_location<R: gimli::Reader>(attr_value: AttributeValue<R>) -> Result<WasmLoc> {
     let mut bytes_reader = match attr_value {
         AttributeValue::Exprloc(ref expr) => expr.0.clone(),
-        _ => Err(anyhow!("unexpected attribute kind: {:?}", attr_value))?,
+        _ => return Err(anyhow!("unexpected attribute kind: {:?}", attr_value)),
     };
 
     if bytes_reader.is_empty() {
-        Err(anyhow!("byte sequence should not be empty"))?
+        return Err(anyhow!("byte sequence should not be empty"))
     }
     let magic = bytes_reader.read_u8()?;
     if magic != DwAtWasm::DW_OP_WASM_location as u8 {
-        Err(anyhow!("invalid wasm location magic: {:?}", magic))?
+        return Err(anyhow!("invalid wasm location magic: {:?}", magic))
     }
     let wasm_op = bytes_reader.read_u8()?;
     let loc = match wasm_op {
@@ -176,7 +176,7 @@ fn read_wasm_location<R: gimli::Reader>(attr_value: AttributeValue<R>) -> Result
         0x01 => WasmLoc::Global(bytes_reader.read_uleb128()?),
         0x02 => WasmLoc::Stack(bytes_reader.read_uleb128()?),
         0x03 => WasmLoc::Global(bytes_reader.read_u32()? as u64),
-        _ => Err(anyhow!("invalid wasm location operation: {:?}", wasm_op))?,
+        _ => return Err(anyhow!("invalid wasm location operation: {:?}", wasm_op)),
     };
     Ok(loc)
 }
@@ -220,8 +220,8 @@ fn read_subprogram_header<R: gimli::Reader>(
             name,
             encoding: unit.encoding(),
             entry_offset: node.entry().offset(),
-            unit_offset: unit_offset,
-            frame_base: frame_base,
+            unit_offset,
+            frame_base,
         }
     } else {
         return Ok(None);
@@ -305,7 +305,7 @@ fn transform_variable<R: gimli::Reader>(
 #[derive(Debug)]
 pub enum FrameBase {
     WasmFrameBase(u64),
-    RBP(u64),
+    Rbp(u64),
 }
 
 use gimli::Expression;
@@ -315,7 +315,7 @@ fn evaluate_variable_location<R: gimli::Reader>(
     expr: Expression<R>,
 ) -> Result<Vec<gimli::Piece<R>>> {
     let mut evaluation = expr.evaluation(encoding);
-    if let FrameBase::RBP(base) = base {
+    if let FrameBase::Rbp(base) = base {
         evaluation.set_initial_value(base);
     }
     let mut result = evaluation.evaluate()?;
@@ -332,7 +332,7 @@ fn evaluate_variable_location<R: gimli::Reader>(
                     return Err(anyhow!("unexpected occurrence of DW_AT_frame_base"));
                 }
             }
-            ref x => Err(anyhow!("{:?}", x))?,
+            ref x => return Err(anyhow!("{:?}", x)),
         }
     }
 }
@@ -387,7 +387,7 @@ pub fn transform_debug_line<R: gimli::Reader>(
     let mut rows = program.rows();
     let mut sorted_rows = BTreeMap::new();
     while let Some((_, row)) = rows.next_row()? {
-        sorted_rows.insert(row.address(), row.clone());
+        sorted_rows.insert(row.address(), *row);
     }
     let sorted_rows: Vec<_> = sorted_rows.into_iter().collect();
     Ok(DwarfUnitSourceMap {
@@ -484,7 +484,7 @@ fn header_from_offset<R: gimli::Reader>(
             continue;
         }
     }
-    return Ok(None);
+    Ok(None)
 }
 
 fn subroutine_variables<R: gimli::Reader>(
@@ -499,7 +499,7 @@ fn subroutine_variables<R: gimli::Reader>(
     while let Some(child) = children.next()? {
         match child.entry().tag() {
             gimli::DW_TAG_variable | gimli::DW_TAG_formal_parameter => {
-                let var = transform_variable(&dwarf, &unit, child.entry())?;
+                let var = transform_variable(dwarf, unit, child.entry())?;
                 variables.push(var);
             }
             _ => continue,
@@ -533,9 +533,7 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
         let offset = &(code_offset as u64);
         let subroutine = match self
             .subroutines
-            .iter()
-            .filter(|s| s.pc.contains(offset))
-            .next()
+            .iter().find(|s| s.pc.contains(offset))
         {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
@@ -549,7 +547,7 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
         };
 
         let unit = dwarf.unit(header)?;
-        let variables = subroutine_variables(&dwarf, &unit, &subroutine)?;
+        let variables = subroutine_variables(&dwarf, &unit, subroutine)?;
 
         Ok(variables
             .iter()
@@ -573,14 +571,12 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
         let offset = &(code_offset as u64);
         let subroutine = match self
             .subroutines
-            .iter()
-            .filter(|s| s.pc.contains(offset))
-            .next()
+            .iter().find(|s| s.pc.contains(offset))
         {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
-        return Ok(subroutine.frame_base.clone());
+        Ok(subroutine.frame_base)
     }
     fn display_variable(
         &self,
@@ -592,9 +588,7 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
         let offset = &(code_offset as u64);
         let subroutine = match self
             .subroutines
-            .iter()
-            .filter(|s| s.pc.contains(offset))
-            .next()
+            .iter().find(|s| s.pc.contains(offset))
         {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
@@ -608,18 +602,17 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
         };
 
         let unit = dwarf.unit(header)?;
-        let variables = subroutine_variables(&dwarf, &unit, &subroutine)?;
+        let variables = subroutine_variables(&dwarf, &unit, subroutine)?;
 
         let var = match variables
             .iter()
-            .filter(|v| {
+            .find(|v| {
                 if let Some(vname) = v.name.clone() {
                     vname == name
                 } else {
                     false
                 }
             })
-            .next()
         {
             Some(v) => v,
             None => {
@@ -640,7 +633,7 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
             }
         };
 
-        let piece = match piece.iter().next() {
+        let piece = match piece.get(0) {
             Some(p) => p,
             None => {
                 println!("failed to get piece of variable");

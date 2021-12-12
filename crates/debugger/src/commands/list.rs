@@ -26,7 +26,7 @@ impl<D: Debugger> Command<D> for ListCommand {
         context: &CommandContext,
         _args: Vec<&str>,
     ) -> Result<Option<CommandResult>> {
-        let line_info = next_line_info(debugger, &context.sourcemap)?;
+        let line_info = next_line_info(debugger, context.sourcemap.as_ref())?;
         display_source(line_info, context.printer.as_ref())?;
         Ok(None)
     }
@@ -34,7 +34,7 @@ impl<D: Debugger> Command<D> for ListCommand {
 
 pub fn next_line_info<D: Debugger>(
     debugger: &D,
-    sourcemap: &Box<dyn SourceMap>,
+    sourcemap: &dyn SourceMap,
 ) -> Result<LineInfo> {
     let (insts, next_index) = debugger.instructions()?;
     match sourcemap.find_line_info(insts[next_index].offset) {

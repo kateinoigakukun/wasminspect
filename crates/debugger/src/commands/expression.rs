@@ -1,7 +1,7 @@
 use super::super::dwarf::{FrameBase, WasmLoc};
 use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 
 pub struct ExpressionCommand {}
 
@@ -53,33 +53,32 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
                         .value(),
                     WasmLoc::Local(idx) => *locals
                         .get(idx as usize)
-                        .ok_or(anyhow!("failed to get base local"))?,
+                        .with_context(|| "failed to get base local".to_string())?,
                     WasmLoc::Stack(idx) => *debugger
                         .stack_values()
                         .get(idx as usize)
-                        .ok_or(anyhow!("failed to get base local"))?,
+                        .with_context(|| "failed to get base local".to_string())?,
                 };
                 let offset = match offset {
                     WasmValue::Num(NumVal::I32(v)) => v as u64,
                     WasmValue::Num(NumVal::I64(v)) => v as u64,
-                    _ => Err(anyhow!("unexpected frame base value: {:?}", offset))?,
+                    _ => return Err(anyhow!("unexpected frame base value: {:?}", offset)),
                 };
                 FrameBase::WasmFrameBase(offset)
             }
             None => {
                 let argument_count = debugger
                     .current_frame()
-                    .ok_or(anyhow!("function frame not found"))?
+                    .with_context(|| "function frame not found".to_string())?
                     .argument_count;
-                let offset = locals
+                let offset = *locals
                     .get(argument_count + 2)
-                    .ok_or(anyhow!("failed to get rbp"))?
-                    .clone();
+                    .with_context(|| "failed to get rbp".to_string())?;
                 let offset = match offset {
                     WasmValue::Num(NumVal::I32(v)) => v as u64,
-                    _ => Err(anyhow!("unexpected frame base value: {:?}", offset))?,
+                    _ => return Err(anyhow!("unexpected frame base value: {:?}", offset)),
                 };
-                FrameBase::RBP(offset)
+                FrameBase::Rbp(offset)
             }
         };
         log::debug!("frame_base is {:?}", frame_base);

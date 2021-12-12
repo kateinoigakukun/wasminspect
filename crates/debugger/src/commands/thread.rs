@@ -67,7 +67,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
                         line_info
                             .line
                             .map(|l| format!("{}", l))
-                            .unwrap_or("".to_string()),
+                            .unwrap_or_else(|| "".to_string()),
                         Into::<u64>::into(line_info.column)
                     )
                 } else {
@@ -83,29 +83,29 @@ impl<D: Debugger> Command<D> for ThreadCommand {
             }
             Opts::StepIn | Opts::StepOver => {
                 let style = match opts {
-                    Opts::StepIn => StepStyle::StepInstIn,
-                    Opts::StepOver => StepStyle::StepInstOver,
+                    Opts::StepIn => StepStyle::InstIn,
+                    Opts::StepOver => StepStyle::InstOver,
                     _ => panic!(),
                 };
-                let initial_line_info = next_line_info(debugger, &context.sourcemap)?;
+                let initial_line_info = next_line_info(debugger, context.sourcemap.as_ref())?;
                 while {
                     debugger.step(style)?;
-                    let line_info = next_line_info(debugger, &context.sourcemap)?;
+                    let line_info = next_line_info(debugger, context.sourcemap.as_ref())?;
                     initial_line_info.filepath == line_info.filepath
                         && initial_line_info.line == line_info.line
                 } {}
-                let line_info = next_line_info(debugger, &context.sourcemap)?;
+                let line_info = next_line_info(debugger, context.sourcemap.as_ref())?;
                 display_source(line_info, context.printer.as_ref())?;
             }
             Opts::StepOut => {
-                debugger.step(StepStyle::StepOut)?;
-                let line_info = next_line_info(debugger, &context.sourcemap)?;
+                debugger.step(StepStyle::Out)?;
+                let line_info = next_line_info(debugger, context.sourcemap.as_ref())?;
                 display_source(line_info, context.printer.as_ref())?;
             }
             Opts::StepInstIn | Opts::StepInstOver => {
                 let style = match opts {
-                    Opts::StepInstIn => StepStyle::StepInstIn,
-                    Opts::StepInstOver => StepStyle::StepInstOver,
+                    Opts::StepInstIn => StepStyle::InstIn,
+                    Opts::StepInstOver => StepStyle::InstOver,
                     _ => panic!(),
                 };
                 debugger.step(style)?;

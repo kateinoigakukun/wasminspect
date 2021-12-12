@@ -1,5 +1,5 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 use log::{trace, warn};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -97,25 +97,25 @@ impl MainDebugger {
                 Some(module) => module,
                 None => return Err(anyhow::anyhow!("Main module is not loaded correctly")),
             };
-            return Ok(module);
+            Ok(module)
         } else {
-            return Err(anyhow::anyhow!("No instance"));
+            Err(anyhow::anyhow!("No instance"))
         }
     }
 
     fn executor(&self) -> Result<Rc<RefCell<Executor>>> {
         let instance = self.instance()?;
         if let Some(ref executor) = instance.executor {
-            return Ok(executor.clone());
+            Ok(executor.clone())
         } else {
-            return Err(anyhow::anyhow!("No execution context"));
+            Err(anyhow::anyhow!("No execution context"))
         }
     }
     fn instance(&self) -> Result<&Instance> {
         if let Some(ref instance) = self.instance {
-            return Ok(instance);
+            Ok(instance)
         } else {
-            return Err(anyhow::anyhow!("No instance"));
+            Err(anyhow::anyhow!("No instance"))
         }
     }
 
@@ -123,7 +123,7 @@ impl MainDebugger {
         let (func, _) = self
             .store()?
             .func(func_addr)
-            .ok_or(anyhow!("Function not found"))?;
+            .with_context(|| "Function not found".to_string())?;
         return Ok(func.ty().clone());
     }
 
@@ -132,12 +132,12 @@ impl MainDebugger {
         f: F,
     ) -> Result<T> {
         let module = self.main_module()?;
-        return f(module);
+        f(module)
     }
 
     pub fn lookup_func(&self, name: &str) -> Result<FuncAddr> {
         self.with_module(|module| {
-            if let Some(Some(func_addr)) = module.exported_func(name).ok() {
+            if let Ok(Some(func_addr)) = module.exported_func(name) {
                 Ok(func_addr)
             } else {
                 Err(anyhow!("Entry function {} not found", name))
@@ -153,11 +153,11 @@ impl MainDebugger {
         let instance = self
             .instance
             .as_mut()
-            .ok_or(anyhow::anyhow!("No instance"))?;
+            .with_context(|| "No instance".to_string())?;
         let func = instance
             .store
             .func(func_addr)
-            .ok_or(anyhow!("Function not found"))?;
+            .with_context(|| "Function not found".to_string())?;
         match func {
             (FunctionInstance::Host(host), _) => {
                 let mut results = Vec::new();
@@ -167,8 +167,8 @@ impl MainDebugger {
                     &instance.store,
                     func_addr.module_index(),
                 ) {
-                    Ok(_) => return Ok(debugger::RunResult::Finish(results)),
-                    Err(_) => return Err(anyhow!("Failed to execute host func")),
+                    Ok(_) => Ok(debugger::RunResult::Finish(results)),
+                    Err(_) => Err(anyhow!("Failed to execute host func")),
                 }
             }
             (FunctionInstance::Defined(func), exec_addr) => {
@@ -176,8 +176,8 @@ impl MainDebugger {
                 let frame = CallFrame::new_from_func(exec_addr, func, args, None);
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                 let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
-                instance.executor = Some(executor.clone());
-                return Ok(self.process()?);
+                instance.executor = Some(executor);
+                Ok(self.process()?)
             }
         }
     }
@@ -217,7 +217,7 @@ impl debugger::Debugger for MainDebugger {
 
     fn store(&self) -> Result<&Store> {
         let instance = self.instance()?;
-        return Ok(&instance.store);
+        Ok(&instance.store)
     }
 
     fn locals(&self) -> Vec<WasmValue> {
@@ -287,42 +287,42 @@ impl debugger::Debugger for MainDebugger {
             executor.stack.peek_frames().len()
         }
         match style {
-            StepInstIn => {
+            InstIn => {
                 return Ok(executor
                     .borrow_mut()
-                    .execute_step(&store, self, &self.config)?)
+                    .execute_step(store, self, &self.config)?)
             }
-            StepInstOver => {
+            InstOver => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
                 let mut last_signal =
                     executor
                         .borrow_mut()
-                        .execute_step(&store, self, &self.config)?;
+                        .execute_step(store, self, &self.config)?;
                 while initial_frame_depth < frame_depth(&executor.borrow()) {
                     last_signal = executor
                         .borrow_mut()
-                        .execute_step(&store, self, &self.config)?;
+                        .execute_step(store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
                 }
-                return Ok(last_signal);
+                Ok(last_signal)
             }
-            StepOut => {
+            Out => {
                 let initial_frame_depth = frame_depth(&executor.borrow());
                 let mut last_signal =
                     executor
                         .borrow_mut()
-                        .execute_step(&store, self, &self.config)?;
+                        .execute_step(store, self, &self.config)?;
                 while initial_frame_depth <= frame_depth(&executor.borrow()) {
                     last_signal = executor
                         .borrow_mut()
-                        .execute_step(&store, self, &self.config)?;
+                        .execute_step(store, self, &self.config)?;
                     if let Signal::Breakpoint = last_signal {
                         return Ok(last_signal);
                     }
                 }
-                return Ok(last_signal);
+                Ok(last_signal)
             }
         }
     }
@@ -333,7 +333,7 @@ impl debugger::Debugger for MainDebugger {
         loop {
             let result = executor
                 .borrow_mut()
-                .execute_step(&store, self, &self.config);
+                .execute_step(store, self, &self.config);
             match result {
                 Ok(Signal::Next) => continue,
                 Ok(Signal::Breakpoint) => return Ok(RunResult::Breakpoint),
@@ -355,7 +355,7 @@ impl debugger::Debugger for MainDebugger {
         let start_func_addr = *main_module.start_func_addr();
         let func_addr = {
             if let Some(name) = name {
-                self.lookup_func(&name)?
+                self.lookup_func(name)?
             } else if let Some(start_func_addr) = start_func_addr {
                 start_func_addr
             } else {

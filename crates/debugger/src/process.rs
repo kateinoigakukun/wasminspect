@@ -37,12 +37,12 @@ impl<D: Debugger> Process<D> {
         line: &str,
         context: &command::CommandContext,
     ) -> Result<Option<CommandResult>> {
-        let cmd_name = extract_command_name(&line);
+        let cmd_name = extract_command_name(line);
         let args = shell_words::split(line)?;
         // FIXME
         let args = args.iter().map(AsRef::as_ref).collect();
         if let Some(cmd) = self.commands.get(cmd_name) {
-            match cmd.run(&mut self.debugger, &context, args) {
+            match cmd.run(&mut self.debugger, context, args) {
                 Ok(result) => Ok(result),
                 Err(err) => {
                     eprintln!("{}", err);
@@ -51,10 +51,10 @@ impl<D: Debugger> Process<D> {
             }
         } else if let Some(alias) = self.aliases.get(cmd_name) {
             let line = alias.run(args)?;
-            return self.dispatch_command(&line, context);
+            self.dispatch_command(&line, context)
         } else if cmd_name == "help" {
             println!("Available commands:");
-            for (_, command) in &self.commands {
+            for command in self.commands.values() {
                 println!("  {} -- {}", command.name(), command.description());
             }
             Ok(None)

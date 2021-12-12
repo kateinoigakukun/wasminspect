@@ -18,11 +18,11 @@ use commands::command;
 use log::warn;
 
 pub fn try_load_dwarf(
-    buffer: &Vec<u8>,
+    buffer: &[u8],
     context: &mut commands::command::CommandContext,
 ) -> Result<()> {
     use dwarf::transform_dwarf;
-    let debug_info = transform_dwarf(&buffer)?;
+    let debug_info = transform_dwarf(buffer)?;
     context.sourcemap = Box::new(debug_info.sourcemap);
     context.subroutine = Box::new(debug_info.subroutine);
     Ok(())
@@ -43,7 +43,7 @@ pub struct ModuleInput {
     pub basename: String,
 }
 
-pub fn start_debugger<'a>(
+pub fn start_debugger(
     module_input: Option<ModuleInput>,
     preopen_dirs: Vec<(String, String)>,
     envs: Vec<(String, String)>,
@@ -102,7 +102,7 @@ pub fn run_loop(
     {
         let is_default = init_source.is_none();
         let lines = match {
-            let init_source = init_source.unwrap_or("~/.wasminspect_init".to_string());
+            let init_source = init_source.unwrap_or_else(|| "~/.wasminspect_init".to_string());
             use std::fs::File;
             use std::io::{BufRead, BufReader};
             File::open(init_source).map(|file| BufReader::new(file).lines())
@@ -122,11 +122,6 @@ pub fn run_loop(
     }
     let mut interactive = Interactive::new_with_loading_history()?;
     let process = Rc::new(RefCell::new(process));
-    loop {
-        match interactive.run_loop(&context, process.clone())? {
-            CommandResult::ProcessFinish(_) => {}
-            CommandResult::Exit => break,
-        }
-    }
+    while let CommandResult::ProcessFinish(_) = interactive.run_loop(&context, process.clone())? {}
     Ok(())
 }

@@ -46,7 +46,7 @@ impl<D: Debugger> Command<D> for MemoryCommand {
                     let raw = address.trim_start_matches("0x");
                     i64::from_str_radix(raw, 16)?
                 } else {
-                    i64::from_str_radix(&address, 10)?
+                    address.parse::<i64>()?
                 };
                 let memory = debugger.memory()?;
 
@@ -88,7 +88,7 @@ impl<D: Debugger> Command<D> for MemoryCommand {
 use std::str;
 fn dump_memory_as_str(bytes: &[u8]) -> String {
     let mut v = Vec::new();
-    for byte in bytes.into_iter() {
+    for byte in bytes.iter() {
         let byte = *byte;
         let byte = if byte > 0x1f && byte < 0x7f {
             let byte = vec![byte];
