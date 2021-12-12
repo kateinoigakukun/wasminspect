@@ -17,7 +17,6 @@ impl std::fmt::Display for Error {
     }
 }
 
-
 /// Runtime representation of a value
 /// Spec: https://webassembly.github.io/spec/core/exec/runtime.html#values
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -351,27 +350,31 @@ macro_rules! impl_trunc_to {
     ($self:ty, $to:ty) => {
         impl TruncTo<$to> for $self {
             fn trunc_to(self) -> Result<$to, Error> {
-                if self.is_nan() {
+                let this = self.to_float();
+                if this.is_nan() {
                     Err(Error::InvalidConversionToInt)
-                } else if InRange::<$to>::in_range(self.trunc()) != InRangeResult::InRange {
+                } else if InRange::<$to>::in_range(<$self>::from_le_bytes(
+                    this.trunc().to_le_bytes(),
+                )) != InRangeResult::InRange
+                {
                     Err(Error::IntegerOverflow)
                 } else {
-                    Ok(self.trunc() as $to)
+                    Ok(this.trunc() as $to)
                 }
             }
         }
     };
 }
 
-impl_trunc_to!(f32, i32);
-impl_trunc_to!(f32, i64);
-impl_trunc_to!(f64, i32);
-impl_trunc_to!(f64, i64);
+impl_trunc_to!(F32, i32);
+impl_trunc_to!(F32, i64);
+impl_trunc_to!(F64, i32);
+impl_trunc_to!(F64, i64);
 
-impl_trunc_to!(f32, u32);
-impl_trunc_to!(f32, u64);
-impl_trunc_to!(f64, u32);
-impl_trunc_to!(f64, u64);
+impl_trunc_to!(F32, u32);
+impl_trunc_to!(F32, u64);
+impl_trunc_to!(F64, u32);
+impl_trunc_to!(F64, u64);
 
 /// A trait to perform saturating truncation.
 /// This trait corresponds to `To_trunc_sat_Self` instruction semantics.
@@ -440,40 +443,43 @@ trait IEEE754 {
     const BITS: usize = Self::SIGN_BITS + Self::EXP_BITS + Self::FRAC_BITS;
 
     type BitsType;
+    type NativeType;
 
-    fn from_bits(v: Self::BitsType) -> Self;
+    fn from_bits(v: Self::BitsType) -> Self::NativeType;
     fn to_bits(self) -> Self::BitsType;
 }
 
-impl IEEE754 for f32 {
+impl IEEE754 for F32 {
     const SIGN_BITS: usize = 1;
     const EXP_BITS: usize = 8;
     const FRAC_BITS: usize = 23;
     const BIAS: u32 = 127;
 
     type BitsType = u32;
+    type NativeType = f32;
 
-    fn from_bits(v: u32) -> Self {
+    fn from_bits(v: u32) -> Self::NativeType {
         f32::from_bits(v)
     }
     fn to_bits(self) -> Self::BitsType {
-        f32::to_bits(self)
+        self.0
     }
 }
 
-impl IEEE754 for f64 {
+impl IEEE754 for F64 {
     const SIGN_BITS: usize = 1;
     const EXP_BITS: usize = 11;
     const FRAC_BITS: usize = 52;
     const BIAS: u64 = 1023;
 
     type BitsType = u64;
+    type NativeType = f64;
 
-    fn from_bits(v: u64) -> Self {
+    fn from_bits(v: u64) -> Self::NativeType {
         f64::from_bits(v)
     }
     fn to_bits(self) -> Self::BitsType {
-        f64::to_bits(self)
+        self.0
     }
 }
 
@@ -488,9 +494,9 @@ macro_rules! impl_in_range_signed {
                 // +1 * 1.0 * 2^($target_bits - 1)
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits - 1 + <$self>::BIAS) << <$self>::FRAC_BITS);
-                if <$self>::from_bits(min) > self {
+                if <$self>::from_bits(min) > self.to_float() {
                     InRangeResult::TooSmall
-                } else if self >= <$self>::from_bits(max_plus_one) {
+                } else if self.to_float() >= <$self>::from_bits(max_plus_one) {
                     InRangeResult::TooLarge
                 } else {
                     InRangeResult::InRange
@@ -500,10 +506,10 @@ macro_rules! impl_in_range_signed {
     };
 }
 
-impl_in_range_signed!(i32, 32, f32);
-impl_in_range_signed!(i32, 32, f64);
-impl_in_range_signed!(i64, 64, f32);
-impl_in_range_signed!(i64, 64, f64);
+impl_in_range_signed!(i32, 32, F32);
+impl_in_range_signed!(i32, 32, F64);
+impl_in_range_signed!(i64, 64, F32);
+impl_in_range_signed!(i64, 64, F64);
 
 macro_rules! impl_in_range_unsigned {
     // FIXME: `target_bits` will be replaced with `<$target>::BITS` after stablized
@@ -516,11 +522,11 @@ macro_rules! impl_in_range_unsigned {
                 // +1 * 1.0 * 2^($target_bits - 1)
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits + <$self>::BIAS) << <$self>::FRAC_BITS);
-                if <$self>::from_bits(negative_zero) > self
-                    || <$self>::from_bits(negative_one) >= self
+                if <$self>::from_bits(negative_zero) > self.to_float()
+                    || <$self>::from_bits(negative_one) >= self.to_float()
                 {
                     InRangeResult::TooSmall
-                } else if self >= <$self>::from_bits(max_plus_one) {
+                } else if self.to_float() >= <$self>::from_bits(max_plus_one) {
                     InRangeResult::TooLarge
                 } else {
                     InRangeResult::InRange
@@ -530,10 +536,10 @@ macro_rules! impl_in_range_unsigned {
     };
 }
 
-impl_in_range_unsigned!(u32, 32, f32);
-impl_in_range_unsigned!(u32, 32, f64);
-impl_in_range_unsigned!(u64, 64, f32);
-impl_in_range_unsigned!(u64, 64, f64);
+impl_in_range_unsigned!(u32, 32, F32);
+impl_in_range_unsigned!(u32, 32, F64);
+impl_in_range_unsigned!(u64, 64, F32);
+impl_in_range_unsigned!(u64, 64, F64);
 
 pub(crate) enum I32 {}
 pub(crate) enum I64 {}
