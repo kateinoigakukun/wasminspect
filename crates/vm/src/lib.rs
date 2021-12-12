@@ -25,7 +25,7 @@ pub use self::config::Config;
 pub use self::executor::{Executor, Signal};
 pub use self::executor::{Trap, WasmError};
 pub use self::func::{FunctionInstance, InstIndex};
-pub use self::global::DefaultGlobalInstance;
+pub use self::global::GlobalInstance;
 pub use self::host::{HostContext, HostFuncBody, HostValue};
 pub use self::inst::{Instruction, InstructionKind};
 pub use self::instance::WasmInstance;

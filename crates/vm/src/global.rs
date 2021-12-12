@@ -1,39 +1,30 @@
 use crate::value::Value;
 use wasmparser::GlobalType;
 
-pub trait GlobalInstance {
-    fn value(&self) -> Value;
-    fn set_value(&mut self, value: Value);
-    fn is_mutable(&self) -> bool;
-    fn ty(&self) -> &GlobalType;
-}
-
-pub struct DefaultGlobalInstance {
+pub struct GlobalInstance {
     ty: GlobalType,
     value: Value,
 }
 
-impl DefaultGlobalInstance {
+impl GlobalInstance {
     pub fn new(value: Value, ty: GlobalType) -> Self {
         Self { value, ty }
     }
-}
 
-impl GlobalInstance for DefaultGlobalInstance {
-    fn value(&self) -> Value {
+    pub fn value(&self) -> Value {
         self.value
     }
 
-    fn set_value(&mut self, value: Value) {
+    pub fn set_value(&mut self, value: Value) {
         assert!(self.is_mutable());
         self.value = value
     }
 
-    fn is_mutable(&self) -> bool {
+    pub fn is_mutable(&self) -> bool {
         self.ty.mutable
     }
 
-    fn ty(&self) -> &GlobalType {
+    pub fn ty(&self) -> &GlobalType {
         &self.ty
     }
 }

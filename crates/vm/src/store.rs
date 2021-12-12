@@ -6,7 +6,7 @@ use crate::value::{NumVal, RefType, RefVal};
 use crate::address::*;
 use crate::executor::eval_const_expr;
 use crate::func::{DefinedFunctionInstance, FunctionInstance, NativeFunctionInstance};
-use crate::global::{DefaultGlobalInstance, GlobalInstance};
+use crate::global::{GlobalInstance};
 use crate::host::HostValue;
 use crate::linker::LinkableCollection;
 use crate::memory::{self, MemoryInstance};
@@ -27,7 +27,7 @@ pub struct Store {
     funcs: LinkableCollection<FunctionInstance>,
     tables: LinkableCollection<Rc<RefCell<TableInstance>>>,
     mems: LinkableCollection<Rc<RefCell<MemoryInstance>>>,
-    globals: LinkableCollection<Rc<RefCell<dyn GlobalInstance>>>,
+    globals: LinkableCollection<Rc<RefCell<GlobalInstance>>>,
     elems: LinkableCollection<Rc<RefCell<ElementInstance>>>,
     data: LinkableCollection<Rc<RefCell<DataInstance>>>,
     modules: Vec<ModuleInstance>,
@@ -49,7 +49,7 @@ impl Store {
         self.funcs.get(addr)
     }
 
-    pub fn global(&self, addr: GlobalAddr) -> Rc<RefCell<dyn GlobalInstance>> {
+    pub fn global(&self, addr: GlobalAddr) -> Rc<RefCell<GlobalInstance>> {
         self.globals.get(addr).unwrap().0.clone()
     }
 
@@ -57,7 +57,7 @@ impl Store {
         &self,
         module_index: ModuleIndex,
         field: &str,
-    ) -> Option<Rc<RefCell<dyn GlobalInstance>>> {
+    ) -> Option<Rc<RefCell<GlobalInstance>>> {
         let module = self.module(module_index).defined().unwrap();
         let global_addr = module.exported_global(field).ok().unwrap();
         global_addr.map(|addr| self.global(addr))
@@ -705,7 +705,7 @@ impl Store {
     fn load_globals(&mut self, globals: Vec<Global>, module_index: ModuleIndex) -> Result<()> {
         for entry in globals {
             let value = eval_const_expr(&entry.init_expr, self, module_index)?;
-            let instance = DefaultGlobalInstance::new(value, entry.ty);
+            let instance = GlobalInstance::new(value, entry.ty);
             self.globals
                 .push(module_index, Rc::new(RefCell::new(instance)));
         }

@@ -17,8 +17,8 @@ pub type MemoryAddr = LinkableAddress<Rc<RefCell<MemoryInstance>>>;
 pub type ResolvedMemoryAddr = GlobalAddress<Rc<RefCell<MemoryInstance>>>;
 
 use crate::global::GlobalInstance;
-pub type GlobalAddr = LinkableAddress<Rc<RefCell<dyn GlobalInstance>>>;
-pub type ResolvedGlobalAddr = GlobalAddress<Rc<RefCell<dyn GlobalInstance>>>;
+pub type GlobalAddr = LinkableAddress<Rc<RefCell<GlobalInstance>>>;
+pub type ResolvedGlobalAddr = GlobalAddress<Rc<RefCell<GlobalInstance>>>;
 
 use crate::elem::ElementInstance;
 pub type ElemAddr = LinkableAddress<Rc<RefCell<ElementInstance>>>;
