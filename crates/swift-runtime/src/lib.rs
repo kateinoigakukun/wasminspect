@@ -38,12 +38,12 @@ pub fn demangle(symbol: &str) -> Result<&str, DemangleError> {
             std::ptr::null_mut(),
             0,
         );
-        if demangled == std::ptr::null() {
+        if demangled.is_null() {
             Err(DemangleError::Null)
         } else {
             ffi::CStr::from_ptr(demangled)
                 .to_str()
-                .map_err(|e| DemangleError::Utf8Error(e))
+                .map_err(DemangleError::Utf8Error)
         }
     }
 }
