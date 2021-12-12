@@ -36,6 +36,8 @@ impl std::fmt::Display for Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// Runtime representation of a table. It records its type and holds a vector of `RefVal`
+/// https://webassembly.github.io/spec/core/exec/runtime.html#table-instances
 pub struct TableInstance {
     buffer: Vec<RefVal>,
     pub max: Option<usize>,
@@ -104,6 +106,7 @@ impl TableInstance {
         Ok(())
     }
 
+    /// https://webassembly.github.io/spec/core/exec/modules.html#growing-tables
     pub fn grow(&mut self, n: usize, val: RefVal) -> Result<()> {
         let base_len = self.buffer_len();
         let len = base_len.checked_add(n).ok_or(Error::GrowOverMaximumSize {
