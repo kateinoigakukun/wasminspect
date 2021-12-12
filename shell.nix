@@ -1,5 +1,5 @@
 let
-  oxalica_rust_overlay = import (builtins.fetchTarball https://github.com/oxalica/rust-overlay/archive/f2865d93afeab55ba158717dda47ef38dec331f7.tar.gz);
+  oxalica_rust_overlay = import (builtins.fetchTarball https://github.com/oxalica/rust-overlay/archive/5e677c6fed9077cb9e2d037e2679676895b6e953.tar.gz);
   pkgs = import <nixpkgs> {
     overlays = [ oxalica_rust_overlay ];
   };
