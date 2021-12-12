@@ -39,6 +39,7 @@ pub use self::value::Value as WasmValue;
 pub use self::value::NumVal;
 pub use self::value::RefType;
 pub use self::value::RefVal;
+pub use self::value::{F32, F64};
 pub use self::config::Config;
 
 pub const WASM_PAGE_SIZE: usize = 0x10000;

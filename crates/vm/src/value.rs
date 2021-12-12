@@ -6,8 +6,8 @@ use crate::FuncAddr;
 pub enum NumVal {
     I32(i32),
     I64(i64),
-    F32(u32),
-    F64(u64),
+    F32(F32),
+    F64(F64),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -49,11 +49,11 @@ impl Value {
     }
     #[allow(non_snake_case)]
     pub fn F32(v: u32) -> Value {
-        Value::Num(NumVal::F32(v))
+        Value::Num(NumVal::F32(F32(v)))
     }
     #[allow(non_snake_case)]
     pub fn F64(v: u64) -> Value {
-        Value::Num(NumVal::F64(v))
+        Value::Num(NumVal::F64(F64(v)))
     }
 
     pub fn null_ref(ty: Type) -> Option<Value> {
@@ -106,14 +106,14 @@ impl Value {
 
     pub fn as_f32(self) -> Option<f32> {
         match self {
-            Value::Num(NumVal::F32(v)) => Some(f32::from_bits(v)),
+            Value::Num(NumVal::F32(v)) => Some(f32::from_bits(v.0)),
             _ => None,
         }
     }
 
     pub fn as_f64(self) -> Option<f64> {
         match self {
-            Value::Num(NumVal::F64(v)) => Some(f64::from_bits(v)),
+            Value::Num(NumVal::F64(v)) => Some(f64::from_bits(v.0)),
             _ => None,
         }
     }
@@ -186,7 +186,7 @@ impl_native_value!(u64, I64);
 impl NativeValue for f32 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::Num(NumVal::F32(val)) => Some(f32::from_bits(val)),
+            Value::Num(NumVal::F32(val)) => Some(f32::from_bits(val.0)),
             _ => None,
         }
     }
@@ -199,7 +199,7 @@ impl NativeValue for f32 {
 impl NativeValue for f64 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::Num(NumVal::F64(val)) => Some(f64::from_bits(val)),
+            Value::Num(NumVal::F64(val)) => Some(f64::from_bits(val.0)),
             _ => None,
         }
     }
@@ -299,8 +299,24 @@ extend_conversion!(i8, i64);
 extend_conversion!(i16, i64);
 extend_conversion!(i32, i64);
 
-pub enum F32 {}
-pub enum F64 {}
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct F32(u32);
+
+impl F32 {
+    pub fn to_bits(&self) -> u32 {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct F64(u64);
+
+impl F64 {
+    pub fn to_bits(&self) -> u64 {
+        self.0
+    }
+}
+
 pub enum I32 {}
 pub enum I64 {}
 pub enum U32 {}
