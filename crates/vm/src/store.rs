@@ -365,10 +365,12 @@ impl Store {
                     data,
                     data_offset,
                     ..
-                } => if name == "name" {
-                    let section = NameSectionReader::new(data, data_offset)?;
-                    func_names = read_name_section(section)?;
-                },
+                } => {
+                    if name == "name" {
+                        let section = NameSectionReader::new(data, data_offset)?;
+                        func_names = read_name_section(section)?;
+                    }
+                }
                 Payload::ModuleSectionEntry { .. } => {
                     panic!("nested module is not supported yet");
                 }
@@ -412,8 +414,7 @@ impl Store {
     pub fn load_module(&mut self, name: Option<String>, reader: &[u8]) -> Result<ModuleIndex> {
         let module_index = ModuleIndex(self.modules.len() as u32);
 
-        let result: Result<ModuleIndex> =
-            self.load_module_internal(name, reader, module_index);
+        let result: Result<ModuleIndex> = self.load_module_internal(name, reader, module_index);
         match result {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err),
@@ -490,7 +491,8 @@ impl Store {
                 name,
                 func_ty,
                 actual_func_ty.clone(),
-            ).into());
+            )
+            .into());
         }
         self.funcs.link(exec_addr, module_index);
         Ok(())
@@ -533,7 +535,8 @@ impl Store {
             if memory.borrow().initial < limit_initial as usize {
                 return Err(StoreError::IncompatibleImportMemoryType {
                     message: String::from("actual initial size is less than expected initial size"),
-                }.into());
+                }
+                .into());
             }
             match (memory.borrow().max, limit_max) {
                 (Some(found), Some(expected)) => {
@@ -542,14 +545,18 @@ impl Store {
                             message: String::from(
                                 "actual limit size is bigger than expected limit size",
                             ),
-                        }.into());
+                        }
+                        .into());
                     }
                 }
-                (None, Some(_)) => return Err(StoreError::IncompatibleImportMemoryType {
-                    message: String::from(
-                        "actual memory doesn't have limit but expected limit size",
-                    ),
-                }.into()),
+                (None, Some(_)) => {
+                    return Err(StoreError::IncompatibleImportMemoryType {
+                        message: String::from(
+                            "actual memory doesn't have limit but expected limit size",
+                        ),
+                    }
+                    .into())
+                }
                 _ => (),
             }
         }
@@ -649,7 +656,8 @@ impl Store {
                 return Err(StoreError::IncompatibleImportGlobalType(
                     actual_global_ty,
                     expected_global_ty,
-                ).into());
+                )
+                .into());
             }
         };
         self.globals.link(resolved_addr, module_index);
@@ -828,11 +836,10 @@ impl Store {
                         .map_err(StoreError::InvalidDataSegments)?;
                     DataInstance::new(vec![])
                 }
-                DataKind::Passive => {
-                    DataInstance::new(seg.data.to_vec())
-                }
+                DataKind::Passive => DataInstance::new(seg.data.to_vec()),
             };
-            self.data.push(module_index, Rc::new(RefCell::new(instance)));
+            self.data
+                .push(module_index, Rc::new(RefCell::new(instance)));
         }
         Ok(mem_addrs)
     }

@@ -1,7 +1,7 @@
 use super::super::dwarf::{FrameBase, WasmLoc};
 use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 
 pub struct ExpressionCommand {}
 

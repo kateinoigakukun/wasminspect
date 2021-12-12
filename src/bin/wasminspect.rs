@@ -12,7 +12,6 @@ fn parse_env_var(s: &str) -> anyhow::Result<(String, String)> {
     Ok((parts[0].to_owned(), parts[1].to_owned()))
 }
 
-
 fn parse_map_dirs(s: &str) -> anyhow::Result<(String, String)> {
     let parts: Vec<&str> = s.split("::").collect();
     if parts.len() != 2 {
@@ -61,7 +60,9 @@ fn main() -> anyhow::Result<()> {
         }
         None => None,
     };
-    if let Err(err) = wasminspect_debugger::run_loop(module_input, opts.source, opts.map_dirs, opts.envs) {
+    if let Err(err) =
+        wasminspect_debugger::run_loop(module_input, opts.source, opts.map_dirs, opts.envs)
+    {
         println!("{:?}", err)
     }
     Ok(())

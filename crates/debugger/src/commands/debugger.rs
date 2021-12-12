@@ -8,7 +8,7 @@ pub struct DebuggerOpts {
 
 pub enum Breakpoint {
     Function { name: String },
-    Instruction { inst_offset: usize }
+    Instruction { inst_offset: usize },
 }
 
 pub enum RunResult {

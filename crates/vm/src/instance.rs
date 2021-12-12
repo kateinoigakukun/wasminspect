@@ -64,7 +64,7 @@ impl WasmInstance {
         module_index: ModuleIndex,
         func_name: Option<String>,
         arguments: Vec<Value>,
-        config: &Config
+        config: &Config,
     ) -> Result<Vec<Value>, WasmError> {
         let module = self.store.module(module_index).defined().unwrap();
         let func_addr = if let Some(func_name) = func_name {

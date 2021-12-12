@@ -1,6 +1,6 @@
-use crate::{Executor, Store};
 use crate::executor::{ExecResult, Signal};
 use crate::inst::Instruction;
+use crate::{Executor, Store};
 
 pub trait Interceptor {
     fn invoke_func(&self, name: &str, executor: &Executor, store: &Store) -> ExecResult<Signal>;

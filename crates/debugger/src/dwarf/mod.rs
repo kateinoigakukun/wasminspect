@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 use gimli::{
     AttributeValue, CompilationUnitHeader, DebugAbbrev, DebugAddr, DebugInfo, DebugInfoOffset,
     DebugLine, DebugLineStr, DebugLoc, DebugLocLists, DebugRanges, DebugRngLists, DebugStr,
@@ -164,11 +164,11 @@ fn read_wasm_location<R: gimli::Reader>(attr_value: AttributeValue<R>) -> Result
     };
 
     if bytes_reader.is_empty() {
-        return Err(anyhow!("byte sequence should not be empty"))
+        return Err(anyhow!("byte sequence should not be empty"));
     }
     let magic = bytes_reader.read_u8()?;
     if magic != DwAtWasm::DW_OP_WASM_location as u8 {
-        return Err(anyhow!("invalid wasm location magic: {:?}", magic))
+        return Err(anyhow!("invalid wasm location magic: {:?}", magic));
     }
     let wasm_op = bytes_reader.read_u8()?;
     let loc = match wasm_op {
@@ -531,10 +531,7 @@ fn unit_type_name<R: gimli::Reader>(
 impl subroutine::SubroutineMap for DwarfSubroutineMap {
     fn variable_name_list(&self, code_offset: usize) -> Result<Vec<subroutine::Variable>> {
         let offset = &(code_offset as u64);
-        let subroutine = match self
-            .subroutines
-            .iter().find(|s| s.pc.contains(offset))
-        {
+        let subroutine = match self.subroutines.iter().find(|s| s.pc.contains(offset)) {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
@@ -569,10 +566,7 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
 
     fn get_frame_base(&self, code_offset: usize) -> Result<Option<WasmLoc>> {
         let offset = &(code_offset as u64);
-        let subroutine = match self
-            .subroutines
-            .iter().find(|s| s.pc.contains(offset))
-        {
+        let subroutine = match self.subroutines.iter().find(|s| s.pc.contains(offset)) {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
@@ -586,10 +580,7 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
         name: String,
     ) -> Result<()> {
         let offset = &(code_offset as u64);
-        let subroutine = match self
-            .subroutines
-            .iter().find(|s| s.pc.contains(offset))
-        {
+        let subroutine = match self.subroutines.iter().find(|s| s.pc.contains(offset)) {
             Some(s) => s,
             None => return Err(anyhow!("failed to determine subroutine")),
         };
@@ -604,16 +595,13 @@ impl subroutine::SubroutineMap for DwarfSubroutineMap {
         let unit = dwarf.unit(header)?;
         let variables = subroutine_variables(&dwarf, &unit, subroutine)?;
 
-        let var = match variables
-            .iter()
-            .find(|v| {
-                if let Some(vname) = v.name.clone() {
-                    vname == name
-                } else {
-                    false
-                }
-            })
-        {
+        let var = match variables.iter().find(|v| {
+            if let Some(vname) = v.name.clone() {
+                vname == name
+            } else {
+                false
+            }
+        }) {
             Some(v) => v,
             None => {
                 return Err(anyhow!("'{}' is not valid variable name", name));

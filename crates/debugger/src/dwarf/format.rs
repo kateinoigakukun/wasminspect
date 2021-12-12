@@ -2,7 +2,7 @@ use std::ops::{AddAssign, SubAssign};
 
 use super::utils::*;
 
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 use gimli::Unit;
 use num_bigint::{BigInt, BigUint, Sign};
 

@@ -23,8 +23,7 @@ fn main() -> Result<()> {
 }
 
 fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
-    let temporary_disabled_tests = [
-    ];
+    let temporary_disabled_tests = [];
 
     let path = path.as_ref();
     let mut dir_entries: Vec<_> = path

@@ -1019,7 +1019,8 @@ impl Executor {
         let func = store.func_global(self.pc.exec_addr());
         let arity = func.ty().returns.len();
         let results = self.stack.pop_values(arity).map_err(Trap::Stack)?;
-        self.stack.pop_while(|v| !matches!(v, StackValue::Activation(_)));
+        self.stack
+            .pop_while(|v| !matches!(v, StackValue::Activation(_)));
         self.stack.pop_frame().map_err(Trap::Stack)?;
         self.stack.push_values(results.into_iter().rev());
 
@@ -1069,10 +1070,7 @@ impl Executor {
         if let Some(addr) = addr {
             Ok(addr)
         } else {
-            Err(Trap::MemoryAddrOverflow {
-                base,
-                offset,
-            })
+            Err(Trap::MemoryAddrOverflow { base, offset })
         }
     }
 

@@ -64,7 +64,7 @@ impl ProcessCommand {
         &self,
         debugger: &mut D,
         context: &CommandContext,
-        wasi_args: Vec<String>
+        wasi_args: Vec<String>,
     ) -> Result<Option<CommandResult>> {
         use std::io::Write;
         if debugger.is_running() {

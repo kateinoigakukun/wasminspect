@@ -277,9 +277,7 @@ impl Stack {
     }
 
     pub fn current_frame_index(&self) -> Result<usize> {
-        self.frame_index
-            .last().cloned()
-            .ok_or(Error::NoCallFrame)
+        self.frame_index.last().cloned().ok_or(Error::NoCallFrame)
     }
 
     pub fn is_func_top_level(&self) -> Result<bool> {
@@ -289,8 +287,7 @@ impl Stack {
                 StackValue::Label(Label::Return { .. }) => false,
                 StackValue::Label(_) => true,
                 _ => false,
-            })
-        {
+            }) {
             Some(_) => Ok(false),
             None => Ok(true),
         }

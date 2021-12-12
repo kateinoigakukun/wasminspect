@@ -37,7 +37,9 @@ impl SetOpts {
             } else {
                 address.parse::<usize>()?
             };
-            Ok(Breakpoint::Instruction { inst_offset: address })
+            Ok(Breakpoint::Instruction {
+                inst_offset: address,
+            })
         } else {
             Err(anyhow!("no breakpoint option"))
         }

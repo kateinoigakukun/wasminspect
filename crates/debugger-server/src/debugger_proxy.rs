@@ -9,8 +9,10 @@ use wasmparser::FuncType;
 
 use crate::rpc::{self, WasmExport};
 use crate::serialization;
-use wasminspect_debugger::{CommandContext, CommandResult, Debugger, Interactive, MainDebugger, Process, try_load_dwarf};
-use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, Trap, WasmValue, NumVal};
+use wasminspect_debugger::{
+    try_load_dwarf, CommandContext, CommandResult, Debugger, Interactive, MainDebugger, Process,
+};
+use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, NumVal, Trap, WasmValue};
 
 static VERSION: &str = "0.2.0";
 
@@ -331,9 +333,7 @@ fn call_exported(
         .zip(func_ty.params.iter())
         .map(|(arg, ty)| from_js_number(*arg, ty))
         .collect();
-    let result = {
-        process.borrow_mut().debugger.execute_func(func, args)
-    };
+    let result = { process.borrow_mut().debugger.execute_func(func, args) };
     match result {
         Ok(RunResult::Finish(values)) => {
             let values = values.iter().map(from_vm_wasm_value).collect();
@@ -342,9 +342,7 @@ fn call_exported(
         Ok(RunResult::Breakpoint) => {
             // use std::borrow::{Borrow, BorrowMut};
             let mut interactive = Interactive::new_with_loading_history().unwrap();
-            let mut result = {
-                interactive.run_loop(&*context.borrow(), process.clone())?
-            };
+            let mut result = { interactive.run_loop(&*context.borrow(), process.clone())? };
             loop {
                 match result {
                     CommandResult::ProcessFinish(values) => {
@@ -352,18 +350,18 @@ fn call_exported(
                         return Ok(TextResponse::CallResult { values }.into());
                     }
                     CommandResult::Exit => {
-                        let cmd_result= {
+                        let cmd_result = {
                             process
-                            .borrow_mut()
-                            .dispatch_command("process continue", &*context.borrow())?
+                                .borrow_mut()
+                                .dispatch_command("process continue", &*context.borrow())?
                         };
                         match cmd_result {
                             Some(r) => {
                                 result = r;
                             }
                             None => {
-                                result = interactive
-                                    .run_loop(&*context.borrow(), process.clone())?;
+                                result =
+                                    interactive.run_loop(&*context.borrow(), process.clone())?;
                             }
                         }
                     }
@@ -402,9 +400,15 @@ where
             Init => {
                 let imports =
                     remote_import_module(req.bytes, process.clone(), context.clone(), tx, rx)?;
-                process.borrow_mut().debugger.load_main_module(req.bytes, "_remote_main".to_string())?;
+                process
+                    .borrow_mut()
+                    .debugger
+                    .load_main_module(req.bytes, "_remote_main".to_string())?;
                 process.borrow_mut().debugger.instantiate(imports, &[])?;
-                match try_load_dwarf(&req.bytes.to_vec(), &mut *Clone::clone(&context).borrow_mut()) {
+                match try_load_dwarf(
+                    &req.bytes.to_vec(),
+                    &mut *Clone::clone(&context).borrow_mut(),
+                ) {
                     Ok(_) => (),
                     Err(err) => {
                         log::warn!("Failed to load dwarf info: {}", err);
@@ -421,12 +425,10 @@ where
             };
             Ok(init_memory)
         }
-        Text(Version) => {
-            Ok(TextResponse::Version {
-                value: VERSION.to_string(),
-            }
-            .into())
+        Text(Version) => Ok(TextResponse::Version {
+            value: VERSION.to_string(),
         }
+        .into()),
         Text(CallResult { .. }) => unreachable!(),
         Text(CallExported { name, args }) => call_exported(name, args, process, context),
         Text(LoadMemory {

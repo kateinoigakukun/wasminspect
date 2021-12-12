@@ -7,7 +7,8 @@ use wast::HeapType;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{
-    simple_invoke_func, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue, F32, F64,
+    simple_invoke_func, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue,
+    F32, F64,
 };
 
 pub struct WastContext {
@@ -248,7 +249,8 @@ impl WastContext {
         match name {
             Some(name) => self
                 .module_index_by_name
-                .get(name).copied()
+                .get(name)
+                .copied()
                 .ok_or_else(|| anyhow!("module not found with name {}", name)),
             None => match self.current {
                 Some(current) => Ok(current),

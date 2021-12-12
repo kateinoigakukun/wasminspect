@@ -1,5 +1,5 @@
-use crate::RefType;
 use crate::value::RefVal;
+use crate::RefType;
 
 use super::host::HostFuncBody;
 use super::inst::*;

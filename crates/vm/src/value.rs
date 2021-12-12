@@ -120,10 +120,16 @@ impl Value {
     pub fn isa(&self, ty: wasmparser::Type) -> bool {
         match self {
             Value::Num(_) => self.value_type() == ty,
-            Value::Ref(r) => matches!((r, ty), (RefVal::ExternRef(_), wasmparser::Type::ExternRef)
-                | (RefVal::FuncRef(_), wasmparser::Type::FuncRef)
-                | (RefVal::NullRef(RefType::ExternRef), wasmparser::Type::ExternRef)
-                | (RefVal::NullRef(RefType::FuncRef), wasmparser::Type::FuncRef)),
+            Value::Ref(r) => matches!(
+                (r, ty),
+                (RefVal::ExternRef(_), wasmparser::Type::ExternRef)
+                    | (RefVal::FuncRef(_), wasmparser::Type::FuncRef)
+                    | (
+                        RefVal::NullRef(RefType::ExternRef),
+                        wasmparser::Type::ExternRef
+                    )
+                    | (RefVal::NullRef(RefType::FuncRef), wasmparser::Type::FuncRef)
+            ),
         }
     }
 

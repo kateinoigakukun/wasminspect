@@ -173,7 +173,8 @@ fn parse_base_type<R: gimli::Reader>(
     let byte_size = node
         .entry()
         .attr_value(gimli::DW_AT_byte_size)?
-        .and_then(|attr| attr.udata_value()).unwrap_or(0);
+        .and_then(|attr| attr.udata_value())
+        .unwrap_or(0);
     Ok(BaseTypeInfo { name, byte_size })
 }
 
@@ -225,7 +226,9 @@ fn parse_partial_struct_type<R: gimli::Reader>(
     {
         ty.byte_size = byte_size;
     };
-    if let Some(gimli::AttributeValue::Flag(flag)) = node.entry().attr_value(gimli::DW_AT_declaration)? {
+    if let Some(gimli::AttributeValue::Flag(flag)) =
+        node.entry().attr_value(gimli::DW_AT_declaration)?
+    {
         ty.declaration = flag;
     }
     Ok(ty)

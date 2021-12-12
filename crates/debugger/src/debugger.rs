@@ -1,5 +1,5 @@
 use crate::commands::debugger::{self, Debugger, DebuggerOpts, RawHostModule, RunResult};
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
 use log::{trace, warn};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -45,7 +45,8 @@ impl Breakpoints {
     fn should_break_func(&self, name: &str) -> bool {
         // FIXME
         self.function_map
-            .keys().any(|k| name.contains(Clone::clone(&k)))
+            .keys()
+            .any(|k| name.contains(Clone::clone(&k)))
     }
 
     fn should_break_inst(&self, inst: &Instruction) -> bool {
@@ -397,10 +398,16 @@ impl debugger::Debugger for MainDebugger {
                 .collect::<anyhow::Result<Vec<_>>>()
         }
 
-        let (ctx, wasi_snapshot_preview) =
-            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?, &self.envs)?;
-        let (_, wasi_unstable) =
-            instantiate_wasi(&wasi_args, collect_preopen_dirs(&self.preopen_dirs)?, &self.envs)?;
+        let (ctx, wasi_snapshot_preview) = instantiate_wasi(
+            &wasi_args,
+            collect_preopen_dirs(&self.preopen_dirs)?,
+            &self.envs,
+        )?;
+        let (_, wasi_unstable) = instantiate_wasi(
+            &wasi_args,
+            collect_preopen_dirs(&self.preopen_dirs)?,
+            &self.envs,
+        )?;
         store.add_embed_context(Box::new(ctx));
         store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
         store.load_host_module("wasi_unstable".to_string(), wasi_unstable);

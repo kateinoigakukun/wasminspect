@@ -99,7 +99,8 @@ impl InnerBorrowChecker {
         // unborrows while always keeping at least one borrow outstanding, and
         // we will run out of borrow handles.
         self.next_handle = BorrowHandle(
-            h.0.checked_add(1).ok_or(GuestError::BorrowCheckerOutOfHandles)?,
+            h.0.checked_add(1)
+                .ok_or(GuestError::BorrowCheckerOutOfHandles)?,
         );
         Ok(h)
     }
@@ -213,10 +214,7 @@ mod test {
 
         assert!(bs.mut_borrow(r2).is_err(), "can't borrow r2 twice");
         bs.mut_unborrow(h2);
-        assert!(
-            bs.has_outstanding_borrows(),
-            "h1 is still outstanding"
-        );
+        assert!(bs.has_outstanding_borrows(), "h1 is still outstanding");
         bs.mut_unborrow(h1);
         assert!(!bs.has_outstanding_borrows(), "no remaining borrows");
 
@@ -237,10 +235,7 @@ mod test {
         let h3 = bs.shared_borrow(r2).expect("can shared borrow r2 twice");
 
         bs.shared_unborrow(h2);
-        assert!(
-            bs.has_outstanding_borrows(),
-            "h1, h3 still outstanding"
-        );
+        assert!(bs.has_outstanding_borrows(), "h1, h3 still outstanding");
         bs.shared_unborrow(h1);
         bs.shared_unborrow(h3);
         assert!(!bs.has_outstanding_borrows(), "no remaining borrows");
