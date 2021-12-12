@@ -1,5 +1,7 @@
 #![allow(clippy::float_cmp)]
 
+use std::ops::{BitAnd, BitOr, Not};
+
 #[derive(Debug)]
 pub enum Error {
     ZeroDivision,
@@ -45,9 +47,6 @@ pub enum NumVal {
 pub struct F32(u32);
 
 impl F32 {
-    fn from_le_bytes(bytes: [u8; 4]) -> F32 {
-        Self(u32::from_le_bytes(bytes))
-    }
     pub fn to_bits(&self) -> u32 {
         self.0
     }
@@ -61,9 +60,6 @@ impl F32 {
 pub struct F64(u64);
 
 impl F64 {
-    fn from_le_bytes(bytes: [u8; 8]) -> F64 {
-        Self(u64::from_le_bytes(bytes))
-    }
     pub fn to_bits(&self) -> u64 {
         self.0
     }
@@ -288,6 +284,18 @@ pub trait FromLittleEndian {
     fn from_le(buf: &[u8]) -> Self;
 }
 
+impl F32 {
+    fn from_le_bytes(bytes: [u8; 4]) -> F32 {
+        Self(u32::from_le_bytes(bytes))
+    }
+}
+
+impl F64 {
+    fn from_le_bytes(bytes: [u8; 8]) -> F64 {
+        Self(u64::from_le_bytes(bytes))
+    }
+}
+
 macro_rules! impl_from_little_endian {
     ($type:ty, $size:expr) => {
         impl FromLittleEndian for $type {
@@ -434,7 +442,7 @@ enum InRangeResult {
     InRange,
 }
 
-trait IEEE754 {
+pub(crate) trait IEEE754 {
     const SIGN_BITS: usize;
     const EXP_BITS: usize;
     const FRAC_BITS: usize;
@@ -445,8 +453,11 @@ trait IEEE754 {
     type BitsType;
     type NativeType;
 
-    fn from_bits(v: Self::BitsType) -> Self::NativeType;
-    fn to_bits(self) -> Self::BitsType;
+    fn from_bits(v: Self::BitsType) -> Self;
+    fn to_bits(&self) -> Self::BitsType;
+    fn from_native(v: Self::NativeType) -> Self;
+    fn to_native(&self) -> Self::NativeType;
+    fn sign_mask() -> Self::BitsType;
 }
 
 impl IEEE754 for F32 {
@@ -458,11 +469,20 @@ impl IEEE754 for F32 {
     type BitsType = u32;
     type NativeType = f32;
 
-    fn from_bits(v: u32) -> Self::NativeType {
-        f32::from_bits(v)
+    fn from_bits(v: u32) -> Self {
+        Self(v)
     }
-    fn to_bits(self) -> Self::BitsType {
+    fn to_bits(&self) -> Self::BitsType {
         self.0
+    }
+    fn from_native(v: Self::NativeType) -> Self {
+        Self::from_bits(v.to_bits())
+    }
+    fn to_native(&self) -> Self::NativeType {
+        f32::from_bits(self.0)
+    }
+    fn sign_mask() -> Self::BitsType {
+        1 << (Self::EXP_BITS + Self::FRAC_BITS)
     }
 }
 
@@ -475,11 +495,20 @@ impl IEEE754 for F64 {
     type BitsType = u64;
     type NativeType = f64;
 
-    fn from_bits(v: u64) -> Self::NativeType {
-        f64::from_bits(v)
-    }
-    fn to_bits(self) -> Self::BitsType {
+    fn to_bits(&self) -> Self::BitsType {
         self.0
+    }
+    fn from_bits(v: u64) -> Self {
+        Self(v)
+    }
+    fn from_native(v: Self::NativeType) -> Self {
+        Self::from_bits(v.to_bits())
+    }
+    fn to_native(&self) -> Self::NativeType {
+        f64::from_bits(self.0)
+    }
+    fn sign_mask() -> Self::BitsType {
+        1 << (Self::EXP_BITS + Self::FRAC_BITS)
     }
 }
 
@@ -494,9 +523,9 @@ macro_rules! impl_in_range_signed {
                 // +1 * 1.0 * 2^($target_bits - 1)
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits - 1 + <$self>::BIAS) << <$self>::FRAC_BITS);
-                if <$self>::from_bits(min) > self.to_float() {
+                if <$self>::from_bits(min).to_native() > self.to_float() {
                     InRangeResult::TooSmall
-                } else if self.to_float() >= <$self>::from_bits(max_plus_one) {
+                } else if self.to_float() >= <$self>::from_bits(max_plus_one).to_native() {
                     InRangeResult::TooLarge
                 } else {
                     InRangeResult::InRange
@@ -522,11 +551,11 @@ macro_rules! impl_in_range_unsigned {
                 // +1 * 1.0 * 2^($target_bits - 1)
                 let max_plus_one = (0 << (<$self>::EXP_BITS + <$self>::FRAC_BITS))
                     | (($target_bits + <$self>::BIAS) << <$self>::FRAC_BITS);
-                if <$self>::from_bits(negative_zero) > self.to_float()
-                    || <$self>::from_bits(negative_one) >= self.to_float()
+                if <$self>::from_bits(negative_zero).to_native() > self.to_float()
+                    || <$self>::from_bits(negative_one).to_native() >= self.to_float()
                 {
                     InRangeResult::TooSmall
-                } else if self.to_float() >= <$self>::from_bits(max_plus_one) {
+                } else if self.to_float() >= <$self>::from_bits(max_plus_one).to_native() {
                     InRangeResult::TooLarge
                 } else {
                     InRangeResult::InRange
@@ -550,20 +579,23 @@ pub(crate) trait Copysign {
     fn copysign(&self, other: Self) -> Self;
 }
 
-macro_rules! impl_copysign {
-    ($type:ty) => {
-        impl Copysign for $type {
-            fn copysign(&self, rhs: $type) -> $type {
-                let sign_mask = 1 << (std::mem::size_of::<$type>() * 8 - 1);
-                let sign = rhs.to_bits() & sign_mask;
-                Self((self.to_bits() & (!sign_mask)) | sign)
-            }
-        }
-    };
+impl<F: IEEE754> Copysign for F
+where
+    F::BitsType: BitAnd,
+    F::BitsType: BitOr,
+    F::BitsType: Not,
+    F::BitsType: Copy,
+    <F::BitsType as BitAnd>::Output: Into<F::BitsType>,
+    <F::BitsType as BitOr>::Output: Into<F::BitsType>,
+    <F::BitsType as Not>::Output: Into<F::BitsType>,
+{
+    fn copysign(&self, rhs: F) -> F {
+        let sign_mask = F::sign_mask();
+        let sign: F::BitsType = (rhs.to_bits() & sign_mask).into();
+        let result: F::BitsType = ((self.to_bits() & (!sign_mask).into()).into() | sign).into();
+        F::from_bits(result)
+    }
 }
-
-impl_copysign!(F32);
-impl_copysign!(F64);
 
 macro_rules! impl_try_wrapping {
     ($type:ty, $orig:ty) => {
@@ -612,42 +644,42 @@ impl F64 {
 macro_rules! impl_min_max {
     ($type:ty, $orig:ty) => {
         impl $type {
-            pub(crate) fn min(this: $orig, another: $orig) -> $orig {
+            pub(crate) fn min(this: $orig, another: $orig) -> $type {
                 if this.is_nan() {
                     let bits = this.to_bits() | <$type>::arithmetic_bits();
-                    return <$orig>::from_bits(bits);
+                    return <$type>::from_bits(bits);
                 }
 
                 if another.is_nan() {
                     let bits = another.to_bits() | <$type>::arithmetic_bits();
-                    return <$orig>::from_bits(bits);
+                    return <$type>::from_bits(bits);
                 }
                 // min(0.0, -0.0) returns 0.0 in rust, but wasm expects
                 // to return -0.0
                 // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmin
                 if this == another {
-                    return <$orig>::from_bits(this.to_bits() | another.to_bits());
+                    return <$type>::from_bits(this.to_bits() | another.to_bits());
                 }
-                return this.min(another);
+                return <$type>::from_native(this.min(another));
             }
 
-            pub(crate) fn max(this: $orig, another: $orig) -> $orig {
+            pub(crate) fn max(this: $orig, another: $orig) -> $type {
                 if this.is_nan() {
                     let bits = this.to_bits() | <$type>::arithmetic_bits();
-                    return <$orig>::from_bits(bits);
+                    return <$type>::from_bits(bits);
                 }
 
                 if another.is_nan() {
                     let bits = another.to_bits() | <$type>::arithmetic_bits();
-                    return <$orig>::from_bits(bits);
+                    return <$type>::from_bits(bits);
                 }
                 // max(-0.0, 0.0) returns -0.0 in rust, but wasm expects
                 // to return 0.0
                 // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmax
                 if this == another {
-                    return <$orig>::from_bits(this.to_bits() & another.to_bits());
+                    return <$type>::from_bits(this.to_bits() & another.to_bits());
                 }
-                return this.max(another);
+                return <$type>::from_native(this.max(another));
             }
         }
     };
@@ -656,31 +688,36 @@ macro_rules! impl_min_max {
 impl_min_max!(F32, f32);
 impl_min_max!(F64, f64);
 
+pub(crate) trait Nearest {
+    fn nearest(&self) -> Self;
+}
+
 macro_rules! impl_nearest {
-    ($type:ty, $orig:ty) => {
-        impl $type {
-            pub(crate) fn nearest(&self) -> $orig {
+    ($type:ty) => {
+        impl Nearest for $type {
+            fn nearest(&self) -> Self {
                 let this = self.to_float();
                 let round = this.round();
                 if this.fract().abs() != 0.5 {
-                    return round;
+                    return Self::from_native(round);
                 }
 
                 use core::ops::Rem;
-                if round.rem(2.0) == 1.0 {
+                let result = if round.rem(2.0) == 1.0 {
                     this.floor()
                 } else if round.rem(2.0) == -1.0 {
                     this.ceil()
                 } else {
                     round
-                }
+                };
+                Self::from_native(result)
             }
         }
     };
 }
 
-impl_nearest!(F32, f32);
-impl_nearest!(F64, f64);
+impl_nearest!(F32);
+impl_nearest!(F64);
 
 impl I32 {
     pub(crate) fn extend_with_width(x: i32, to_bits: usize) -> i32 {

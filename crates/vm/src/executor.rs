@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{RefType, RefVal, TruncSatTo, TruncTo, Copysign};
+use crate::value::{RefType, RefVal, TruncSatTo, TruncTo, Copysign, Nearest};
 use crate::{data, elem, DataAddr, ElemAddr};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
