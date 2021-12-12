@@ -1,42 +1,101 @@
 #![allow(clippy::float_cmp)]
-use wasmparser::Type;
 
-use crate::FuncAddr;
 
+#[derive(Debug)]
+pub enum Error {
+    ZeroDivision,
+    InvalidConversionToInt,
+    IntegerOverflow,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ZeroDivision => write!(f, "integer divide by zero"),
+            Self::InvalidConversionToInt => write!(f, "invalid conversion to integer"),
+            Self::IntegerOverflow => write!(f, "integer overflow"),
+        }
+    }
+}
+
+
+/// Runtime representation of a value
+/// Spec: https://webassembly.github.io/spec/core/exec/runtime.html#values
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Value {
+    /// Basic number value
+    Num(NumVal),
+    /// Reference value
+    Ref(RefVal),
+}
+
+/// Runtime representation of a basic number value
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum NumVal {
+    /// Value of 32-bit signed or unsigned integer.
     I32(i32),
+    /// Value of 64-bit signed or unsigned integer.
     I64(i64),
+    /// Value of 32-bit IEEE 754-2008 floating point number.
     F32(F32),
+    /// Value of 64-bit IEEE 754-2008 floating point number.
     F64(F64),
 }
 
+/// A wrapper to represent f32 (32-bit IEEE 754-2008) in WebAssembly runtime, used to keep internal bit pattern.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct F32(u32);
+
+impl F32 {
+    fn from_le_bytes(bytes: [u8; 4]) -> F32 {
+        Self(u32::from_le_bytes(bytes))
+    }
+    pub fn to_bits(&self) -> u32 {
+        self.0
+    }
+    pub fn to_float(&self) -> f32 {
+        f32::from_bits(self.0)
+    }
+}
+
+/// A wrapper to represent f64 (64-bit IEEE 754-2008) in WebAssembly runtime, used to keep internal bit pattern.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct F64(u64);
+
+impl F64 {
+    fn from_le_bytes(bytes: [u8; 8]) -> F64 {
+        Self(u64::from_le_bytes(bytes))
+    }
+    pub fn to_bits(&self) -> u64 {
+        self.0
+    }
+    pub fn to_float(&self) -> f64 {
+        f64::from_bits(self.0)
+    }
+}
+
+/// Runtime representation of a reference type
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RefType {
     FuncRef,
     ExternRef,
 }
 
-impl Into<Type> for RefType {
-    fn into(self) -> Type {
+impl Into<wasmparser::Type> for RefType {
+    fn into(self) -> wasmparser::Type {
         match self {
-            RefType::FuncRef => Type::FuncRef,
-            RefType::ExternRef => Type::ExternRef,
+            RefType::FuncRef => wasmparser::Type::FuncRef,
+            RefType::ExternRef => wasmparser::Type::ExternRef,
         }
     }
 }
 
+/// Runtime representation of a reference value
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RefVal {
     NullRef(RefType),
-    FuncRef(FuncAddr),
+    FuncRef(crate::FuncAddr),
     ExternRef(u32),
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Value {
-    Num(NumVal),
-    Ref(RefVal),
 }
 
 impl Value {
@@ -57,34 +116,34 @@ impl Value {
         Value::Num(NumVal::F64(F64(v)))
     }
 
-    pub fn null_ref(ty: Type) -> Option<Value> {
+    pub fn null_ref(ty: wasmparser::Type) -> Option<Value> {
         let r = match ty {
-            Type::FuncRef => RefVal::NullRef(RefType::FuncRef),
-            Type::ExternRef => RefVal::NullRef(RefType::ExternRef),
+            wasmparser::Type::FuncRef => RefVal::NullRef(RefType::FuncRef),
+            wasmparser::Type::ExternRef => RefVal::NullRef(RefType::ExternRef),
             _ => return None,
         };
         Some(Value::Ref(r))
     }
 
-    pub fn isa(&self, ty: Type) -> bool {
+    pub fn isa(&self, ty: wasmparser::Type) -> bool {
         match self {
             Value::Num(_) => self.value_type() == ty,
-            Value::Ref(r) => matches!((r, ty), (RefVal::ExternRef(_), Type::ExternRef)
-                | (RefVal::FuncRef(_), Type::FuncRef)
-                | (RefVal::NullRef(RefType::ExternRef), Type::ExternRef)
-                | (RefVal::NullRef(RefType::FuncRef), Type::FuncRef)),
+            Value::Ref(r) => matches!((r, ty), (RefVal::ExternRef(_), wasmparser::Type::ExternRef)
+                | (RefVal::FuncRef(_), wasmparser::Type::FuncRef)
+                | (RefVal::NullRef(RefType::ExternRef), wasmparser::Type::ExternRef)
+                | (RefVal::NullRef(RefType::FuncRef), wasmparser::Type::FuncRef)),
         }
     }
 
-    pub fn value_type(&self) -> Type {
+    pub fn value_type(&self) -> wasmparser::Type {
         match self {
-            Value::Num(NumVal::I32(_)) => Type::I32,
-            Value::Num(NumVal::I64(_)) => Type::I64,
-            Value::Num(NumVal::F32(_)) => Type::F32,
-            Value::Num(NumVal::F64(_)) => Type::F64,
-            Value::Ref(RefVal::NullRef(_)) => Type::FuncRef,
-            Value::Ref(RefVal::FuncRef(_)) => Type::FuncRef,
-            Value::Ref(RefVal::ExternRef(_)) => Type::ExternRef,
+            Value::Num(NumVal::I32(_)) => wasmparser::Type::I32,
+            Value::Num(NumVal::I64(_)) => wasmparser::Type::I64,
+            Value::Num(NumVal::F32(_)) => wasmparser::Type::F32,
+            Value::Num(NumVal::F64(_)) => wasmparser::Type::F64,
+            Value::Ref(RefVal::NullRef(_)) => wasmparser::Type::FuncRef,
+            Value::Ref(RefVal::FuncRef(_)) => wasmparser::Type::FuncRef,
+            Value::Ref(RefVal::ExternRef(_)) => wasmparser::Type::ExternRef,
         }
     }
 
@@ -165,9 +224,12 @@ impl From<F64> for Value {
     }
 }
 
+/// A trait to represent an inner value representation of a WebAssembly value
 pub trait NativeValue: Sized {
+    /// An attempted conversion from an any value to a specific type value
     fn from_value(val: Value) -> Option<Self>;
-    fn value_type() -> Type;
+    /// A type in WebAssembly of a value of this type
+    fn value_type() -> wasmparser::Type;
 }
 
 macro_rules! impl_native_value {
@@ -180,8 +242,8 @@ macro_rules! impl_native_value {
                 }
             }
 
-            fn value_type() -> Type {
-                Type::$case
+            fn value_type() -> wasmparser::Type {
+                wasmparser::Type::$case
             }
         }
     };
@@ -191,49 +253,45 @@ impl_native_value!(i32, I32);
 impl_native_value!(i64, I64);
 impl_native_value!(u32, I32);
 impl_native_value!(u64, I64);
+impl_native_value!(F32, F32);
+impl_native_value!(F64, F64);
 
-impl NativeValue for F32 {
-    fn from_value(val: Value) -> Option<Self> {
-        match val {
-            Value::Num(NumVal::F32(val)) => Some(val),
-            _ => None,
-        }
-    }
-
-    fn value_type() -> Type {
-        Type::F32
-    }
-}
-
-impl NativeValue for F64 {
-    fn from_value(val: Value) -> Option<Self> {
-        match val {
-            Value::Num(NumVal::F64(val)) => Some(val),
-            _ => None,
-        }
-    }
-
-    fn value_type() -> Type {
-        Type::F64
-    }
-}
-
+/// A trait to convert a basic number value into a bytes in little-endian byte order
 pub trait IntoLittleEndian {
-    fn into_le(self, buf: &mut [u8]);
+    fn into_le_bytes(self) -> Vec<u8>;
 }
 
+impl IntoLittleEndian for i32 {
+    fn into_le_bytes(self) -> Vec<u8> {
+        i32::to_le_bytes(self).to_vec()
+    }
+}
+
+impl IntoLittleEndian for i64 {
+    fn into_le_bytes(self) -> Vec<u8> {
+        i64::to_le_bytes(self).to_vec()
+    }
+}
+
+impl IntoLittleEndian for F32 {
+    fn into_le_bytes(self) -> Vec<u8> {
+        self.0.to_le_bytes().to_vec()
+    }
+}
+
+impl IntoLittleEndian for F64 {
+    fn into_le_bytes(self) -> Vec<u8> {
+        self.0.to_le_bytes().to_vec()
+    }
+}
+
+/// A trait to convert a bytes in little-endian byte order to a basic number value
 pub trait FromLittleEndian {
     fn from_le(buf: &[u8]) -> Self;
 }
 
-macro_rules! little_endian_conversion {
+macro_rules! impl_from_little_endian {
     ($type:ty, $size:expr) => {
-        impl IntoLittleEndian for $type {
-            fn into_le(self, buf: &mut [u8]) {
-                buf.copy_from_slice(&self.to_le_bytes());
-            }
-        }
-
         impl FromLittleEndian for $type {
             fn from_le(buf: &[u8]) -> Self {
                 let mut b: [u8; $size] = Default::default();
@@ -244,24 +302,26 @@ macro_rules! little_endian_conversion {
     };
 }
 
-little_endian_conversion!(u8, 1);
-little_endian_conversion!(u16, 2);
-little_endian_conversion!(u32, 4);
-little_endian_conversion!(u64, 8);
+impl_from_little_endian!(u8, 1);
+impl_from_little_endian!(u16, 2);
+impl_from_little_endian!(u32, 4);
+impl_from_little_endian!(u64, 8);
 
-little_endian_conversion!(i8, 1);
-little_endian_conversion!(i16, 2);
-little_endian_conversion!(i32, 4);
-little_endian_conversion!(i64, 8);
+impl_from_little_endian!(i8, 1);
+impl_from_little_endian!(i16, 2);
+impl_from_little_endian!(i32, 4);
+impl_from_little_endian!(i64, 8);
 
-little_endian_conversion!(F32, 4);
-little_endian_conversion!(F64, 8);
+impl_from_little_endian!(F32, 4);
+impl_from_little_endian!(F64, 8);
 
+/// A trait to extend a basic number value into a larger size of number type.
+/// `To` must be larger basic number value than `Self`.
 pub trait ExtendInto<To> {
     fn extend_into(self) -> To;
 }
 
-macro_rules! extend_conversion {
+macro_rules! impl_extend_into {
     ($from:ty, $to:ty) => {
         impl ExtendInto<$to> for $from {
             fn extend_into(self) -> $to {
@@ -271,74 +331,19 @@ macro_rules! extend_conversion {
     };
 }
 
-extend_conversion!(u8, i32);
-extend_conversion!(u16, i32);
-extend_conversion!(i8, i32);
-extend_conversion!(i16, i32);
+impl_extend_into!(u8, i32);
+impl_extend_into!(u16, i32);
+impl_extend_into!(i8, i32);
+impl_extend_into!(i16, i32);
 
-extend_conversion!(u8, i64);
-extend_conversion!(u16, i64);
-extend_conversion!(u32, i64);
-extend_conversion!(i8, i64);
-extend_conversion!(i16, i64);
-extend_conversion!(i32, i64);
+impl_extend_into!(u8, i64);
+impl_extend_into!(u16, i64);
+impl_extend_into!(u32, i64);
+impl_extend_into!(i8, i64);
+impl_extend_into!(i16, i64);
+impl_extend_into!(i32, i64);
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct F32(u32);
-
-impl F32 {
-    fn from_le_bytes(bytes: [u8; 4]) -> F32 {
-        Self(u32::from_le_bytes(bytes))
-    }
-    fn to_le_bytes(&self) -> [u8; 4] {
-        self.0.to_le_bytes()
-    }
-    pub fn to_bits(&self) -> u32 {
-        self.0
-    }
-    pub fn to_float(&self) -> f32 {
-        f32::from_bits(self.0)
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct F64(u64);
-
-impl F64 {
-    fn from_le_bytes(bytes: [u8; 8]) -> F64 {
-        Self(u64::from_le_bytes(bytes))
-    }
-    fn to_le_bytes(&self) -> [u8; 8] {
-        self.0.to_le_bytes()
-    }
-    pub fn to_bits(&self) -> u64 {
-        self.0
-    }
-    pub fn to_float(&self) -> f64 {
-        f64::from_bits(self.0)
-    }
-}
-
-pub enum I32 {}
-pub enum I64 {}
-pub enum U32 {}
-pub enum U64 {}
-
-macro_rules! impl_copysign {
-    ($type:ty, $orig:ty, $size:ty) => {
-        impl $type {
-            pub fn copysign(&self, rhs: $type) -> $orig {
-                let sign_mask: $size = 1 << (std::mem::size_of::<$orig>() * 8 - 1);
-                let sign = rhs.to_bits() & sign_mask;
-                <$orig>::from_bits((self.to_bits() & (!sign_mask)) | sign)
-            }
-        }
-    };
-}
-
-impl_copysign!(F32, f32, u32);
-impl_copysign!(F64, f64, u64);
-
+/// An attempted truncation from a basic number value into a smaller number value
 pub trait TruncTo<To> {
     fn trunc_to(self) -> Result<To, Error>;
 }
@@ -369,6 +374,10 @@ impl_trunc_to!(f32, u64);
 impl_trunc_to!(f64, u32);
 impl_trunc_to!(f64, u64);
 
+/// A trait to perform saturating truncation.
+/// This trait corresponds to `To_trunc_sat_Self` instruction semantics.
+/// - https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-u
+/// - https://webassembly.github.io/spec/core/exec/numerics.html#op-trunc-sat-s
 pub trait TruncSatTo<To> {
     fn trunc_sat_to(self) -> To;
 }
@@ -408,14 +417,18 @@ impl_trunc_sat_to!(f32, u64);
 impl_trunc_sat_to!(f64, u32);
 impl_trunc_sat_to!(f64, u64);
 
+/// Check this value is in range of `Target` basic number type
 trait InRange<Target> {
     fn in_range(self) -> InRangeResult;
 }
 
 #[derive(PartialEq, Eq)]
 enum InRangeResult {
+    /// Too large value to fit in the target basic number type
     TooLarge,
+    /// Too small value to fit in the target basic number type
     TooSmall,
+    /// Fit in the target basic number type
     InRange,
 }
 
@@ -513,22 +526,25 @@ impl_in_range_unsigned!(u32, 32, f64);
 impl_in_range_unsigned!(u64, 64, f32);
 impl_in_range_unsigned!(u64, 64, f64);
 
-#[derive(Debug)]
-pub enum Error {
-    ZeroDivision,
-    InvalidConversionToInt,
-    IntegerOverflow,
+pub enum I32 {}
+pub enum I64 {}
+pub enum U32 {}
+pub enum U64 {}
+
+macro_rules! impl_copysign {
+    ($type:ty, $orig:ty, $size:ty) => {
+        impl $type {
+            pub fn copysign(&self, rhs: $type) -> $orig {
+                let sign_mask: $size = 1 << (std::mem::size_of::<$orig>() * 8 - 1);
+                let sign = rhs.to_bits() & sign_mask;
+                <$orig>::from_bits((self.to_bits() & (!sign_mask)) | sign)
+            }
+        }
+    };
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ZeroDivision => write!(f, "integer divide by zero"),
-            Self::InvalidConversionToInt => write!(f, "invalid conversion to integer"),
-            Self::IntegerOverflow => write!(f, "integer overflow"),
-        }
-    }
-}
+impl_copysign!(F32, f32, u32);
+impl_copysign!(F64, f64, u64);
 
 macro_rules! impl_try_wrapping {
     ($type:ty, $orig:ty) => {
@@ -647,14 +663,18 @@ macro_rules! impl_nearest {
 impl_nearest!(F32, f32);
 impl_nearest!(F64, f64);
 
-pub fn extend_i32(x: i32, to_bits: usize) -> i32 {
-    let shift = 32 - to_bits;
-    (x << shift) >> shift
+impl I32 {
+    pub fn extend_i32(x: i32, to_bits: usize) -> i32 {
+        let shift = 32 - to_bits;
+        (x << shift) >> shift
+    }
 }
 
-pub fn extend_i64(x: i64, to_bits: usize) -> i64 {
-    let shift = 64 - to_bits;
-    (x << shift) >> shift
+impl I64 {
+    pub fn extend_i64(x: i64, to_bits: usize) -> i64 {
+        let shift = 64 - to_bits;
+        (x << shift) >> shift
+    }
 }
 
 #[cfg(test)]

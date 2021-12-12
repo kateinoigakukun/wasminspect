@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::value::{extend_i32, extend_i64, RefType, RefVal, TruncSatTo, TruncTo};
+use crate::value::{RefType, RefVal, TruncSatTo, TruncTo};
 use crate::{data, elem, DataAddr, ElemAddr};
 
 use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
@@ -616,13 +616,7 @@ impl Executor {
                 let mem = store.memory(addr);
                 let n = self.pop_as::<i32>()? as usize;
                 let val = self.pop_as::<i32>()?;
-                let val = {
-                    let mut buf: Vec<u8> = std::iter::repeat(0)
-                        .take(std::mem::size_of::<i32>())
-                        .collect();
-                    val.into_le(&mut buf);
-                    buf[0]
-                };
+                let val = val.to_le_bytes()[0];
                 let offset = self.pop_as::<i32>()? as usize;
 
                 mem.borrow().validate_region(offset, n)?;
@@ -839,11 +833,11 @@ impl Executor {
             InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
             InstructionKind::F64PromoteF32 => self.unop(|x: F32| f64::from(x.to_float())),
 
-            InstructionKind::I32Extend8S => self.unop(|x: i32| extend_i32(x, 8)),
-            InstructionKind::I32Extend16S => self.unop(|x: i32| extend_i32(x, 16)),
-            InstructionKind::I64Extend8S => self.unop(|x: i64| extend_i64(x, 8)),
-            InstructionKind::I64Extend16S => self.unop(|x: i64| extend_i64(x, 16)),
-            InstructionKind::I64Extend32S => self.unop(|x: i64| extend_i64(x, 32)),
+            InstructionKind::I32Extend8S => self.unop(|x: i32| I32::extend_i32(x, 8)),
+            InstructionKind::I32Extend16S => self.unop(|x: i32| I32::extend_i32(x, 16)),
+            InstructionKind::I64Extend8S => self.unop(|x: i64| I64::extend_i64(x, 8)),
+            InstructionKind::I64Extend16S => self.unop(|x: i64| I64::extend_i64(x, 16)),
+            InstructionKind::I64Extend32S => self.unop(|x: i64| I64::extend_i64(x, 32)),
 
             InstructionKind::I32ReinterpretF32 => self.unop(|v: F32| v.to_bits() as i32),
             InstructionKind::I64ReinterpretF64 => self.unop(|v: F64| v.to_bits() as i64),
@@ -1129,10 +1123,7 @@ impl Executor {
         let base_addr: i32 = self.pop_as()?;
         let base_addr: u32 = u32::from_le_bytes(base_addr.to_le_bytes());
         let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
-        let mut buf: Vec<u8> = std::iter::repeat(0)
-            .take(std::mem::size_of::<T>())
-            .collect();
-        val.into_le(&mut buf);
+        let buf = val.into_le_bytes();
         self.memory(store)?
             .borrow_mut()
             .store(addr, &buf)
@@ -1152,10 +1143,7 @@ impl Executor {
         let base_addr: i32 = self.pop_as()?;
         let base_addr: u32 = u32::from_le_bytes(base_addr.to_le_bytes());
         let addr = Self::mem_addr(base_addr, offset, config.features.memory64)? as usize;
-        let mut buf: Vec<u8> = std::iter::repeat(0)
-            .take(std::mem::size_of::<T>())
-            .collect();
-        val.into_le(&mut buf);
+        let buf = val.into_le_bytes();
         let buf: Vec<u8> = buf.into_iter().take(width).collect();
         self.memory(store)?
             .borrow_mut()
