@@ -150,7 +150,9 @@ pub enum StoreError {
     InvalidDataSegments(memory::Error),
     InvalidHostImport(module::HostModuleError),
     InvalidImport(module::DefinedModuleError),
-    UnknownType(/* type index: */ u32),
+    UnknownType {
+        type_index: usize,
+    },
     UndefinedFunction {
         module: String,
         field: Option<String>,
@@ -189,7 +191,9 @@ impl std::fmt::Display for StoreError {
             Self::InvalidDataSegments(err) => write!(f, "data segment does not fit: {}", err),
             Self::InvalidHostImport(err) => write!(f, "invalid host import: {}", err),
             Self::InvalidImport(err) => write!(f, "invalid import: {}", err),
-            Self::UnknownType(idx) => write!(f, "Unknown type index used: {:?}", idx),
+            Self::UnknownType { type_index } => {
+                write!(f, "Unknown type index used: {:?}", type_index)
+            }
             Self::UndefinedFunction { module, field } => write!(
                 f,
                 "unknown import: Undefined function \"{:?}\" in \"{}\"",
@@ -460,7 +464,7 @@ impl Store {
     ) -> Result<()> {
         let func_ty = types
             .get(type_index)
-            .ok_or(StoreError::UnknownType(type_index as u32))?
+            .ok_or(StoreError::UnknownType { type_index })?
             .clone();
         let name = import
             .field
@@ -677,9 +681,12 @@ impl Store {
         let imported_funcs = self.funcs.items(module_index);
         let mut index = imported_funcs.map(|items| items.len() as u32).unwrap_or(0);
         for (func_sig, body) in func_sigs.into_iter().zip(bodies) {
+            let func_sig = func_sig as usize;
             let func_type = types
-                .get(func_sig as usize)
-                .ok_or(StoreError::UnknownType(func_sig))?
+                .get(func_sig)
+                .ok_or(StoreError::UnknownType {
+                    type_index: func_sig,
+                })?
                 .clone();
             let name = names.get(&index).cloned().unwrap_or(format!(
                 "<module #{} defined func #{}>",

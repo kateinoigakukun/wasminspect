@@ -2,10 +2,10 @@ use crate::value::{RefType, RefVal};
 
 #[derive(Debug)]
 pub enum Error {
-    AccessOutOfBounds(
-        /* try to access */ Option<usize>,
-        /* memory size */ usize,
-    ),
+    AccessOutOfBounds {
+        try_to_access: Option<usize>,
+        size: usize,
+    },
     UninitializedElement(usize),
     GrowOverMaximumSize {
         base: usize,
@@ -16,12 +16,12 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AccessOutOfBounds(Some(addr), size) => write!(
+            Self::AccessOutOfBounds { try_to_access: Some(addr), size } => write!(
                 f,
                 "undefined element: out of bounds table access, try to access {} but size of memory is {}",
                 addr, size
             ),
-            Self::AccessOutOfBounds(None, size) => write!(
+            Self::AccessOutOfBounds { try_to_access: None, size } => write!(
                 f,
                 "out of bounds table access, try to access over size of usize but size of memory is {}",
                 size
@@ -58,10 +58,16 @@ impl TableInstance {
     pub fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
         if let Some(max_addr) = offset.checked_add(size) {
             if max_addr > self.buffer_len() {
-                return Err(Error::AccessOutOfBounds(Some(max_addr), self.buffer_len()));
+                return Err(Error::AccessOutOfBounds {
+                    try_to_access: Some(max_addr),
+                    size: self.buffer_len(),
+                });
             }
         } else {
-            return Err(Error::AccessOutOfBounds(None, self.buffer_len()));
+            return Err(Error::AccessOutOfBounds {
+                try_to_access: None,
+                size: self.buffer_len(),
+            });
         }
         Ok(())
     }
@@ -81,16 +87,19 @@ impl TableInstance {
     pub fn get_at(&self, index: usize) -> Result<RefVal> {
         self.buffer
             .get(index)
-            .ok_or_else(|| Error::AccessOutOfBounds(Some(index), self.buffer_len()))
+            .ok_or_else(|| Error::AccessOutOfBounds {
+                try_to_access: Some(index),
+                size: self.buffer_len(),
+            })
             .map(|addr| *addr)
     }
 
     pub fn set_at(&mut self, index: usize, val: RefVal) -> Result<()> {
         let buffer_len = self.buffer_len();
-        let entry = self
-            .buffer
-            .get_mut(index)
-            .ok_or(Error::AccessOutOfBounds(Some(index), buffer_len))?;
+        let entry = self.buffer.get_mut(index).ok_or(Error::AccessOutOfBounds {
+            try_to_access: Some(index),
+            size: buffer_len,
+        })?;
         *entry = val;
         Ok(())
     }

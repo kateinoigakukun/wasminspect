@@ -11,24 +11,24 @@ pub struct MemoryInstance {
 pub enum Error {
     GrowOverMaximumSize(usize),
     GrowOverMaximumPageSize(usize),
-    AccessOutOfBounds(
-        /* try to access */ Option<usize>,
-        /* memory size */ usize,
-    ),
+    AccessOutOfBounds {
+        try_to_access: Option<usize>,
+        memory_size: usize,
+    },
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::AccessOutOfBounds(Some(addr), size) => write!(
+            Self::AccessOutOfBounds { try_to_access: Some(addr), memory_size } => write!(
                 f,
                 "out of bounds memory access, try to access {} but size of memory is {}",
-                addr, size
+                addr, memory_size
             ),
-            Self::AccessOutOfBounds(None, size) => write!(
+            Self::AccessOutOfBounds { try_to_access: None, memory_size } => write!(
                 f,
                 "out of bounds memory access, try to access over size of usize but size of memory is {}",
-                size
+                memory_size
             ),
             _ => write!(f, "{:?}", self),
         }
@@ -51,10 +51,16 @@ impl MemoryInstance {
     pub fn validate_region(&self, offset: usize, size: usize) -> Result<()> {
         if let Some(max_addr) = offset.checked_add(size) {
             if max_addr > self.data_len() {
-                return Err(Error::AccessOutOfBounds(Some(max_addr), self.data_len()));
+                return Err(Error::AccessOutOfBounds {
+                    try_to_access: Some(max_addr),
+                    memory_size: self.data_len(),
+                });
             }
         } else {
-            return Err(Error::AccessOutOfBounds(None, self.data_len()));
+            return Err(Error::AccessOutOfBounds {
+                try_to_access: None,
+                memory_size: self.data_len(),
+            });
         }
         Ok(())
     }
