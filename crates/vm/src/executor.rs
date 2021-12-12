@@ -166,7 +166,7 @@ impl Executor {
             let val = self.stack.pop_value().map_err(ReturnValError::Stack)?;
             results.push(val);
             if !val.isa(ty) {
-                return Err(ReturnValError::TypeMismatchReturnValue(val.clone(), ty));
+                return Err(ReturnValError::TypeMismatchReturnValue(val, ty));
             }
         }
         Ok(results.into_iter().rev().collect())
@@ -174,7 +174,7 @@ impl Executor {
 
     pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
         let func = store.func_global(self.pc.exec_addr());
-        Ok(&func.defined().unwrap().instructions())
+        Ok(func.defined().unwrap().instructions())
     }
 
     pub fn execute_step<I: Interceptor>(
@@ -184,14 +184,14 @@ impl Executor {
         config: &Config,
     ) -> ExecResult<Signal> {
         let func = store.func_global(self.pc.exec_addr()).defined().unwrap();
-        let module_index = func.module_index().clone();
+        let module_index = func.module_index();
         let inst = match func.inst(self.pc.inst_index()) {
             Some(inst) => inst,
             None => return Err(Trap::NoMoreInstruction),
         };
 
         let signal = interceptor.execute_inst(inst)?;
-        let result = self.execute_inst(&inst, module_index, store, interceptor, config)?;
+        let result = self.execute_inst(inst, module_index, store, interceptor, config)?;
         Ok(match (signal, result) {
             (_, Signal::End) => Signal::End,
             (signal, Signal::Next) => signal,
@@ -283,10 +283,7 @@ impl Executor {
                     }
                 } else {
                     // When the end of a block is reached without a jump
-                    let results = self.stack.pop_while(|v| match v {
-                        StackValue::Value(_) => true,
-                        _ => false,
-                    });
+                    let results = self.stack.pop_while(|v| matches!(v, StackValue::Value(_)));
                     self.stack.pop_label().map_err(Trap::Stack)?;
                     let results = results
                         .into_iter()
@@ -470,8 +467,7 @@ impl Executor {
                     .collect::<ExecResult<Vec<_>>>()?;
                 src_table.borrow().validate_region(src_base, n)?;
                 dst_table.borrow().validate_region(dst_base, n)?;
-                for offset in 0..n {
-                    let val = values[offset];
+                for (offset, val) in values.into_iter().enumerate().take(n) {
                     dst_table.borrow_mut().set_at(dst_base + offset, val)?;
                 }
 
@@ -782,8 +778,8 @@ impl Executor {
             InstructionKind::F32Sub => self.binop(|a: F32, b: F32| a.to_float() - b.to_float()),
             InstructionKind::F32Mul => self.binop(|a: F32, b: F32| a.to_float() * b.to_float()),
             InstructionKind::F32Div => self.binop(|a: F32, b: F32| a.to_float() / b.to_float()),
-            InstructionKind::F32Min => self.binop(|a: F32, b: F32| F32::min(a, b)),
-            InstructionKind::F32Max => self.binop(|a: F32, b: F32| F32::max(a, b)),
+            InstructionKind::F32Min => self.binop(F32::min),
+            InstructionKind::F32Max => self.binop(F32::max),
             InstructionKind::F32Copysign => self.binop(|a: F32, b: F32| a.copysign(b)),
 
             InstructionKind::F64Abs => self.unop(|v: F64| v.to_float().abs()),
@@ -797,28 +793,28 @@ impl Executor {
             InstructionKind::F64Sub => self.binop(|a: F64, b: F64| a.to_float() - b.to_float()),
             InstructionKind::F64Mul => self.binop(|a: F64, b: F64| a.to_float() * b.to_float()),
             InstructionKind::F64Div => self.binop(|a: F64, b: F64| a.to_float() / b.to_float()),
-            InstructionKind::F64Min => self.binop(|a: F64, b: F64| F64::min(a, b)),
-            InstructionKind::F64Max => self.binop(|a: F64, b: F64| F64::max(a, b)),
+            InstructionKind::F64Min => self.binop(F64::min),
+            InstructionKind::F64Max => self.binop(F64::max),
             InstructionKind::F64Copysign => self.binop(|a: F64, b: F64| a.copysign(b)),
 
             InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
-            InstructionKind::I32TruncF32S => self.try_unop(|v: F32| TruncTo::<i32>::trunc_to(v)),
-            InstructionKind::I32TruncF32U => self.try_unop(|v: F32| TruncTo::<u32>::trunc_to(v)),
-            InstructionKind::I32TruncF64S => self.try_unop(|v: F64| TruncTo::<i32>::trunc_to(v)),
-            InstructionKind::I32TruncF64U => self.try_unop(|v: F64| TruncTo::<u32>::trunc_to(v)),
+            InstructionKind::I32TruncF32S => self.try_unop::<F32, _, _>(TruncTo::<i32>::trunc_to),
+            InstructionKind::I32TruncF32U => self.try_unop::<F32, _, _>(TruncTo::<u32>::trunc_to),
+            InstructionKind::I32TruncF64S => self.try_unop::<F64, _, _>(TruncTo::<i32>::trunc_to),
+            InstructionKind::I32TruncF64U => self.try_unop::<F64, _, _>(TruncTo::<u32>::trunc_to),
             InstructionKind::I64ExtendI32S => self.unop(|v: i32| Value::from(v as u64)),
             InstructionKind::I64ExtendI32U => self.unop(|v: u32| Value::from(v as u64)),
-            InstructionKind::I64TruncF32S => self.try_unop(|x: F32| TruncTo::<i64>::trunc_to(x)),
-            InstructionKind::I64TruncF32U => self.try_unop(|x: F32| TruncTo::<u64>::trunc_to(x)),
-            InstructionKind::I64TruncF64S => self.try_unop(|x: F64| TruncTo::<i64>::trunc_to(x)),
-            InstructionKind::I64TruncF64U => self.try_unop(|x: F64| TruncTo::<u64>::trunc_to(x)),
+            InstructionKind::I64TruncF32S => self.try_unop::<F32, _, _>(TruncTo::<i64>::trunc_to),
+            InstructionKind::I64TruncF32U => self.try_unop::<F32, _, _>(TruncTo::<u64>::trunc_to),
+            InstructionKind::I64TruncF64S => self.try_unop::<F64, _, _>(TruncTo::<i64>::trunc_to),
+            InstructionKind::I64TruncF64U => self.try_unop::<F64, _, _>(TruncTo::<u64>::trunc_to),
             InstructionKind::F32ConvertI32S => self.unop(|x: u32| x as i32 as f32),
             InstructionKind::F32ConvertI32U => self.unop(|x: u32| x as f32),
             InstructionKind::F32ConvertI64S => self.unop(|x: u64| x as i64 as f32),
             InstructionKind::F32ConvertI64U => self.unop(|x: u64| x as f32),
             InstructionKind::F32DemoteF64 => self.unop(|x: F64| x.to_float() as f32),
             InstructionKind::F64ConvertI32S => self.unop(|x: u32| f64::from(x as i32)),
-            InstructionKind::F64ConvertI32U => self.unop(|x: u32| f64::from(x)),
+            InstructionKind::F64ConvertI32U => self.unop::<u32, _, _>(f64::from),
             InstructionKind::F64ConvertI64S => self.unop(|x: u64| x as i64 as f64),
             InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
             InstructionKind::F64PromoteF32 => self.unop(|x: F32| f64::from(x.to_float())),
@@ -875,7 +871,7 @@ impl Executor {
         let label = {
             let labels = self.stack.current_frame_labels().map_err(Trap::Stack)?;
             let labels_len = labels.len();
-            assert!(depth + 1 <= labels_len);
+            assert!(depth < labels_len);
             *labels[labels_len - depth - 1]
         };
 
@@ -887,10 +883,7 @@ impl Executor {
         }
 
         for _ in 0..depth + 1 {
-            self.stack.pop_while(|v| match v {
-                StackValue::Value(_) => true,
-                _ => false,
-            });
+            self.stack.pop_while(|v| matches!(v, StackValue::Value(_)));
             self.stack.pop_label().map_err(Trap::Stack)?;
         }
 
@@ -1003,7 +996,7 @@ impl Executor {
         match func {
             FunctionInstance::Defined(func) => {
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
-                let frame = CallFrame::new_from_func(exec_addr, &func, args, Some(self.pc));
+                let frame = CallFrame::new_from_func(exec_addr, func, args, Some(self.pc));
                 self.stack.set_frame(frame).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Return { arity });
                 self.pc = pc;
@@ -1026,10 +1019,7 @@ impl Executor {
         let func = store.func_global(self.pc.exec_addr());
         let arity = func.ty().returns.len();
         let results = self.stack.pop_values(arity).map_err(Trap::Stack)?;
-        self.stack.pop_while(|v| match v {
-            StackValue::Activation(_) => false,
-            _ => true,
-        });
+        self.stack.pop_while(|v| !matches!(v, StackValue::Activation(_)));
         self.stack.pop_frame().map_err(Trap::Stack)?;
         self.stack.push_values(results.into_iter().rev());
 
@@ -1081,7 +1071,7 @@ impl Executor {
         } else {
             Err(Trap::MemoryAddrOverflow {
                 base,
-                offset: offset.into(),
+                offset,
             })
         }
     }
@@ -1164,7 +1154,6 @@ impl Executor {
     }
 }
 
-use anyhow;
 use wasmparser::InitExpr;
 pub fn eval_const_expr(
     init_expr: &InitExpr,
