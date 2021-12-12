@@ -97,8 +97,8 @@ impl MemoryInstance {
                 return Err(Error::GrowOverMaximumSize(max));
             }
         }
-        let mut extra: Vec<u8> = std::iter::repeat(0).take(n * WASM_PAGE_SIZE).collect();
-        self.data.append(&mut extra);
+        let zero_len = n * WASM_PAGE_SIZE;
+        self.data.resize(self.data.len() + zero_len, 0);
         self.initial = len;
         Ok(())
     }
