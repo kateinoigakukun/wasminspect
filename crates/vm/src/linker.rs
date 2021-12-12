@@ -1,6 +1,7 @@
 use super::module::ModuleIndex;
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::Hash;
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct GlobalAddress<T>(usize, std::marker::PhantomData<T>);
@@ -19,8 +20,11 @@ impl<T> fmt::Debug for GlobalAddress<T> {
     }
 }
 
-#[derive(Eq, Hash)]
-pub struct LinkableAddress<T>(ModuleIndex, pub(crate) usize, std::marker::PhantomData<fn() -> T>);
+pub struct LinkableAddress<T>(
+    ModuleIndex,
+    pub(crate) usize,
+    std::marker::PhantomData<fn() -> T>,
+);
 
 impl<T> LinkableAddress<T> {
     pub fn new_unsafe(module: ModuleIndex, index: usize) -> Self {
@@ -52,6 +56,13 @@ impl<T> PartialEq for LinkableAddress<T> {
     }
 }
 
+impl<T> Eq for LinkableAddress<T> {}
+impl<T> Hash for LinkableAddress<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+        state.write_usize(self.1);
+    }
+}
 
 pub struct LinkableCollection<T> {
     items: Vec<T>,
@@ -79,7 +90,7 @@ impl<T> LinkableCollection<T> {
             .unwrap_or(0);
         self.item_addrs_by_module
             .entry(dist)
-            .or_insert(Vec::new())
+            .or_insert_with(Vec::new)
             .push(source.0);
         LinkableAddress::new_unsafe(dist, index)
     }
@@ -106,7 +117,7 @@ impl<T> LinkableCollection<T> {
         let addrs = self
             .item_addrs_by_module
             .entry(module_index)
-            .or_insert(Vec::new());
+            .or_insert_with(Vec::new);
         let index = addrs.len();
         addrs.push(globa_index);
         LinkableAddress::new_unsafe(module_index, index)
