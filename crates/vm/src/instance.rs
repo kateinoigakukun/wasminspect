@@ -1,6 +1,7 @@
 use crate::config::Config;
-use crate::executor::{simple_invoke_func, WasmError};
+use crate::executor::WasmError;
 use crate::host::HostValue;
+use crate::invoke_func_ignoring_break;
 use crate::module::ModuleIndex;
 use crate::store::Store;
 use crate::value::Value;
@@ -79,6 +80,6 @@ impl WasmInstance {
         } else {
             return Err(WasmError::EntryFunctionNotFound("_start".to_string()));
         };
-        simple_invoke_func(func_addr, arguments, &mut self.store, config)
+        invoke_func_ignoring_break(func_addr, arguments, &mut self.store, config)
     }
 }

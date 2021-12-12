@@ -7,7 +7,7 @@ use wast::HeapType;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{
-    simple_invoke_func, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue,
+    invoke_func_ignoring_break, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue,
     F32, F64,
 };
 
@@ -57,7 +57,7 @@ impl WastContext {
             .map_err(|e| anyhow!("Failed to instantiate: {}", e))?;
         if let Some(start_section) = start_section {
             let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
-            simple_invoke_func(func_addr, vec![], &mut self.instance.store, &self.config)
+            invoke_func_ignoring_break(func_addr, vec![], &mut self.instance.store, &self.config)
                 .map_err(|e| anyhow!("Failed to exec start func: {}", e))?;
         }
         self.current = Some(module_index);
@@ -305,7 +305,7 @@ impl WastContext {
                 };
                 if let Some(start_section) = start_section {
                     let func_addr = FuncAddr::new_unsafe(module_index, start_section as usize);
-                    return Ok(simple_invoke_func(
+                    return Ok(invoke_func_ignoring_break(
                         func_addr,
                         vec![],
                         &mut self.instance.store,
