@@ -1,4 +1,4 @@
-use super::super::dwarf::{FrameBase, WasmLoc};
+use crate::dwarf::{FrameBase, WasmLoc};
 use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::Debugger;
 use anyhow::{anyhow, Context, Result};

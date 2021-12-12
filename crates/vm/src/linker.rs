@@ -1,4 +1,4 @@
-use super::module::ModuleIndex;
+use crate::module::ModuleIndex;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;

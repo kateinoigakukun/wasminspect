@@ -1,10 +1,10 @@
 use crate::value::RefVal;
 use crate::RefType;
 
-use super::host::HostFuncBody;
-use super::inst::*;
-use super::module::*;
-use super::value::Value;
+use crate::host::HostFuncBody;
+use crate::inst::*;
+use crate::module::*;
+use crate::value::Value;
 use anyhow::Result;
 use std::iter;
 use wasmparser::{FuncType, FunctionBody, Type};

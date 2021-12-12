@@ -136,7 +136,7 @@ impl InnerBorrowChecker {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use crate::*;
     #[test]
     fn nonoverlapping() {
         let mut bs = InnerBorrowChecker::new();

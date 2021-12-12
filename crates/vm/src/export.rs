@@ -1,5 +1,5 @@
-use super::address::*;
-use super::module::ModuleIndex;
+use crate::address::*;
+use crate::module::ModuleIndex;
 
 pub struct ExportInstance {
     name: String,

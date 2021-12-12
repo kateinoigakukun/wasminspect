@@ -403,7 +403,7 @@ pub struct DwarfUnitSourceMap {
     sequence_base_index: usize,
 }
 
-use super::commands::sourcemap;
+use crate::commands::sourcemap;
 impl DwarfUnitSourceMap {
     fn transform_lineinfo(&self, row: &LineRow) -> sourcemap::LineInfo {
         let filepath = self.paths[row.file_index() as usize - self.sequence_base_index].clone();
@@ -465,7 +465,7 @@ impl sourcemap::SourceMap for DwarfSourceMap {
     }
 }
 
-use super::commands::subroutine;
+use crate::commands::subroutine;
 
 pub struct DwarfSubroutineMap {
     pub subroutines: Vec<Subroutine<usize>>,

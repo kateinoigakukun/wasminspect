@@ -1,15 +1,13 @@
-use super::value::Value;
-
+use crate::address::MemoryAddr;
+use crate::executor::Trap;
+use crate::global::GlobalInstance;
+use crate::memory::MemoryInstance;
+use crate::module::ModuleIndex;
+use crate::store::Store;
+use crate::table::TableInstance;
+use crate::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-use super::address::MemoryAddr;
-use super::executor::Trap;
-use super::global::GlobalInstance;
-use super::memory::MemoryInstance;
-use super::module::ModuleIndex;
-use super::store::Store;
-use super::table::TableInstance;
 use wasmparser::FuncType;
 
 type Ref<T> = Rc<RefCell<T>>;

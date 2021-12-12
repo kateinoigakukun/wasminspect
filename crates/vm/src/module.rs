@@ -1,5 +1,5 @@
-use super::address::*;
-use super::export::{ExportInstance, ExternalValue};
+use crate::address::*;
+use crate::export::{ExportInstance, ExternalValue};
 
 use std::collections::HashMap;
 use std::hash::Hash;

@@ -1,4 +1,4 @@
-use super::value::Value;
+use crate::value::Value;
 use wasmparser::GlobalType;
 
 pub trait GlobalInstance {

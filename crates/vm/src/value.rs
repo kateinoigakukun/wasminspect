@@ -750,7 +750,7 @@ impl I64 {
 mod tests {
     use crate::value::IEEE754;
 
-    use super::F32;
+    use crate::F32;
 
     #[test]
     fn floating_value_min() {

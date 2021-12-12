@@ -1,6 +1,6 @@
 use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::{Debugger, OutputPrinter};
-
+use structopt::StructOpt;
 use anyhow::Result;
 
 pub struct DisassembleCommand {}
@@ -10,8 +10,6 @@ impl DisassembleCommand {
         Self {}
     }
 }
-
-use structopt::StructOpt;
 
 #[derive(StructOpt)]
 struct Opts {

@@ -1,7 +1,7 @@
-use super::address::*;
-use super::func::{DefinedFunctionInstance, InstIndex};
-use super::module::ModuleIndex;
-use super::value::Value;
+use crate::address::*;
+use crate::func::{DefinedFunctionInstance, InstIndex};
+use crate::module::ModuleIndex;
+use crate::value::Value;
 
 #[derive(Debug)]
 pub enum StackValueType {

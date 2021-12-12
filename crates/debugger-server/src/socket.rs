@@ -232,7 +232,7 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::*;
 
     #[tokio::test]
     async fn test_socket_handshake() {

@@ -1,23 +1,18 @@
+use crate::address::{DataAddr, ElemAddr, FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
 use crate::config::Config;
+use crate::func::*;
+use crate::inst::{Instruction, InstructionKind};
+use crate::interceptor::{Interceptor, NopInterceptor};
+use crate::memory::MemoryInstance;
+use crate::module::*;
+use crate::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
+use crate::store::*;
 use crate::value::{Copysign, Nearest, RefType, RefVal, TruncSat, TruncTo};
-use crate::{data, elem, DataAddr, ElemAddr};
-
-use super::address::{FuncAddr, GlobalAddr, MemoryAddr, TableAddr};
-use super::func::*;
-use super::inst::{Instruction, InstructionKind};
-use super::interceptor::{Interceptor, NopInterceptor};
-use super::memory;
-use super::memory::MemoryInstance;
-use super::module::*;
-use super::stack;
-use super::stack::{CallFrame, Label, ProgramCounter, Stack, StackValue};
-use super::store::*;
-use super::table;
-use super::value;
-use super::value::{
+use crate::value::{
     ExtendInto, FromLittleEndian, IntoLittleEndian, NativeValue, Value, F32, F64, I32, I64, U32,
     U64,
 };
+use crate::{data, elem, memory, stack, table, value};
 use wasmparser::{FuncType, Type, TypeOrFuncType};
 
 use std::convert::TryInto;
@@ -1158,7 +1153,7 @@ pub fn eval_const_expr(
     store: &Store,
     module_index: ModuleIndex,
 ) -> anyhow::Result<Value> {
-    use super::inst::transform_inst;
+    use crate::inst::transform_inst;
     let mut reader = init_expr.get_operators_reader();
     let base_offset = reader.original_position();
     let inst = transform_inst(&mut reader, base_offset)?;

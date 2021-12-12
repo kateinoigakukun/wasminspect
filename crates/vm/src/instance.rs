@@ -1,10 +1,9 @@
 use crate::config::Config;
-
-use super::executor::{simple_invoke_func, WasmError};
-use super::host::HostValue;
-use super::module::ModuleIndex;
-use super::store::Store;
-use super::value::Value;
+use crate::executor::{simple_invoke_func, WasmError};
+use crate::host::HostValue;
+use crate::module::ModuleIndex;
+use crate::store::Store;
+use crate::value::Value;
 use std::collections::HashMap;
 
 use anyhow::Result;

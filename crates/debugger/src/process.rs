@@ -1,5 +1,5 @@
-use super::commands::command::{self, AliasCommand, Command, CommandResult};
-use super::commands::debugger::Debugger;
+use crate::commands::command::{self, AliasCommand, Command, CommandResult};
+use crate::commands::debugger::Debugger;
 use anyhow::{Context, Result};
 use linefeed::{DefaultTerminal, Interface, ReadResult};
 use std::{cell::RefCell, io, rc::Rc};

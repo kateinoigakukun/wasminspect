@@ -1,5 +1,7 @@
 use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::{Debugger, StepStyle};
+use super::disassemble::display_asm;
+use super::list::{display_source, next_line_info};
 use super::symbol::demangle_symbol;
 
 pub struct ThreadCommand {}
@@ -31,8 +33,6 @@ enum Opts {
     StepInstOver,
 }
 
-use super::disassemble::display_asm;
-use super::list::{display_source, next_line_info};
 impl<D: Debugger> Command<D> for ThreadCommand {
     fn name(&self) -> &'static str {
         "thread"

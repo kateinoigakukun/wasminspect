@@ -1,5 +1,5 @@
-use super::value::FromLittleEndian;
-use super::WASM_PAGE_SIZE;
+use crate::value::FromLittleEndian;
+use crate::WASM_PAGE_SIZE;
 
 pub struct MemoryInstance {
     data: Vec<u8>,
