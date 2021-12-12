@@ -61,11 +61,8 @@ fn main() -> anyhow::Result<()> {
         }
         None => None,
     };
-    match wasminspect_debugger::run_loop(module_input, opts.source, opts.map_dirs, opts.envs) {
-        Err(err) => println!("{:?}", err),
-        _ => {}
-    };
-    Ok(
-        (),
-    )
+    if let Err(err) = wasminspect_debugger::run_loop(module_input, opts.source, opts.map_dirs, opts.envs) {
+        println!("{:?}", err)
+    }
+    Ok(())
 }

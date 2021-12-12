@@ -108,7 +108,7 @@ where
             let res = debugger_proxy::handle_request(req, process, context, tx.clone(), rx);
             let msg = serialization::serialize_response(res);
             tx.lock().unwrap().send(msg).await?;
-            return Ok(());
+            Ok(())
         }
         Err(e) => {
             let response = rpc::TextResponse::Error {
@@ -116,7 +116,7 @@ where
             };
             let msg = serialization::serialize_response(response.into());
             tx.lock().unwrap().send(msg).await?;
-            return Ok(());
+            Ok(())
         }
     }
 }
@@ -147,12 +147,12 @@ async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> 
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             log::debug!("Start debugger thread");
-            let (process, dbg_context) = wasminspect_debugger::start_debugger(None, vec![]).unwrap();
+            let (process, dbg_context) = wasminspect_debugger::start_debugger(None, vec![], vec![]).unwrap();
             let process = Rc::new(RefCell::new(process));
 
             let mut last_line: Option<String> = None;
             let step_timeout = Duration::from_millis(500);
-            if !std::env::var("WASMINSPECT_SERVER_NO_INTERACTIVE").is_ok() {
+            if std::env::var("WASMINSPECT_SERVER_NO_INTERACTIVE").is_err() {
                 let mut interactive = Interactive::new_with_loading_history().unwrap();
                 loop {
                     if connection_finished_reader.load(Ordering::Relaxed) {
@@ -251,6 +251,7 @@ mod tests {
         impl tower_service::Service<hyper::http::Uri> for AddrConnect {
             type Response = ::tokio::net::TcpStream;
             type Error = ::std::io::Error;
+            #[allow(clippy::type_complexity)]
             type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
             fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {

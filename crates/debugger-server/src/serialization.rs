@@ -4,7 +4,7 @@ use tokio_tungstenite::tungstenite::Message;
 pub fn deserialize_request(message: &Message) -> Result<rpc::Request, rpc::RequestError> {
     match message {
         Message::Binary(bytes) => rpc::BinaryRequest::from_bytes(bytes).map(rpc::Request::Binary),
-        Message::Text(text) => match serde_json::from_str::<rpc::TextRequest>(&text) {
+        Message::Text(text) => match serde_json::from_str::<rpc::TextRequest>(text) {
             Ok(req) => Ok(rpc::Request::Text(req)),
             Err(e) => Err(rpc::RequestError::InvalidTextRequestJSON(Box::new(e))),
         },

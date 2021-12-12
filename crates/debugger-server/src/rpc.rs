@@ -158,8 +158,8 @@ pub enum Response {
     },
 }
 
-impl Into<Response> for TextResponse {
-    fn into(self) -> Response {
-        Response::Text(self)
+impl From<TextResponse> for Response {
+    fn from(val: TextResponse) -> Self {
+        Response::Text(val)
     }
 }

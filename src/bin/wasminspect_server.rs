@@ -1,9 +1,6 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
-
-use env_logger;
 use structopt::StructOpt;
-use wasminspect_debugger_server;
 
 #[derive(StructOpt)]
 struct Opts {

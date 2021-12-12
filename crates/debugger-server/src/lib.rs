@@ -8,7 +8,6 @@ use hyper::{
     Method, Request, StatusCode,
 };
 use hyper::{Body, Response, Server};
-use tokio;
 
 use std::net::SocketAddr;
 
@@ -20,7 +19,7 @@ async fn remote_api(req: Request<Body>) -> Result<Response<Body>, anyhow::Error>
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/debugger") => {
             let res =
-                socket::socket_handshake(req, |upgraded| socket::establish_connection(upgraded))
+                socket::socket_handshake(req, socket::establish_connection)
                     .await;
             match res {
                 Ok(res) => Ok(res),

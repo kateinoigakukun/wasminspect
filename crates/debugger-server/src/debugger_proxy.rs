@@ -10,9 +10,9 @@ use wasmparser::FuncType;
 use crate::rpc::{self, WasmExport};
 use crate::serialization;
 use wasminspect_debugger::{CommandContext, CommandResult, Debugger, Interactive, MainDebugger, Process, try_load_dwarf};
-use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, Trap, WasmValue};
+use wasminspect_vm::{HostFuncBody, HostValue, MemoryAddr, Trap, WasmValue, NumVal};
 
-static VERSION: &str = "0.1.0";
+static VERSION: &str = "0.2.0";
 
 pub type ProcessRef = Rc<RefCell<Process<MainDebugger>>>;
 pub type CommandCtxRef = Rc<RefCell<CommandContext>>;
@@ -80,14 +80,15 @@ fn to_vm_wasm_value(value: &rpc::WasmValue) -> WasmValue {
 
 fn from_vm_wasm_value(value: &WasmValue) -> rpc::WasmValue {
     match value {
-        WasmValue::F32(v) => rpc::WasmValue::F32 {
-            value: f32::from_bits(*v),
+        WasmValue::Num(NumVal::F32(v)) => rpc::WasmValue::F32 {
+            value: v.to_float(),
         },
-        WasmValue::F64(v) => rpc::WasmValue::F64 {
-            value: f64::from_bits(*v),
+        WasmValue::Num(NumVal::F64(v)) => rpc::WasmValue::F64 {
+            value: v.to_float(),
         },
-        WasmValue::I32(v) => rpc::WasmValue::I32 { value: *v },
-        WasmValue::I64(v) => rpc::WasmValue::I64 { value: *v },
+        WasmValue::Num(NumVal::I32(v)) => rpc::WasmValue::I32 { value: *v },
+        WasmValue::Num(NumVal::I64(v)) => rpc::WasmValue::I64 { value: *v },
+        WasmValue::Ref(_) => todo!("reference type is not supported yet"),
     }
 }
 
@@ -104,7 +105,7 @@ fn blocking_send_response<S: futures::Sink<Message> + Unpin + Send + 'static>(
     response: rpc::Response,
     tx: Arc<Mutex<S>>,
 ) -> Result<(), Trap> {
-    let return_tx = tx.clone();
+    let return_tx = tx;
     let call_handle = thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
@@ -137,8 +138,8 @@ fn remote_call_fn<S: futures::Sink<Message> + Unpin + Send + 'static>(
 where
     S::Error: std::error::Error,
 {
-    let tx = tx.clone();
-    let rx = rx.clone();
+    let tx = tx;
+    let rx = rx;
 
     HostFuncBody::new(ty.clone(), move |args, results, ctx, _| {
         let field_name = field_name.clone();
@@ -148,7 +149,7 @@ where
         let call = rpc::TextResponse::CallHost {
             module: module_name,
             field: field_name,
-            args: args,
+            args,
         };
         blocking_send_response(call.into(), tx.clone())?;
 
@@ -156,7 +157,7 @@ where
             let message = rx
                 .recv()
                 .map_err(|e| Trap::HostFunctionError(Box::new(e)))?
-                .ok_or(RemoteCallError("unexpected end of message".to_owned()))
+                .ok_or_else(|| RemoteCallError("unexpected end of message".to_owned()))
                 .map_err(|e| Trap::HostFunctionError(Box::new(e)))?;
             let request = serialization::deserialize_request(&message)
                 .map_err(|e| Trap::HostFunctionError(Box::new(e)))?;
@@ -284,14 +285,7 @@ fn module_exports(bytes: &[u8]) -> anyhow::Result<Vec<WasmExport>> {
             wasmparser::Payload::MemorySection(iter) => {
                 for mem in iter {
                     let mem = mem?;
-                    match mem {
-                        wasmparser::MemoryType::M32 { limits, .. } => {
-                            mems.push(limits.initial as usize);
-                        }
-                        wasmparser::MemoryType::M64 { limits, .. } => {
-                            mems.push(limits.initial as usize);
-                        }
-                    }
+                    mems.push(mem.initial as usize);
                 }
             }
             wasmparser::Payload::ExportSection(iter) => {
@@ -343,7 +337,7 @@ fn call_exported(
     match result {
         Ok(RunResult::Finish(values)) => {
             let values = values.iter().map(from_vm_wasm_value).collect();
-            return Ok(TextResponse::CallResult { values }.into());
+            Ok(TextResponse::CallResult { values }.into())
         }
         Ok(RunResult::Breakpoint) => {
             // use std::borrow::{Borrow, BorrowMut};
@@ -381,9 +375,9 @@ fn call_exported(
             {
                 let err = format!("Error while calling exported function: {}", msg);
                 context.borrow().printer.eprintln(&err);
-                interactive.run_loop(&*context.borrow(), process.clone())?
+                interactive.run_loop(&*context.borrow(), process)?
             };
-            return Err(msg.into());
+            Err(msg)
         }
     }
 }
@@ -407,31 +401,31 @@ where
         Binary(req) => match req.kind {
             Init => {
                 let imports =
-                    remote_import_module(req.bytes, process.clone(), context.clone(), tx.clone(), rx)?;
-                process.borrow_mut().debugger.load_main_module(req.bytes)?;
-                process.borrow_mut().debugger.instantiate(imports, true)?;
-                match try_load_dwarf(&req.bytes.to_vec(), &mut *context.clone().borrow_mut()) {
+                    remote_import_module(req.bytes, process.clone(), context.clone(), tx, rx)?;
+                process.borrow_mut().debugger.load_main_module(req.bytes, "_remote_main".to_string())?;
+                process.borrow_mut().debugger.instantiate(imports, &[])?;
+                match try_load_dwarf(&req.bytes.to_vec(), &mut *Clone::clone(&context).borrow_mut()) {
                     Ok(_) => (),
                     Err(err) => {
                         log::warn!("Failed to load dwarf info: {}", err);
                     }
                 }
                 let exports = module_exports(req.bytes)?;
-                return Ok(rpc::Response::Text(TextResponse::Init { exports: exports }));
+                Ok(rpc::Response::Text(TextResponse::Init { exports }))
             }
         },
         Text(InitMemory) => {
             let init_memory = rpc::Response::Binary {
                 kind: rpc::BinaryResponseKind::InitMemory,
-                bytes: process.borrow().debugger.memory()?.clone(),
+                bytes: process.borrow().debugger.memory()?,
             };
-            return Ok(init_memory);
+            Ok(init_memory)
         }
         Text(Version) => {
-            return Ok(TextResponse::Version {
+            Ok(TextResponse::Version {
                 value: VERSION.to_string(),
             }
-            .into());
+            .into())
         }
         Text(CallResult { .. }) => unreachable!(),
         Text(CallExported { name, args }) => call_exported(name, args, process, context),
@@ -444,7 +438,7 @@ where
             let memory_addr = memory_addr_by_name(&name, &process.debugger)?;
             let memory = process.debugger.store()?.memory(memory_addr);
             let bytes = memory.borrow().raw_data()[offset..offset + length].to_vec();
-            return Ok(TextResponse::LoadMemoryResult { bytes: bytes }.into());
+            Ok(TextResponse::LoadMemoryResult { bytes }.into())
         }
         Text(StoreMemory {
             name,
@@ -457,7 +451,7 @@ where
             for (idx, byte) in bytes.iter().enumerate() {
                 memory.borrow_mut().raw_data_mut()[offset + idx] = *byte;
             }
-            return Ok(TextResponse::StoreMemoryResult.into());
+            Ok(TextResponse::StoreMemoryResult.into())
         }
     }
 }
@@ -465,7 +459,7 @@ where
 fn memory_addr_by_name(name: &str, debugger: &MainDebugger) -> Result<MemoryAddr, anyhow::Error> {
     let addr = debugger
         .main_module()?
-        .exported_memory(&name)?
-        .ok_or(anyhow::anyhow!("no exported memory"))?;
+        .exported_memory(name)?
+        .ok_or_else(|| anyhow::anyhow!("no exported memory"))?;
     Ok(addr)
 }
