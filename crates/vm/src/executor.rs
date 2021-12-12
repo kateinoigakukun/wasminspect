@@ -713,14 +713,20 @@ impl Executor {
             InstructionKind::I64GeS => self.relop(|a: i64, b: i64| a >= b),
             InstructionKind::I64GeU => self.relop::<u64, _>(|a, b| a >= b),
 
+            // Safety: imprecision is expected behavior
+            #[allow(clippy::float_cmp)]
             InstructionKind::F32Eq => self.relop::<F32, _>(|a, b| a.to_float() == b.to_float()),
+            #[allow(clippy::float_cmp)]
             InstructionKind::F32Ne => self.relop::<F32, _>(|a, b| a.to_float() != b.to_float()),
             InstructionKind::F32Lt => self.relop::<F32, _>(|a, b| a.to_float() < b.to_float()),
             InstructionKind::F32Gt => self.relop::<F32, _>(|a, b| a.to_float() > b.to_float()),
             InstructionKind::F32Le => self.relop::<F32, _>(|a, b| a.to_float() <= b.to_float()),
             InstructionKind::F32Ge => self.relop::<F32, _>(|a, b| a.to_float() >= b.to_float()),
 
+            // Safety: imprecision is expected behavior
+            #[allow(clippy::float_cmp)]
             InstructionKind::F64Eq => self.relop(|a: F64, b: F64| a.to_float() == b.to_float()),
+            #[allow(clippy::float_cmp)]
             InstructionKind::F64Ne => self.relop(|a: F64, b: F64| a.to_float() != b.to_float()),
             InstructionKind::F64Lt => self.relop(|a: F64, b: F64| a.to_float() < b.to_float()),
             InstructionKind::F64Gt => self.relop(|a: F64, b: F64| a.to_float() > b.to_float()),
@@ -733,18 +739,10 @@ impl Executor {
             InstructionKind::I32Add => self.binop(|a: u32, b: u32| a.wrapping_add(b)),
             InstructionKind::I32Sub => self.binop(|a: i32, b: i32| a.wrapping_sub(b)),
             InstructionKind::I32Mul => self.binop(|a: i32, b: i32| a.wrapping_mul(b)),
-            InstructionKind::I32DivS => {
-                self.try_binop(|a: i32, b: i32| I32::try_wrapping_div(a, b))
-            }
-            InstructionKind::I32DivU => {
-                self.try_binop(|a: u32, b: u32| U32::try_wrapping_div(a, b))
-            }
-            InstructionKind::I32RemS => {
-                self.try_binop(|a: i32, b: i32| I32::try_wrapping_rem(a, b))
-            }
-            InstructionKind::I32RemU => {
-                self.try_binop(|a: u32, b: u32| U32::try_wrapping_rem(a, b))
-            }
+            InstructionKind::I32DivS => self.try_binop(I32::try_wrapping_div),
+            InstructionKind::I32DivU => self.try_binop(U32::try_wrapping_div),
+            InstructionKind::I32RemS => self.try_binop(I32::try_wrapping_rem),
+            InstructionKind::I32RemU => self.try_binop(U32::try_wrapping_rem),
             InstructionKind::I32And => self.binop(|a: i32, b: i32| a.bitand(b)),
             InstructionKind::I32Or => self.binop(|a: i32, b: i32| a.bitor(b)),
             InstructionKind::I32Xor => self.binop(|a: i32, b: i32| a.bitxor(b)),
@@ -760,18 +758,10 @@ impl Executor {
             InstructionKind::I64Add => self.binop(|a: i64, b: i64| a.wrapping_add(b)),
             InstructionKind::I64Sub => self.binop(|a: i64, b: i64| a.wrapping_sub(b)),
             InstructionKind::I64Mul => self.binop(|a: i64, b: i64| a.wrapping_mul(b)),
-            InstructionKind::I64DivS => {
-                self.try_binop(|a: i64, b: i64| I64::try_wrapping_div(a, b))
-            }
-            InstructionKind::I64DivU => {
-                self.try_binop(|a: u64, b: u64| U64::try_wrapping_div(a, b))
-            }
-            InstructionKind::I64RemS => {
-                self.try_binop(|a: i64, b: i64| I64::try_wrapping_rem(a, b))
-            }
-            InstructionKind::I64RemU => {
-                self.try_binop(|a: u64, b: u64| U64::try_wrapping_rem(a, b))
-            }
+            InstructionKind::I64DivS => self.try_binop(I64::try_wrapping_div),
+            InstructionKind::I64DivU => self.try_binop(U64::try_wrapping_div),
+            InstructionKind::I64RemS => self.try_binop(I64::try_wrapping_rem),
+            InstructionKind::I64RemU => self.try_binop(U64::try_wrapping_rem),
             InstructionKind::I64And => self.binop(|a: i64, b: i64| a.bitand(b)),
             InstructionKind::I64Or => self.binop(|a: i64, b: i64| a.bitor(b)),
             InstructionKind::I64Xor => self.binop(|a: i64, b: i64| a.bitxor(b)),
@@ -843,20 +833,20 @@ impl Executor {
             InstructionKind::I64ReinterpretF64 => self.unop(|v: F64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
-            InstructionKind::I32TruncSatF32S => self.unop(|v: F32| TruncSat::<i32>::trunc_sat(v)),
-            InstructionKind::I32TruncSatF32U => self.unop(|v: F32| TruncSat::<u32>::trunc_sat(v)),
-            InstructionKind::I32TruncSatF64S => self.unop(|v: F64| TruncSat::<i32>::trunc_sat(v)),
-            InstructionKind::I32TruncSatF64U => self.unop(|v: F64| TruncSat::<u32>::trunc_sat(v)),
-            InstructionKind::I64TruncSatF32S => self.unop(|v: F32| TruncSat::<i64>::trunc_sat(v)),
-            InstructionKind::I64TruncSatF32U => self.unop(|v: F32| TruncSat::<u64>::trunc_sat(v)),
-            InstructionKind::I64TruncSatF64S => self.unop(|v: F64| TruncSat::<i64>::trunc_sat(v)),
-            InstructionKind::I64TruncSatF64U => self.unop(|v: F64| TruncSat::<u64>::trunc_sat(v)),
+            InstructionKind::I32TruncSatF32S => self.unop::<F32, _, _>(TruncSat::<i32>::trunc_sat),
+            InstructionKind::I32TruncSatF32U => self.unop::<F32, _, _>(TruncSat::<u32>::trunc_sat),
+            InstructionKind::I32TruncSatF64S => self.unop::<F64, _, _>(TruncSat::<i32>::trunc_sat),
+            InstructionKind::I32TruncSatF64U => self.unop::<F64, _, _>(TruncSat::<u32>::trunc_sat),
+            InstructionKind::I64TruncSatF32S => self.unop::<F32, _, _>(TruncSat::<i64>::trunc_sat),
+            InstructionKind::I64TruncSatF32U => self.unop::<F32, _, _>(TruncSat::<u64>::trunc_sat),
+            InstructionKind::I64TruncSatF64S => self.unop::<F64, _, _>(TruncSat::<i64>::trunc_sat),
+            InstructionKind::I64TruncSatF64U => self.unop::<F64, _, _>(TruncSat::<u64>::trunc_sat),
             other => unimplemented!("{:?}", other),
         };
         if self.stack.is_over_top_level() {
-            return Ok(Signal::End);
+            Ok(Signal::End)
         } else {
-            return result;
+            result
         }
     }
 

@@ -1,5 +1,3 @@
-#![allow(clippy::float_cmp)]
-
 use std::ops::{BitAnd, BitOr, Not};
 
 #[derive(Debug)]
@@ -660,6 +658,7 @@ macro_rules! impl_min_max {
                 // min(0.0, -0.0) returns 0.0 in rust, but wasm expects
                 // to return -0.0
                 // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmin
+                #[allow(clippy::float_cmp)]
                 if this == another {
                     return <$type>::from_bits(this.to_bits() | another.to_bits());
                 }
@@ -681,6 +680,7 @@ macro_rules! impl_min_max {
                 // max(-0.0, 0.0) returns -0.0 in rust, but wasm expects
                 // to return 0.0
                 // spec: https://webassembly.github.io/spec/core/exec/numerics.html#op-fmax
+                #[allow(clippy::float_cmp)]
                 if this == another {
                     return <$type>::from_bits(this.to_bits() & another.to_bits());
                 }
@@ -703,11 +703,13 @@ macro_rules! impl_nearest {
             fn nearest(&self) -> Self {
                 let this = self.to_float();
                 let round = this.round();
+                #[allow(clippy::float_cmp)]
                 if this.fract().abs() != 0.5 {
                     return Self::from_native(round);
                 }
 
                 use core::ops::Rem;
+                #[allow(clippy::float_cmp)]
                 let result = if round.rem(2.0) == 1.0 {
                     this.floor()
                 } else if round.rem(2.0) == -1.0 {
