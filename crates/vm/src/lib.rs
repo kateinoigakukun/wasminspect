@@ -54,7 +54,7 @@ pub fn invoke_func_ignoring_break(
         .func(func_addr)
         .ok_or(WasmError::ExecutionError(Trap::UndefinedFunc(func_addr.1)))?
     {
-        (FunctionInstance::Host(host), _) => {
+        (FunctionInstance::Native(host), _) => {
             let mut results = Vec::new();
             match host
                 .code()

@@ -20,14 +20,14 @@ impl InstIndex {
 
 pub enum FunctionInstance {
     Defined(DefinedFunctionInstance),
-    Host(HostFunctionInstance),
+    Native(NativeFunctionInstance),
 }
 
 impl FunctionInstance {
     pub fn ty(&self) -> &FuncType {
         match self {
             Self::Defined(defined) => defined.ty(),
-            Self::Host(host) => host.ty(),
+            Self::Native(host) => host.ty(),
         }
     }
 
@@ -41,7 +41,7 @@ impl FunctionInstance {
     pub fn name(&self) -> &String {
         match self {
             Self::Defined(defined) => &defined.name,
-            Self::Host(host) => host.field_name(),
+            Self::Native(host) => host.field_name(),
         }
     }
 }
@@ -129,14 +129,14 @@ impl DefinedFunctionInstance {
     }
 }
 
-pub struct HostFunctionInstance {
+pub struct NativeFunctionInstance {
     ty: FuncType,
     module_name: String,
     field_name: String,
     code: HostFuncBody,
 }
 
-impl HostFunctionInstance {
+impl NativeFunctionInstance {
     pub fn ty(&self) -> &FuncType {
         &self.ty
     }

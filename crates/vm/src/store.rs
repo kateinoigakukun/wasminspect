@@ -5,7 +5,7 @@ use crate::value::{NumVal, RefType, RefVal};
 
 use crate::address::*;
 use crate::executor::eval_const_expr;
-use crate::func::{DefinedFunctionInstance, FunctionInstance, HostFunctionInstance};
+use crate::func::{DefinedFunctionInstance, FunctionInstance, NativeFunctionInstance};
 use crate::global::{DefaultGlobalInstance, GlobalInstance};
 use crate::host::HostValue;
 use crate::linker::LinkableCollection;
@@ -108,8 +108,8 @@ impl Store {
             match entry {
                 HostValue::Func(f) => {
                     let instance =
-                        HostFunctionInstance::new(f.ty().clone(), name.clone(), field.clone(), f);
-                    let addr = self.funcs.push_global(FunctionInstance::Host(instance));
+                        NativeFunctionInstance::new(f.ty().clone(), name.clone(), field.clone(), f);
+                    let addr = self.funcs.push_global(FunctionInstance::Native(instance));
                     values.insert(field, HostExport::Func(addr));
                 }
                 HostValue::Global(g) => {

@@ -997,7 +997,7 @@ impl Executor {
                 self.pc = pc;
                 interceptor.invoke_func(func.name(), self, store)
             }
-            FunctionInstance::Host(func) => {
+            FunctionInstance::Native(func) => {
                 let mut result = Vec::new();
                 func.code()
                     .call(&args, &mut result, store, addr.module_index())?;

@@ -160,7 +160,7 @@ impl MainDebugger {
             .func(func_addr)
             .with_context(|| "Function not found".to_string())?;
         match func {
-            (FunctionInstance::Host(host), _) => {
+            (FunctionInstance::Native(host), _) => {
                 let mut results = Vec::new();
                 match host.code().call(
                     &args,
