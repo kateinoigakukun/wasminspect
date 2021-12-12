@@ -153,7 +153,18 @@ impl From<f64> for Value {
     }
 }
 
-// FIXME: Use `TryFrom` instead
+impl From<F32> for Value {
+    fn from(val: F32) -> Self {
+        Self::Num(NumVal::F32(val))
+    }
+}
+
+impl From<F64> for Value {
+    fn from(val: F64) -> Self {
+        Self::Num(NumVal::F64(val))
+    }
+}
+
 pub trait NativeValue: Sized {
     fn from_value(val: Value) -> Option<Self>;
     fn value_type() -> Type;
@@ -181,10 +192,10 @@ impl_native_value!(i64, I64);
 impl_native_value!(u32, I32);
 impl_native_value!(u64, I64);
 
-impl NativeValue for f32 {
+impl NativeValue for F32 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::Num(NumVal::F32(val)) => Some(f32::from_bits(val.0)),
+            Value::Num(NumVal::F32(val)) => Some(val),
             _ => None,
         }
     }
@@ -194,10 +205,10 @@ impl NativeValue for f32 {
     }
 }
 
-impl NativeValue for f64 {
+impl NativeValue for F64 {
     fn from_value(val: Value) -> Option<Self> {
         match val {
-            Value::Num(NumVal::F64(val)) => Some(f64::from_bits(val.0)),
+            Value::Num(NumVal::F64(val)) => Some(val),
             _ => None,
         }
     }
@@ -243,33 +254,8 @@ little_endian_conversion!(i16, 2);
 little_endian_conversion!(i32, 4);
 little_endian_conversion!(i64, 8);
 
-impl IntoLittleEndian for f32 {
-    fn into_le(self, buf: &mut [u8]) {
-        buf.copy_from_slice(&self.to_bits().to_le_bytes());
-    }
-}
-
-impl FromLittleEndian for f32 {
-    fn from_le(buf: &[u8]) -> Self {
-        let mut b: [u8; 4] = Default::default();
-        b.copy_from_slice(&buf[0..4]);
-        Self::from_bits(u32::from_le_bytes(b))
-    }
-}
-
-impl IntoLittleEndian for f64 {
-    fn into_le(self, buf: &mut [u8]) {
-        buf.copy_from_slice(&self.to_bits().to_le_bytes());
-    }
-}
-
-impl FromLittleEndian for f64 {
-    fn from_le(buf: &[u8]) -> Self {
-        let mut b: [u8; 8] = Default::default();
-        b.copy_from_slice(&buf[0..8]);
-        Self::from_bits(u64::from_le_bytes(b))
-    }
-}
+little_endian_conversion!(F32, 4);
+little_endian_conversion!(F64, 8);
 
 pub trait ExtendInto<To> {
     fn extend_into(self) -> To;
@@ -301,8 +287,17 @@ extend_conversion!(i32, i64);
 pub struct F32(u32);
 
 impl F32 {
+    fn from_le_bytes(bytes: [u8; 4]) -> F32 {
+        Self(u32::from_le_bytes(bytes))
+    }
+    fn to_le_bytes(&self) -> [u8; 4] {
+        self.0.to_le_bytes()
+    }
     pub fn to_bits(&self) -> u32 {
         self.0
+    }
+    pub fn to_float(&self) -> f32 {
+        f32::from_bits(self.0)
     }
 }
 
@@ -310,8 +305,17 @@ impl F32 {
 pub struct F64(u64);
 
 impl F64 {
+    fn from_le_bytes(bytes: [u8; 8]) -> F64 {
+        Self(u64::from_le_bytes(bytes))
+    }
+    fn to_le_bytes(&self) -> [u8; 8] {
+        self.0.to_le_bytes()
+    }
     pub fn to_bits(&self) -> u64 {
         self.0
+    }
+    pub fn to_float(&self) -> f64 {
+        f64::from_bits(self.0)
     }
 }
 
@@ -323,10 +327,10 @@ pub enum U64 {}
 macro_rules! impl_copysign {
     ($type:ty, $orig:ty, $size:ty) => {
         impl $type {
-            pub fn copysign(lhs: $orig, rhs: $orig) -> $orig {
+            pub fn copysign(&self, rhs: $type) -> $orig {
                 let sign_mask: $size = 1 << (std::mem::size_of::<$orig>() * 8 - 1);
                 let sign = rhs.to_bits() & sign_mask;
-                <$orig>::from_bits((lhs.to_bits() & (!sign_mask)) | sign)
+                <$orig>::from_bits((self.to_bits() & (!sign_mask)) | sign)
             }
         }
     };
@@ -620,7 +624,8 @@ impl_min_max!(F64, f64);
 macro_rules! impl_nearest {
     ($type:ty, $orig:ty) => {
         impl $type {
-            pub fn nearest(this: $orig) -> $orig {
+            pub fn nearest(&self) -> $orig {
+                let this = self.to_float();
                 let round = this.round();
                 if this.fract().abs() != 0.5 {
                     return round;

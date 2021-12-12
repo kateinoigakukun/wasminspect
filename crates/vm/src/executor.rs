@@ -505,8 +505,8 @@ impl Executor {
 
             InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset, store, config),
             InstructionKind::I64Load { memarg } => self.load::<i64>(memarg.offset, store, config),
-            InstructionKind::F32Load { memarg } => self.load::<f32>(memarg.offset, store, config),
-            InstructionKind::F64Load { memarg } => self.load::<f64>(memarg.offset, store, config),
+            InstructionKind::F32Load { memarg } => self.load::<F32>(memarg.offset, store, config),
+            InstructionKind::F64Load { memarg } => self.load::<F64>(memarg.offset, store, config),
 
             InstructionKind::I32Load8S { memarg } => {
                 self.load_extend::<i8, i32>(memarg.offset, store, config)
@@ -547,10 +547,10 @@ impl Executor {
                 self.store::<i64, _>(memarg.offset, store, interceptor, config)
             }
             InstructionKind::F32Store { memarg } => {
-                self.store::<f32, _>(memarg.offset, store, interceptor, config)
+                self.store::<F32, _>(memarg.offset, store, interceptor, config)
             }
             InstructionKind::F64Store { memarg } => {
-                self.store::<f64, _>(memarg.offset, store, interceptor, config)
+                self.store::<F64, _>(memarg.offset, store, interceptor, config)
             }
 
             InstructionKind::I32Store8 { memarg } => {
@@ -719,19 +719,19 @@ impl Executor {
             InstructionKind::I64GeS => self.relop(|a: i64, b: i64| a >= b),
             InstructionKind::I64GeU => self.relop::<u64, _>(|a, b| a >= b),
 
-            InstructionKind::F32Eq => self.relop::<f32, _>(|a, b| a == b),
-            InstructionKind::F32Ne => self.relop::<f32, _>(|a, b| a != b),
-            InstructionKind::F32Lt => self.relop::<f32, _>(|a, b| a < b),
-            InstructionKind::F32Gt => self.relop::<f32, _>(|a, b| a > b),
-            InstructionKind::F32Le => self.relop::<f32, _>(|a, b| a <= b),
-            InstructionKind::F32Ge => self.relop::<f32, _>(|a, b| a >= b),
+            InstructionKind::F32Eq => self.relop::<F32, _>(|a, b| a.to_float() == b.to_float()),
+            InstructionKind::F32Ne => self.relop::<F32, _>(|a, b| a.to_float() != b.to_float()),
+            InstructionKind::F32Lt => self.relop::<F32, _>(|a, b| a.to_float() < b.to_float()),
+            InstructionKind::F32Gt => self.relop::<F32, _>(|a, b| a.to_float() > b.to_float()),
+            InstructionKind::F32Le => self.relop::<F32, _>(|a, b| a.to_float() <= b.to_float()),
+            InstructionKind::F32Ge => self.relop::<F32, _>(|a, b| a.to_float() >= b.to_float()),
 
-            InstructionKind::F64Eq => self.relop(|a: f64, b: f64| a == b),
-            InstructionKind::F64Ne => self.relop(|a: f64, b: f64| a != b),
-            InstructionKind::F64Lt => self.relop(|a: f64, b: f64| a < b),
-            InstructionKind::F64Gt => self.relop(|a: f64, b: f64| a > b),
-            InstructionKind::F64Le => self.relop(|a: f64, b: f64| a <= b),
-            InstructionKind::F64Ge => self.relop(|a: f64, b: f64| a >= b),
+            InstructionKind::F64Eq => self.relop(|a: F64, b: F64| a.to_float() == b.to_float()),
+            InstructionKind::F64Ne => self.relop(|a: F64, b: F64| a.to_float() != b.to_float()),
+            InstructionKind::F64Lt => self.relop(|a: F64, b: F64| a.to_float() < b.to_float()),
+            InstructionKind::F64Gt => self.relop(|a: F64, b: F64| a.to_float() > b.to_float()),
+            InstructionKind::F64Le => self.relop(|a: F64, b: F64| a.to_float() <= b.to_float()),
+            InstructionKind::F64Ge => self.relop(|a: F64, b: F64| a.to_float() >= b.to_float()),
 
             InstructionKind::I32Clz => self.unop(|v: i32| v.leading_zeros() as i32),
             InstructionKind::I32Ctz => self.unop(|v: i32| v.trailing_zeros() as i32),
@@ -787,57 +787,57 @@ impl Executor {
             InstructionKind::I64Rotl => self.binop(|a: i64, b: i64| a.rotate_left(b as u32)),
             InstructionKind::I64Rotr => self.binop(|a: i64, b: i64| a.rotate_right(b as u32)),
 
-            InstructionKind::F32Abs => self.unop(|v: f32| v.abs()),
-            InstructionKind::F32Neg => self.unop(|v: f32| -v),
-            InstructionKind::F32Ceil => self.unop(|v: f32| v.ceil()),
-            InstructionKind::F32Floor => self.unop(|v: f32| v.floor()),
-            InstructionKind::F32Trunc => self.unop(|v: f32| v.trunc()),
-            InstructionKind::F32Nearest => self.unop(|v: f32| F32::nearest(v)),
-            InstructionKind::F32Sqrt => self.unop(|v: f32| v.sqrt()),
-            InstructionKind::F32Add => self.binop(|a: f32, b: f32| a + b),
-            InstructionKind::F32Sub => self.binop(|a: f32, b: f32| a - b),
-            InstructionKind::F32Mul => self.binop(|a: f32, b: f32| a * b),
-            InstructionKind::F32Div => self.binop(|a: f32, b: f32| a / b),
-            InstructionKind::F32Min => self.binop(|a: f32, b: f32| F32::min(a, b)),
-            InstructionKind::F32Max => self.binop(|a: f32, b: f32| F32::max(a, b)),
-            InstructionKind::F32Copysign => self.binop(|a: f32, b: f32| F32::copysign(a, b)),
+            InstructionKind::F32Abs => self.unop(|v: F32| v.to_float().abs()),
+            InstructionKind::F32Neg => self.unop(|v: F32| -v.to_float()),
+            InstructionKind::F32Ceil => self.unop(|v: F32| v.to_float().ceil()),
+            InstructionKind::F32Floor => self.unop(|v: F32| v.to_float().floor()),
+            InstructionKind::F32Trunc => self.unop(|v: F32| v.to_float().trunc()),
+            InstructionKind::F32Nearest => self.unop(|v: F32| v.nearest()),
+            InstructionKind::F32Sqrt => self.unop(|v: F32| v.to_float().sqrt()),
+            InstructionKind::F32Add => self.binop(|a: F32, b: F32| a.to_float() + b.to_float()),
+            InstructionKind::F32Sub => self.binop(|a: F32, b: F32| a.to_float() - b.to_float()),
+            InstructionKind::F32Mul => self.binop(|a: F32, b: F32| a.to_float() * b.to_float()),
+            InstructionKind::F32Div => self.binop(|a: F32, b: F32| a.to_float() / b.to_float()),
+            InstructionKind::F32Min => self.binop(|a: F32, b: F32| F32::min(a.to_float(), b.to_float())),
+            InstructionKind::F32Max => self.binop(|a: F32, b: F32| F32::max(a.to_float(), b.to_float())),
+            InstructionKind::F32Copysign => self.binop(|a: F32, b: F32| a.copysign(b)),
 
-            InstructionKind::F64Abs => self.unop(|v: f64| v.abs()),
-            InstructionKind::F64Neg => self.unop(|v: f64| -v),
-            InstructionKind::F64Ceil => self.unop(|v: f64| v.ceil()),
-            InstructionKind::F64Floor => self.unop(|v: f64| v.floor()),
-            InstructionKind::F64Trunc => self.unop(|v: f64| v.trunc()),
-            InstructionKind::F64Nearest => self.unop(|v: f64| F64::nearest(v)),
-            InstructionKind::F64Sqrt => self.unop(|v: f64| v.sqrt()),
-            InstructionKind::F64Add => self.binop(|a: f64, b: f64| a + b),
-            InstructionKind::F64Sub => self.binop(|a: f64, b: f64| a - b),
-            InstructionKind::F64Mul => self.binop(|a: f64, b: f64| a * b),
-            InstructionKind::F64Div => self.binop(|a: f64, b: f64| a / b),
-            InstructionKind::F64Min => self.binop(|a: f64, b: f64| F64::min(a, b)),
-            InstructionKind::F64Max => self.binop(|a: f64, b: f64| F64::max(a, b)),
-            InstructionKind::F64Copysign => self.binop(|a: f64, b: f64| F64::copysign(a, b)),
+            InstructionKind::F64Abs => self.unop(|v: F64| v.to_float().abs()),
+            InstructionKind::F64Neg => self.unop(|v: F64| -v.to_float()),
+            InstructionKind::F64Ceil => self.unop(|v: F64| v.to_float().ceil()),
+            InstructionKind::F64Floor => self.unop(|v: F64| v.to_float().floor()),
+            InstructionKind::F64Trunc => self.unop(|v: F64| v.to_float().trunc()),
+            InstructionKind::F64Nearest => self.unop(|v: F64| v.nearest()),
+            InstructionKind::F64Sqrt => self.unop(|v: F64| v.to_float().sqrt()),
+            InstructionKind::F64Add => self.binop(|a: F64, b: F64| a.to_float() + b.to_float()),
+            InstructionKind::F64Sub => self.binop(|a: F64, b: F64| a.to_float() - b.to_float()),
+            InstructionKind::F64Mul => self.binop(|a: F64, b: F64| a.to_float() * b.to_float()),
+            InstructionKind::F64Div => self.binop(|a: F64, b: F64| a.to_float() / b.to_float()),
+            InstructionKind::F64Min => self.binop(|a: F64, b: F64| F64::min(a.to_float(), b.to_float())),
+            InstructionKind::F64Max => self.binop(|a: F64, b: F64| F64::max(a.to_float(), b.to_float())),
+            InstructionKind::F64Copysign => self.binop(|a: F64, b: F64| a.copysign(b)),
 
             InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
-            InstructionKind::I32TruncF32S => self.try_unop(|v: f32| TruncTo::<i32>::trunc_to(v)),
-            InstructionKind::I32TruncF32U => self.try_unop(|v: f32| TruncTo::<u32>::trunc_to(v)),
-            InstructionKind::I32TruncF64S => self.try_unop(|v: f64| TruncTo::<i32>::trunc_to(v)),
-            InstructionKind::I32TruncF64U => self.try_unop(|v: f64| TruncTo::<u32>::trunc_to(v)),
+            InstructionKind::I32TruncF32S => self.try_unop(|v: F32| TruncTo::<i32>::trunc_to(v.to_float())),
+            InstructionKind::I32TruncF32U => self.try_unop(|v: F32| TruncTo::<u32>::trunc_to(v.to_float())),
+            InstructionKind::I32TruncF64S => self.try_unop(|v: F64| TruncTo::<i32>::trunc_to(v.to_float())),
+            InstructionKind::I32TruncF64U => self.try_unop(|v: F64| TruncTo::<u32>::trunc_to(v.to_float())),
             InstructionKind::I64ExtendI32S => self.unop(|v: i32| Value::from(v as u64)),
             InstructionKind::I64ExtendI32U => self.unop(|v: u32| Value::from(v as u64)),
-            InstructionKind::I64TruncF32S => self.try_unop(|x: f32| TruncTo::<i64>::trunc_to(x)),
-            InstructionKind::I64TruncF32U => self.try_unop(|x: f32| TruncTo::<u64>::trunc_to(x)),
-            InstructionKind::I64TruncF64S => self.try_unop(|x: f64| TruncTo::<i64>::trunc_to(x)),
-            InstructionKind::I64TruncF64U => self.try_unop(|x: f64| TruncTo::<u64>::trunc_to(x)),
+            InstructionKind::I64TruncF32S => self.try_unop(|x: F32| TruncTo::<i64>::trunc_to(x.to_float())),
+            InstructionKind::I64TruncF32U => self.try_unop(|x: F32| TruncTo::<u64>::trunc_to(x.to_float())),
+            InstructionKind::I64TruncF64S => self.try_unop(|x: F64| TruncTo::<i64>::trunc_to(x.to_float())),
+            InstructionKind::I64TruncF64U => self.try_unop(|x: F64| TruncTo::<u64>::trunc_to(x.to_float())),
             InstructionKind::F32ConvertI32S => self.unop(|x: u32| x as i32 as f32),
             InstructionKind::F32ConvertI32U => self.unop(|x: u32| x as f32),
             InstructionKind::F32ConvertI64S => self.unop(|x: u64| x as i64 as f32),
             InstructionKind::F32ConvertI64U => self.unop(|x: u64| x as f32),
-            InstructionKind::F32DemoteF64 => self.unop(|x: f64| x as f32),
+            InstructionKind::F32DemoteF64 => self.unop(|x: F64| x.to_float() as f32),
             InstructionKind::F64ConvertI32S => self.unop(|x: u32| f64::from(x as i32)),
             InstructionKind::F64ConvertI32U => self.unop(|x: u32| f64::from(x)),
             InstructionKind::F64ConvertI64S => self.unop(|x: u64| x as i64 as f64),
             InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
-            InstructionKind::F64PromoteF32 => self.unop(|x: f32| f64::from(x)),
+            InstructionKind::F64PromoteF32 => self.unop(|x: F32| f64::from(x.to_float())),
 
             InstructionKind::I32Extend8S => self.unop(|x: i32| extend_i32(x, 8)),
             InstructionKind::I32Extend16S => self.unop(|x: i32| extend_i32(x, 16)),
@@ -845,33 +845,33 @@ impl Executor {
             InstructionKind::I64Extend16S => self.unop(|x: i64| extend_i64(x, 16)),
             InstructionKind::I64Extend32S => self.unop(|x: i64| extend_i64(x, 32)),
 
-            InstructionKind::I32ReinterpretF32 => self.unop(|v: f32| v.to_bits() as i32),
-            InstructionKind::I64ReinterpretF64 => self.unop(|v: f64| v.to_bits() as i64),
+            InstructionKind::I32ReinterpretF32 => self.unop(|v: F32| v.to_bits() as i32),
+            InstructionKind::I64ReinterpretF64 => self.unop(|v: F64| v.to_bits() as i64),
             InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
             InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
             InstructionKind::I32TruncSatF32S => {
-                self.unop(|v: f32| TruncSatTo::<i32>::trunc_sat_to(v))
+                self.unop(|v: F32| TruncSatTo::<i32>::trunc_sat_to(v.to_float()))
             }
             InstructionKind::I32TruncSatF32U => {
-                self.unop(|v: f32| TruncSatTo::<u32>::trunc_sat_to(v))
+                self.unop(|v: F32| TruncSatTo::<u32>::trunc_sat_to(v.to_float()))
             }
             InstructionKind::I32TruncSatF64S => {
-                self.unop(|v: f64| TruncSatTo::<i32>::trunc_sat_to(v))
+                self.unop(|v: F64| TruncSatTo::<i32>::trunc_sat_to(v.to_float()))
             }
             InstructionKind::I32TruncSatF64U => {
-                self.unop(|v: f64| TruncSatTo::<u32>::trunc_sat_to(v))
+                self.unop(|v: F64| TruncSatTo::<u32>::trunc_sat_to(v.to_float()))
             }
             InstructionKind::I64TruncSatF32S => {
-                self.unop(|v: f32| TruncSatTo::<i64>::trunc_sat_to(v))
+                self.unop(|v: F32| TruncSatTo::<i64>::trunc_sat_to(v.to_float()))
             }
             InstructionKind::I64TruncSatF32U => {
-                self.unop(|v: f32| TruncSatTo::<u64>::trunc_sat_to(v))
+                self.unop(|v: F32| TruncSatTo::<u64>::trunc_sat_to(v.to_float()))
             }
             InstructionKind::I64TruncSatF64S => {
-                self.unop(|v: f64| TruncSatTo::<i64>::trunc_sat_to(v))
+                self.unop(|v: F64| TruncSatTo::<i64>::trunc_sat_to(v.to_float()))
             }
             InstructionKind::I64TruncSatF64U => {
-                self.unop(|v: f64| TruncSatTo::<u64>::trunc_sat_to(v))
+                self.unop(|v: F64| TruncSatTo::<u64>::trunc_sat_to(v.to_float()))
             }
             other => unimplemented!("{:?}", other),
         };
