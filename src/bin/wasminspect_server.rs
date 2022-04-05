@@ -4,7 +4,7 @@ use structopt::StructOpt;
 
 #[derive(StructOpt)]
 struct Opts {
-    /// The wasm binary file
+    /// The listen address
     #[structopt(default_value = "127.0.0.1:4000")]
     listen_addr: String,
 }
