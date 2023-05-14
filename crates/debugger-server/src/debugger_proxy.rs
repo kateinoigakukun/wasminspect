@@ -404,7 +404,7 @@ where
                     .borrow_mut()
                     .debugger
                     .load_main_module(req.bytes, "_remote_main".to_string())?;
-                process.borrow_mut().debugger.instantiate(imports, &[])?;
+                process.borrow_mut().debugger.instantiate(imports, None)?;
                 match try_load_dwarf(
                     &req.bytes.to_vec(),
                     &mut *Clone::clone(&context).borrow_mut(),

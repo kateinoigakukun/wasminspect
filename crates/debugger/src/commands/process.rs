@@ -77,7 +77,7 @@ impl ProcessCommand {
                 return Ok(None);
             }
         }
-        debugger.instantiate(std::collections::HashMap::new(), &wasi_args)?;
+        debugger.instantiate(std::collections::HashMap::new(), Some(&wasi_args))?;
 
         match debugger.run(None, vec![]) {
             Ok(RunResult::Finish(values)) => {

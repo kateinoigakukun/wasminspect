@@ -370,7 +370,7 @@ impl debugger::Debugger for MainDebugger {
     fn instantiate(
         &mut self,
         host_modules: HashMap<String, RawHostModule>,
-        wasi_args: &[String],
+        wasi_args: Option<&[String]>,
     ) -> Result<()> {
         let mut store = Store::new();
         for (name, host_module) in host_modules {
@@ -383,34 +383,36 @@ impl debugger::Debugger for MainDebugger {
             return Err(anyhow::anyhow!("No main module registered"));
         };
 
-        let mut wasi_args = wasi_args.to_vec();
-        wasi_args.insert(0, basename);
+        if let Some(wasi_args) = wasi_args {
+            let mut wasi_args = wasi_args.to_vec();
+            wasi_args.insert(0, basename);
 
-        fn collect_preopen_dirs(
-            preopen_dirs: &[(String, String)],
-        ) -> anyhow::Result<Vec<(String, cap_std::fs::Dir)>> {
-            preopen_dirs
-                .iter()
-                .map(|(guest, host)| {
-                    let dir = unsafe { cap_std::fs::Dir::open_ambient_dir(host) }?;
-                    Ok((guest.clone(), dir))
-                })
-                .collect::<anyhow::Result<Vec<_>>>()
+            fn collect_preopen_dirs(
+                preopen_dirs: &[(String, String)],
+            ) -> anyhow::Result<Vec<(String, cap_std::fs::Dir)>> {
+                preopen_dirs
+                    .iter()
+                    .map(|(guest, host)| {
+                        let dir = unsafe { cap_std::fs::Dir::open_ambient_dir(host) }?;
+                        Ok((guest.clone(), dir))
+                    })
+                    .collect::<anyhow::Result<Vec<_>>>()
+            }
+
+            let (ctx, wasi_snapshot_preview) = instantiate_wasi(
+                &wasi_args,
+                collect_preopen_dirs(&self.preopen_dirs)?,
+                &self.envs,
+            )?;
+            let (_, wasi_unstable) = instantiate_wasi(
+                &wasi_args,
+                collect_preopen_dirs(&self.preopen_dirs)?,
+                &self.envs,
+            )?;
+            store.add_embed_context(Box::new(ctx));
+            store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
+            store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
         }
-
-        let (ctx, wasi_snapshot_preview) = instantiate_wasi(
-            &wasi_args,
-            collect_preopen_dirs(&self.preopen_dirs)?,
-            &self.envs,
-        )?;
-        let (_, wasi_unstable) = instantiate_wasi(
-            &wasi_args,
-            collect_preopen_dirs(&self.preopen_dirs)?,
-            &self.envs,
-        )?;
-        store.add_embed_context(Box::new(ctx));
-        store.load_host_module("wasi_snapshot_preview1".to_string(), wasi_snapshot_preview);
-        store.load_host_module("wasi_unstable".to_string(), wasi_unstable);
 
         let main_module_index = store.load_module(None, main_module)?;
 
