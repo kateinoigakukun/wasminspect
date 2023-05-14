@@ -304,7 +304,7 @@ fn module_exports(bytes: &[u8]) -> anyhow::Result<Vec<WasmExport>> {
                         wasmparser::ExternalKind::Function => exports.push(WasmExport::Function {
                             name: export.field.to_string(),
                         }),
-                        _ => unimplemented!(),
+                        _ => unimplemented!("unsupported export kind {:?}", export.kind),
                     }
                 }
             }
