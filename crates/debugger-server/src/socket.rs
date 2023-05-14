@@ -132,11 +132,16 @@ pub async fn establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Erro
     result
 }
 
-async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
-    let config = WebSocketConfig {
+fn make_unlimited_ws_config() -> WebSocketConfig {
+    WebSocketConfig {
         max_message_size: None,
+        max_frame_size: None,
         ..WebSocketConfig::default()
-    };
+    }
+}
+
+async fn _establish_connection(upgraded: Upgraded) -> Result<(), anyhow::Error> {
+    let config = make_unlimited_ws_config();
     let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, Some(config)).await;
     let (tx, mut rx) = ws.split();
     let (request_tx, request_rx) = mpsc::channel::<Option<Message>>();
@@ -272,7 +277,7 @@ mod tests {
         }
 
         async fn echo(upgraded: Upgraded) -> anyhow::Result<()> {
-            let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, None).await;
+            let ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Server, Some(make_unlimited_ws_config())).await;
             let (tx, rx) = ws.split();
             rx.inspect(|i| log::debug!("ws recv: {:?}", i))
                 .forward(tx)
@@ -317,7 +322,7 @@ mod tests {
             .await
             .unwrap();
         let upgraded = upgraded_rx.await.expect("recv upgraded");
-        let mut ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Client, None).await;
+        let mut ws = WebSocketStream::from_raw_socket(upgraded, protocol::Role::Client, Some(make_unlimited_ws_config())).await;
         let msg = Message::Text("hello".to_string());
         ws.send(msg.clone()).await.expect("send msg");
         let recv = ws.next().await.expect("recv msg").unwrap();
