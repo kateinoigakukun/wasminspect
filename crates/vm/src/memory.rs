@@ -87,10 +87,7 @@ impl MemoryInstance {
     }
 
     pub fn grow(&mut self, n: usize) -> Result<()> {
-        let len = self.page_count() + n;
-        if len > 65536 {
-            return Err(Error::GrowOverMaximumPageSize(len));
-        }
+        let len = self.page_count().checked_add(n).ok_or(Error::GrowOverMaximumPageSize(n))?;
 
         if let Some(max) = self.max {
             if len > max {
