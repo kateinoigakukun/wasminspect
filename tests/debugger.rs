@@ -27,7 +27,7 @@ fn test_load_and_execute() -> anyhow::Result<()> {
     process
         .debugger
         .load_main_module(&bytes, String::from("calc.wasm"))?;
-    process.debugger.instantiate(host_modules, &args)?;
+    process.debugger.instantiate(host_modules, Some(&args))?;
     process
         .debugger
         .run(Some("add"), vec![WasmValue::I32(1), WasmValue::I32(2)])?;
