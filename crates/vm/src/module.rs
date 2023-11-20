@@ -181,14 +181,23 @@ impl HostModuleInstance {
 }
 
 impl HostModuleInstance {
-    pub(crate) fn global_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
+    pub(crate) fn global_by_name(
+        &self,
+        name: String,
+    ) -> HostModuleResult<Option<&ResolvedGlobalAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Global(global)) => Ok(Some(global)),
-            Some(v) => Err(HostModuleError::TypeMismatch("global", v.type_name().to_string())),
+            Some(v) => Err(HostModuleError::TypeMismatch(
+                "global",
+                v.type_name().to_string(),
+            )),
             _ => Ok(None),
         }
     }
-    pub(crate) fn func_by_name(&self, name: String) -> HostModuleResult<Option<&ExecutableFuncAddr>> {
+    pub(crate) fn func_by_name(
+        &self,
+        name: String,
+    ) -> HostModuleResult<Option<&ExecutableFuncAddr>> {
         match self.values.get(&name) {
             Some(HostExport::Func(ref func)) => Ok(Some(func)),
             Some(v) => Err(HostModuleError::TypeMismatch(
@@ -199,18 +208,30 @@ impl HostModuleInstance {
         }
     }
 
-    pub(crate) fn table_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedTableAddr>> {
+    pub(crate) fn table_by_name(
+        &self,
+        name: String,
+    ) -> HostModuleResult<Option<&ResolvedTableAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Table(table)) => Ok(Some(table)),
-            Some(v) => Err(HostModuleError::TypeMismatch("table", v.type_name().to_string())),
+            Some(v) => Err(HostModuleError::TypeMismatch(
+                "table",
+                v.type_name().to_string(),
+            )),
             _ => Ok(None),
         }
     }
 
-    pub(crate) fn memory_by_name(&self, name: String) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
+    pub(crate) fn memory_by_name(
+        &self,
+        name: String,
+    ) -> HostModuleResult<Option<&ResolvedMemoryAddr>> {
         match &self.values.get(&name) {
             Some(HostExport::Mem(mem)) => Ok(Some(mem)),
-            Some(v) => Err(HostModuleError::TypeMismatch("memory", v.type_name().to_string())),
+            Some(v) => Err(HostModuleError::TypeMismatch(
+                "memory",
+                v.type_name().to_string(),
+            )),
             _ => Ok(None),
         }
     }

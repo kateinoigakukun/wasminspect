@@ -7,8 +7,8 @@ use wast::HeapType;
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{
-    invoke_func_ignoring_break, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance, WasmValue,
-    F32, F64,
+    invoke_func_ignoring_break, FuncAddr, ModuleIndex, NumVal, RefType, RefVal, WasmInstance,
+    WasmValue, F32, F64,
 };
 
 pub struct WastContext {

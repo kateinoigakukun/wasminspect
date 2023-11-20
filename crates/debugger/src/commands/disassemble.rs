@@ -1,7 +1,7 @@
 use super::command::{Command, CommandContext, CommandResult};
 use super::debugger::{Debugger, OutputPrinter};
-use structopt::StructOpt;
 use anyhow::Result;
+use structopt::StructOpt;
 
 pub struct DisassembleCommand {}
 

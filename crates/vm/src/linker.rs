@@ -150,7 +150,10 @@ impl<Item> LinkableCollection<Item> {
         self.items.get(address.0).unwrap()
     }
 
-    pub(crate) fn get(&self, address: LinkableAddress<Item>) -> Option<(&Item, GlobalAddress<Item>)> {
+    pub(crate) fn get(
+        &self,
+        address: LinkableAddress<Item>,
+    ) -> Option<(&Item, GlobalAddress<Item>)> {
         let addr = self.resolve(address)?;
         Some((self.items.get(addr.0)?, addr))
     }
