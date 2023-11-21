@@ -88,7 +88,7 @@ impl MemoryInstance {
 
     pub fn grow(&mut self, n: usize) -> Result<()> {
         let len = self.page_count() + n;
-        if len > (i32::MAX as usize / WASM_PAGE_SIZE) {
+        if len > (u32::MAX as usize / WASM_PAGE_SIZE) {
             return Err(Error::GrowOverMaximumPageSize(len));
         }
 
