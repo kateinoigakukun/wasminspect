@@ -10,3 +10,10 @@ pub fn try_from_wasmparser_operator(args: TokenStream) -> TokenStream {
         .unwrap()
         .into()
 }
+
+#[proc_macro]
+pub fn define_instr_kind(args: TokenStream) -> TokenStream {
+    inst::define_instr_kind(syn::parse_macro_input!(args))
+        .unwrap()
+        .into()
+}

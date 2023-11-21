@@ -314,11 +314,11 @@ impl Executor {
                 let addr = FuncAddr::new_unsafe(frame.module_index(), *function_index as usize);
                 self.invoke(addr, store, interceptor)
             }
-            InstructionKind::CallIndirect { index, table_index, .. } => {
+            InstructionKind::CallIndirect { type_index, table_index, .. } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = TableAddr::new_unsafe(frame.module_index(), *table_index as usize);
                 let module = store.module(frame.module_index()).defined().unwrap();
-                let ty = module.get_type(*index as usize);
+                let ty = module.get_type(*type_index as usize);
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
