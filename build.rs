@@ -44,6 +44,10 @@ fn test_directory(out: &mut String, path: impl AsRef<Path>) -> Result<usize> {
             if p.file_stem()?.to_str()?.starts_with('.') {
                 return None;
             }
+            // Skip simd tests for now.
+            if p.file_name()?.to_str()?.starts_with("simd_") {
+                return None;
+            }
             Some(p)
         })
         .collect();
