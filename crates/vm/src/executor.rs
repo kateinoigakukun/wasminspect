@@ -203,9 +203,9 @@ impl Executor {
         config: &Config,
     ) -> ExecResult<Signal> {
         self.pc.inc_inst_index();
-        let result = match &inst.kind {
-            InstructionKind::Unreachable => Err(Trap::Unreachable),
-            InstructionKind::Nop => Ok(Signal::Next),
+        let result: Signal = match &inst.kind {
+            InstructionKind::Unreachable => return Err(Trap::Unreachable),
+            InstructionKind::Nop => Signal::Next,
             InstructionKind::Block { blockty } => {
                 let (params_size, results_size) = self.get_type_arity(blockty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
@@ -213,7 +213,7 @@ impl Executor {
                     arity: results_size,
                 });
                 self.stack.push_values(params.into_iter().rev());
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::Loop { blockty } => {
                 let start_loop = InstIndex(self.pc.inst_index().0 - 1);
@@ -222,7 +222,7 @@ impl Executor {
                 self.stack
                     .push_label(Label::new_loop(start_loop, params_size));
                 self.stack.push_values(params.into_iter().rev());
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::If { blockty } => {
                 let val: i32 = self.pop_as()?;
@@ -255,9 +255,9 @@ impl Executor {
                         self.pc.inc_inst_index();
                     }
                 }
-                Ok(Signal::Next)
+                Signal::Next
             }
-            InstructionKind::Else => self.branch(0, store),
+            InstructionKind::Else => self.branch(0, store)?,
             InstructionKind::End => {
                 if self.stack.is_func_top_level().map_err(Trap::Stack)? {
                     // When the end of a function is reached without a jump
@@ -272,9 +272,9 @@ impl Executor {
                     self.stack.push_values(results.into_iter().rev());
                     if let Some(ret_pc) = ret_pc {
                         self.pc = ret_pc;
-                        Ok(Signal::Next)
+                        Signal::Next
                     } else {
-                        Ok(Signal::End)
+                        Signal::End
                     }
                 } else {
                     // When the end of a block is reached without a jump
@@ -286,16 +286,16 @@ impl Executor {
                         .map(|v| v.into_value().map_err(Trap::Stack))
                         .collect::<ExecResult<Vec<_>>>()?;
                     self.stack.push_values(results);
-                    Ok(Signal::Next)
+                    Signal::Next
                 }
             }
-            InstructionKind::Br { relative_depth } => self.branch(*relative_depth, store),
+            InstructionKind::Br { relative_depth } => self.branch(*relative_depth, store)?,
             InstructionKind::BrIf { relative_depth } => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 if val != Value::I32(0) {
-                    self.branch(*relative_depth, store)
+                    self.branch(*relative_depth, store)?
                 } else {
-                    Ok(Signal::Next)
+                    Signal::Next
                 }
             }
             InstructionKind::BrTable { targets } => {
@@ -306,13 +306,13 @@ impl Executor {
                 } else {
                     targets.default
                 };
-                self.branch(depth, store)
+                self.branch(depth, store)?
             }
-            InstructionKind::Return => self.do_return(store),
+            InstructionKind::Return => self.do_return(store)?,
             InstructionKind::Call { function_index } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = FuncAddr::new_unsafe(frame.module_index(), *function_index as usize);
-                self.invoke(addr, store, interceptor)
+                self.invoke(addr, store, interceptor)?
             }
             InstructionKind::CallIndirect {
                 type_index,
@@ -340,9 +340,9 @@ impl Executor {
                     .func(func_addr)
                     .ok_or(Trap::UndefinedFunc(func_addr.1))?;
                 if func.ty() == ty {
-                    self.invoke(func_addr, store, interceptor)
+                    self.invoke(func_addr, store, interceptor)?
                 } else {
-                    Err(Trap::IndirectCallTypeMismatch {
+                    return Err(Trap::IndirectCallTypeMismatch {
                         callee_name: func.name().clone(),
                         expected: ty.clone(),
                         actual: func.ty().clone(),
@@ -351,7 +351,7 @@ impl Executor {
             }
             InstructionKind::Drop => {
                 self.stack.pop_value().map_err(Trap::Stack)?;
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::Select | InstructionKind::TypedSelect { .. } => {
                 let cond: i32 = self.pop_as()?;
@@ -362,7 +362,7 @@ impl Executor {
                 } else {
                     self.stack.push_value(val2);
                 }
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::LocalGet { local_index } => {
                 let value = self
@@ -371,27 +371,27 @@ impl Executor {
                     .map_err(Trap::Stack)?
                     .local(*local_index as usize);
                 self.stack.push_value(value);
-                Ok(Signal::Next)
+                Signal::Next
             }
-            InstructionKind::LocalSet { local_index } => self.set_local(*local_index as usize),
+            InstructionKind::LocalSet { local_index } => self.set_local(*local_index as usize)?,
             InstructionKind::LocalTee { local_index } => {
                 let val = self.stack.pop_value().map_err(Trap::Stack)?;
                 self.stack.push_value(val);
                 self.stack.push_value(val);
-                self.set_local(*local_index as usize)
+                self.set_local(*local_index as usize)?
             }
             InstructionKind::GlobalGet { global_index } => {
                 let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
                 let global = store.global(addr);
                 self.stack.push_value(global.borrow().value());
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::GlobalSet { global_index } => {
                 let addr = GlobalAddr::new_unsafe(module_index, *global_index as usize);
                 let value = self.stack.pop_value().map_err(Trap::Stack)?;
                 let global = store.global(addr);
                 global.borrow_mut().set_value(value);
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::TableGet { table } => {
                 let addr = TableAddr::new_unsafe(module_index, *table as usize);
@@ -399,7 +399,7 @@ impl Executor {
                 let index: i32 = self.pop_as()?;
                 let val = table.borrow().get_at(index as usize)?;
                 self.stack.push_value(Value::Ref(val));
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::TableSet { table } => {
                 let addr = TableAddr::new_unsafe(module_index, *table as usize);
@@ -407,14 +407,14 @@ impl Executor {
                 let ref_val = self.pop_ref()?;
                 let index: i32 = self.pop_as()?;
                 table.borrow_mut().set_at(index as usize, ref_val)?;
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::TableSize { table } => {
                 let addr = TableAddr::new_unsafe(module_index, *table as usize);
                 let table = store.table(addr);
                 let sz = table.borrow().buffer_len();
                 self.stack.push_value(Value::I32(sz as i32));
-                Ok(Signal::Next)
+                Signal::Next
             }
 
             InstructionKind::TableGrow { table } => {
@@ -428,7 +428,7 @@ impl Executor {
                     Err(_) => -1,
                 };
                 self.stack.push_value(Value::I32(ret_val));
-                Ok(Signal::Next)
+                Signal::Next
             }
 
             InstructionKind::TableFill { table } => {
@@ -444,7 +444,7 @@ impl Executor {
                     table.borrow_mut().set_at(index, ref_val)?;
                 }
 
-                Ok(Signal::Next)
+                Signal::Next
             }
 
             InstructionKind::TableCopy {
@@ -470,7 +470,7 @@ impl Executor {
                     dst_table.borrow_mut().set_at(dst_base + offset, val)?;
                 }
 
-                Ok(Signal::Next)
+                Signal::Next
             }
 
             InstructionKind::TableInit { elem_index, table } => {
@@ -489,85 +489,85 @@ impl Executor {
                     let val = elem.borrow().get_at(src_base + offset)?;
                     table.borrow_mut().set_at(dst_base + offset, val)?;
                 }
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::ElemDrop { elem_index } => {
                 let elem_addr = ElemAddr::new_unsafe(module_index, *elem_index as usize);
                 let elem = store.elem(elem_addr);
                 elem.borrow_mut().drop_elem();
-                Ok(Signal::Next)
+                Signal::Next
             }
 
-            InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset, store, config),
-            InstructionKind::I64Load { memarg } => self.load::<i64>(memarg.offset, store, config),
-            InstructionKind::F32Load { memarg } => self.load::<F32>(memarg.offset, store, config),
-            InstructionKind::F64Load { memarg } => self.load::<F64>(memarg.offset, store, config),
+            InstructionKind::I32Load { memarg } => self.load::<i32>(memarg.offset, store, config)?,
+            InstructionKind::I64Load { memarg } => self.load::<i64>(memarg.offset, store, config)?,
+            InstructionKind::F32Load { memarg } => self.load::<F32>(memarg.offset, store, config)?,
+            InstructionKind::F64Load { memarg } => self.load::<F64>(memarg.offset, store, config)?,
 
             InstructionKind::I32Load8S { memarg } => {
-                self.load_extend::<i8, i32>(memarg.offset, store, config)
+                self.load_extend::<i8, i32>(memarg.offset, store, config)?
             }
             InstructionKind::I32Load8U { memarg } => {
-                self.load_extend::<u8, i32>(memarg.offset, store, config)
+                self.load_extend::<u8, i32>(memarg.offset, store, config)?
             }
             InstructionKind::I32Load16S { memarg } => {
-                self.load_extend::<i16, i32>(memarg.offset, store, config)
+                self.load_extend::<i16, i32>(memarg.offset, store, config)?
             }
             InstructionKind::I32Load16U { memarg } => {
-                self.load_extend::<u16, i32>(memarg.offset, store, config)
+                self.load_extend::<u16, i32>(memarg.offset, store, config)?
             }
 
             InstructionKind::I64Load8S { memarg } => {
-                self.load_extend::<i8, i64>(memarg.offset, store, config)
+                self.load_extend::<i8, i64>(memarg.offset, store, config)?
             }
             InstructionKind::I64Load8U { memarg } => {
-                self.load_extend::<u8, i64>(memarg.offset, store, config)
+                self.load_extend::<u8, i64>(memarg.offset, store, config)?
             }
             InstructionKind::I64Load16S { memarg } => {
-                self.load_extend::<i16, i64>(memarg.offset, store, config)
+                self.load_extend::<i16, i64>(memarg.offset, store, config)?
             }
             InstructionKind::I64Load16U { memarg } => {
-                self.load_extend::<u16, i64>(memarg.offset, store, config)
+                self.load_extend::<u16, i64>(memarg.offset, store, config)?
             }
             InstructionKind::I64Load32S { memarg } => {
-                self.load_extend::<i32, i64>(memarg.offset, store, config)
+                self.load_extend::<i32, i64>(memarg.offset, store, config)?
             }
             InstructionKind::I64Load32U { memarg } => {
-                self.load_extend::<u32, i64>(memarg.offset, store, config)
+                self.load_extend::<u32, i64>(memarg.offset, store, config)?
             }
 
             InstructionKind::I32Store { memarg } => {
-                self.store::<i32, _>(memarg.offset, store, interceptor, config)
+                self.store::<i32, _>(memarg.offset, store, interceptor, config)?
             }
             InstructionKind::I64Store { memarg } => {
-                self.store::<i64, _>(memarg.offset, store, interceptor, config)
+                self.store::<i64, _>(memarg.offset, store, interceptor, config)?
             }
             InstructionKind::F32Store { memarg } => {
-                self.store::<F32, _>(memarg.offset, store, interceptor, config)
+                self.store::<F32, _>(memarg.offset, store, interceptor, config)?
             }
             InstructionKind::F64Store { memarg } => {
-                self.store::<F64, _>(memarg.offset, store, interceptor, config)
+                self.store::<F64, _>(memarg.offset, store, interceptor, config)?
             }
 
             InstructionKind::I32Store8 { memarg } => {
-                self.store_with_width::<i32, _>(memarg.offset, 1, store, interceptor, config)
+                self.store_with_width::<i32, _>(memarg.offset, 1, store, interceptor, config)?
             }
             InstructionKind::I32Store16 { memarg } => {
-                self.store_with_width::<i32, _>(memarg.offset, 2, store, interceptor, config)
+                self.store_with_width::<i32, _>(memarg.offset, 2, store, interceptor, config)?
             }
             InstructionKind::I64Store8 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset, 1, store, interceptor, config)
+                self.store_with_width::<i64, _>(memarg.offset, 1, store, interceptor, config)?
             }
             InstructionKind::I64Store16 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset, 2, store, interceptor, config)
+                self.store_with_width::<i64, _>(memarg.offset, 2, store, interceptor, config)?
             }
             InstructionKind::I64Store32 { memarg } => {
-                self.store_with_width::<i64, _>(memarg.offset, 4, store, interceptor, config)
+                self.store_with_width::<i64, _>(memarg.offset, 4, store, interceptor, config)?
             }
 
             InstructionKind::MemorySize { .. } => {
                 self.stack
                     .push_value(Value::I32(self.memory(store)?.borrow().page_count() as i32));
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::MemoryGrow { .. } => {
                 let grow_page: i32 = self.pop_as()?;
@@ -582,7 +582,7 @@ impl Executor {
                         self.stack.push_value(Value::I32(-1));
                     }
                 }
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::MemoryCopy { src_mem, dst_mem } => {
                 let dst_addr = MemoryAddr::new_unsafe(module_index, *dst_mem as usize);
@@ -604,7 +604,7 @@ impl Executor {
                 dst_mem.borrow().validate_region(dst_base, n)?;
                 dst_mem.borrow_mut().store(dst_base, &values)?;
 
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::MemoryFill { mem } => {
                 let addr = MemoryAddr::new_unsafe(module_index, *mem as usize);
@@ -619,7 +619,7 @@ impl Executor {
                 mem.borrow_mut()
                     .store(offset, &std::iter::repeat(val).take(n).collect::<Vec<_>>())?;
 
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::MemoryInit { data_index, mem } => {
                 let mem_addr = MemoryAddr::new_unsafe(module_index, *mem as usize);
@@ -635,20 +635,20 @@ impl Executor {
 
                 mem.borrow_mut()
                     .store(dst_base, &data.borrow().raw()[src_base..(src_base + n)])?;
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::DataDrop { data_index } => {
                 let data_addr = DataAddr::new_unsafe(module_index, *data_index as usize);
                 let data = store.data(data_addr);
                 data.borrow_mut().drop_bytes();
-                Ok(Signal::Next)
+                Signal::Next
             }
 
             InstructionKind::RefNull { ty } => {
                 let null_ref = Value::null_ref(*ty)
                     .expect("invalid null_ref type should be validated before execution");
                 self.stack.push_value(null_ref);
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::RefIsNull => {
                 let ref_val = self.pop_ref()?;
@@ -657,7 +657,7 @@ impl Executor {
                     _ => Value::I32(0),
                 };
                 self.stack.push_value(ret_val);
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::RefFunc { function_index } => {
                 let ref_val = Value::Ref(RefVal::FuncRef(FuncAddr::new_unsafe(
@@ -665,183 +665,183 @@ impl Executor {
                     *function_index as usize,
                 )));
                 self.stack.push_value(ref_val);
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::I32Const { value } => {
                 self.stack.push_value(Value::I32(*value));
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::I64Const { value } => {
                 self.stack.push_value(Value::I64(*value));
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::F32Const { value } => {
                 self.stack.push_value(Value::F32(value.bits()));
-                Ok(Signal::Next)
+                Signal::Next
             }
             InstructionKind::F64Const { value } => {
                 self.stack.push_value(Value::F64(value.bits()));
-                Ok(Signal::Next)
+                Signal::Next
             }
 
-            InstructionKind::I32Eqz => self.testop::<i32, _>(|v| v == 0),
-            InstructionKind::I32Eq => self.relop(|a: i32, b: i32| a == b),
-            InstructionKind::I32Ne => self.relop(|a: i32, b: i32| a != b),
-            InstructionKind::I32LtS => self.relop(|a: i32, b: i32| a < b),
-            InstructionKind::I32LtU => self.relop::<u32, _>(|a, b| a < b),
-            InstructionKind::I32GtS => self.relop(|a: i32, b: i32| a > b),
-            InstructionKind::I32GtU => self.relop::<u32, _>(|a, b| a > b),
-            InstructionKind::I32LeS => self.relop(|a: i32, b: i32| a <= b),
-            InstructionKind::I32LeU => self.relop::<u32, _>(|a, b| a <= b),
-            InstructionKind::I32GeS => self.relop(|a: i32, b: i32| a >= b),
-            InstructionKind::I32GeU => self.relop::<u32, _>(|a, b| a >= b),
+            InstructionKind::I32Eqz => self.testop::<i32, _>(|v| v == 0)?,
+            InstructionKind::I32Eq => self.relop(|a: i32, b: i32| a == b)?,
+            InstructionKind::I32Ne => self.relop(|a: i32, b: i32| a != b)?,
+            InstructionKind::I32LtS => self.relop(|a: i32, b: i32| a < b)?,
+            InstructionKind::I32LtU => self.relop::<u32, _>(|a, b| a < b)?,
+            InstructionKind::I32GtS => self.relop(|a: i32, b: i32| a > b)?,
+            InstructionKind::I32GtU => self.relop::<u32, _>(|a, b| a > b)?,
+            InstructionKind::I32LeS => self.relop(|a: i32, b: i32| a <= b)?,
+            InstructionKind::I32LeU => self.relop::<u32, _>(|a, b| a <= b)?,
+            InstructionKind::I32GeS => self.relop(|a: i32, b: i32| a >= b)?,
+            InstructionKind::I32GeU => self.relop::<u32, _>(|a, b| a >= b)?,
 
-            InstructionKind::I64Eqz => self.testop::<i64, _>(|v| v == 0),
-            InstructionKind::I64Eq => self.relop(|a: i64, b: i64| a == b),
-            InstructionKind::I64Ne => self.relop(|a: i64, b: i64| a != b),
-            InstructionKind::I64LtS => self.relop(|a: i64, b: i64| a < b),
-            InstructionKind::I64LtU => self.relop::<u64, _>(|a, b| a < b),
-            InstructionKind::I64GtS => self.relop(|a: i64, b: i64| a > b),
-            InstructionKind::I64GtU => self.relop::<u64, _>(|a, b| a > b),
-            InstructionKind::I64LeS => self.relop(|a: i64, b: i64| a <= b),
-            InstructionKind::I64LeU => self.relop::<u64, _>(|a, b| a <= b),
-            InstructionKind::I64GeS => self.relop(|a: i64, b: i64| a >= b),
-            InstructionKind::I64GeU => self.relop::<u64, _>(|a, b| a >= b),
-
-            // Safety: imprecision is expected behavior
-            #[allow(clippy::float_cmp)]
-            InstructionKind::F32Eq => self.relop::<F32, _>(|a, b| a.to_float() == b.to_float()),
-            #[allow(clippy::float_cmp)]
-            InstructionKind::F32Ne => self.relop::<F32, _>(|a, b| a.to_float() != b.to_float()),
-            InstructionKind::F32Lt => self.relop::<F32, _>(|a, b| a.to_float() < b.to_float()),
-            InstructionKind::F32Gt => self.relop::<F32, _>(|a, b| a.to_float() > b.to_float()),
-            InstructionKind::F32Le => self.relop::<F32, _>(|a, b| a.to_float() <= b.to_float()),
-            InstructionKind::F32Ge => self.relop::<F32, _>(|a, b| a.to_float() >= b.to_float()),
+            InstructionKind::I64Eqz => self.testop::<i64, _>(|v| v == 0)?,
+            InstructionKind::I64Eq => self.relop(|a: i64, b: i64| a == b)?,
+            InstructionKind::I64Ne => self.relop(|a: i64, b: i64| a != b)?,
+            InstructionKind::I64LtS => self.relop(|a: i64, b: i64| a < b)?,
+            InstructionKind::I64LtU => self.relop::<u64, _>(|a, b| a < b)?,
+            InstructionKind::I64GtS => self.relop(|a: i64, b: i64| a > b)?,
+            InstructionKind::I64GtU => self.relop::<u64, _>(|a, b| a > b)?,
+            InstructionKind::I64LeS => self.relop(|a: i64, b: i64| a <= b)?,
+            InstructionKind::I64LeU => self.relop::<u64, _>(|a, b| a <= b)?,
+            InstructionKind::I64GeS => self.relop(|a: i64, b: i64| a >= b)?,
+            InstructionKind::I64GeU => self.relop::<u64, _>(|a, b| a >= b)?,
 
             // Safety: imprecision is expected behavior
             #[allow(clippy::float_cmp)]
-            InstructionKind::F64Eq => self.relop(|a: F64, b: F64| a.to_float() == b.to_float()),
+            InstructionKind::F32Eq => self.relop::<F32, _>(|a, b| a.to_float() == b.to_float())?,
             #[allow(clippy::float_cmp)]
-            InstructionKind::F64Ne => self.relop(|a: F64, b: F64| a.to_float() != b.to_float()),
-            InstructionKind::F64Lt => self.relop(|a: F64, b: F64| a.to_float() < b.to_float()),
-            InstructionKind::F64Gt => self.relop(|a: F64, b: F64| a.to_float() > b.to_float()),
-            InstructionKind::F64Le => self.relop(|a: F64, b: F64| a.to_float() <= b.to_float()),
-            InstructionKind::F64Ge => self.relop(|a: F64, b: F64| a.to_float() >= b.to_float()),
+            InstructionKind::F32Ne => self.relop::<F32, _>(|a, b| a.to_float() != b.to_float())?,
+            InstructionKind::F32Lt => self.relop::<F32, _>(|a, b| a.to_float() < b.to_float())?,
+            InstructionKind::F32Gt => self.relop::<F32, _>(|a, b| a.to_float() > b.to_float())?,
+            InstructionKind::F32Le => self.relop::<F32, _>(|a, b| a.to_float() <= b.to_float())?,
+            InstructionKind::F32Ge => self.relop::<F32, _>(|a, b| a.to_float() >= b.to_float())?,
 
-            InstructionKind::I32Clz => self.unop(|v: i32| v.leading_zeros() as i32),
-            InstructionKind::I32Ctz => self.unop(|v: i32| v.trailing_zeros() as i32),
-            InstructionKind::I32Popcnt => self.unop(|v: i32| v.count_ones() as i32),
-            InstructionKind::I32Add => self.binop(|a: u32, b: u32| a.wrapping_add(b)),
-            InstructionKind::I32Sub => self.binop(|a: i32, b: i32| a.wrapping_sub(b)),
-            InstructionKind::I32Mul => self.binop(|a: i32, b: i32| a.wrapping_mul(b)),
-            InstructionKind::I32DivS => self.try_binop(I32::try_wrapping_div),
-            InstructionKind::I32DivU => self.try_binop(U32::try_wrapping_div),
-            InstructionKind::I32RemS => self.try_binop(I32::try_wrapping_rem),
-            InstructionKind::I32RemU => self.try_binop(U32::try_wrapping_rem),
-            InstructionKind::I32And => self.binop(|a: i32, b: i32| a.bitand(b)),
-            InstructionKind::I32Or => self.binop(|a: i32, b: i32| a.bitor(b)),
-            InstructionKind::I32Xor => self.binop(|a: i32, b: i32| a.bitxor(b)),
-            InstructionKind::I32Shl => self.binop(|a: u32, b: u32| a.wrapping_shl(b)),
-            InstructionKind::I32ShrS => self.binop(|a: i32, b: i32| a.wrapping_shr(b as u32)),
-            InstructionKind::I32ShrU => self.binop(|a: u32, b: u32| a.wrapping_shr(b)),
-            InstructionKind::I32Rotl => self.binop(|a: i32, b: i32| a.rotate_left(b as u32)),
-            InstructionKind::I32Rotr => self.binop(|a: i32, b: i32| a.rotate_right(b as u32)),
+            // Safety: imprecision is expected behavior
+            #[allow(clippy::float_cmp)]
+            InstructionKind::F64Eq => self.relop(|a: F64, b: F64| a.to_float() == b.to_float())?,
+            #[allow(clippy::float_cmp)]
+            InstructionKind::F64Ne => self.relop(|a: F64, b: F64| a.to_float() != b.to_float())?,
+            InstructionKind::F64Lt => self.relop(|a: F64, b: F64| a.to_float() < b.to_float())?,
+            InstructionKind::F64Gt => self.relop(|a: F64, b: F64| a.to_float() > b.to_float())?,
+            InstructionKind::F64Le => self.relop(|a: F64, b: F64| a.to_float() <= b.to_float())?,
+            InstructionKind::F64Ge => self.relop(|a: F64, b: F64| a.to_float() >= b.to_float())?,
 
-            InstructionKind::I64Clz => self.unop(|v: i64| v.leading_zeros() as i64),
-            InstructionKind::I64Ctz => self.unop(|v: i64| v.trailing_zeros() as i64),
-            InstructionKind::I64Popcnt => self.unop(|v: i64| v.count_ones() as i64),
-            InstructionKind::I64Add => self.binop(|a: i64, b: i64| a.wrapping_add(b)),
-            InstructionKind::I64Sub => self.binop(|a: i64, b: i64| a.wrapping_sub(b)),
-            InstructionKind::I64Mul => self.binop(|a: i64, b: i64| a.wrapping_mul(b)),
-            InstructionKind::I64DivS => self.try_binop(I64::try_wrapping_div),
-            InstructionKind::I64DivU => self.try_binop(U64::try_wrapping_div),
-            InstructionKind::I64RemS => self.try_binop(I64::try_wrapping_rem),
-            InstructionKind::I64RemU => self.try_binop(U64::try_wrapping_rem),
-            InstructionKind::I64And => self.binop(|a: i64, b: i64| a.bitand(b)),
-            InstructionKind::I64Or => self.binop(|a: i64, b: i64| a.bitor(b)),
-            InstructionKind::I64Xor => self.binop(|a: i64, b: i64| a.bitxor(b)),
-            InstructionKind::I64Shl => self.binop(|a: u64, b: u64| a.wrapping_shl(b as u32)),
-            InstructionKind::I64ShrS => self.binop(|a: i64, b: i64| a.wrapping_shr(b as u32)),
-            InstructionKind::I64ShrU => self.binop(|a: u64, b: u64| a.wrapping_shr(b as u32)),
-            InstructionKind::I64Rotl => self.binop(|a: i64, b: i64| a.rotate_left(b as u32)),
-            InstructionKind::I64Rotr => self.binop(|a: i64, b: i64| a.rotate_right(b as u32)),
+            InstructionKind::I32Clz => self.unop(|v: i32| v.leading_zeros() as i32)?,
+            InstructionKind::I32Ctz => self.unop(|v: i32| v.trailing_zeros() as i32)?,
+            InstructionKind::I32Popcnt => self.unop(|v: i32| v.count_ones() as i32)?,
+            InstructionKind::I32Add => self.binop(|a: u32, b: u32| a.wrapping_add(b))?,
+            InstructionKind::I32Sub => self.binop(|a: i32, b: i32| a.wrapping_sub(b))?,
+            InstructionKind::I32Mul => self.binop(|a: i32, b: i32| a.wrapping_mul(b))?,
+            InstructionKind::I32DivS => self.try_binop(I32::try_wrapping_div)?,
+            InstructionKind::I32DivU => self.try_binop(U32::try_wrapping_div)?,
+            InstructionKind::I32RemS => self.try_binop(I32::try_wrapping_rem)?,
+            InstructionKind::I32RemU => self.try_binop(U32::try_wrapping_rem)?,
+            InstructionKind::I32And => self.binop(|a: i32, b: i32| a.bitand(b))?,
+            InstructionKind::I32Or => self.binop(|a: i32, b: i32| a.bitor(b))?,
+            InstructionKind::I32Xor => self.binop(|a: i32, b: i32| a.bitxor(b))?,
+            InstructionKind::I32Shl => self.binop(|a: u32, b: u32| a.wrapping_shl(b))?,
+            InstructionKind::I32ShrS => self.binop(|a: i32, b: i32| a.wrapping_shr(b as u32))?,
+            InstructionKind::I32ShrU => self.binop(|a: u32, b: u32| a.wrapping_shr(b))?,
+            InstructionKind::I32Rotl => self.binop(|a: i32, b: i32| a.rotate_left(b as u32))?,
+            InstructionKind::I32Rotr => self.binop(|a: i32, b: i32| a.rotate_right(b as u32))?,
 
-            InstructionKind::F32Abs => self.unop(|v: F32| v.to_float().abs()),
-            InstructionKind::F32Neg => self.unop(|v: F32| -v.to_float()),
-            InstructionKind::F32Ceil => self.unop(|v: F32| v.to_float().ceil()),
-            InstructionKind::F32Floor => self.unop(|v: F32| v.to_float().floor()),
-            InstructionKind::F32Trunc => self.unop(|v: F32| v.to_float().trunc()),
-            InstructionKind::F32Nearest => self.unop(|v: F32| v.nearest()),
-            InstructionKind::F32Sqrt => self.unop(|v: F32| v.to_float().sqrt()),
-            InstructionKind::F32Add => self.binop(|a: F32, b: F32| a.to_float() + b.to_float()),
-            InstructionKind::F32Sub => self.binop(|a: F32, b: F32| a.to_float() - b.to_float()),
-            InstructionKind::F32Mul => self.binop(|a: F32, b: F32| a.to_float() * b.to_float()),
-            InstructionKind::F32Div => self.binop(|a: F32, b: F32| a.to_float() / b.to_float()),
-            InstructionKind::F32Min => self.binop(F32::min),
-            InstructionKind::F32Max => self.binop(F32::max),
-            InstructionKind::F32Copysign => self.binop(|a: F32, b: F32| a.copysign(b)),
+            InstructionKind::I64Clz => self.unop(|v: i64| v.leading_zeros() as i64)?,
+            InstructionKind::I64Ctz => self.unop(|v: i64| v.trailing_zeros() as i64)?,
+            InstructionKind::I64Popcnt => self.unop(|v: i64| v.count_ones() as i64)?,
+            InstructionKind::I64Add => self.binop(|a: i64, b: i64| a.wrapping_add(b))?,
+            InstructionKind::I64Sub => self.binop(|a: i64, b: i64| a.wrapping_sub(b))?,
+            InstructionKind::I64Mul => self.binop(|a: i64, b: i64| a.wrapping_mul(b))?,
+            InstructionKind::I64DivS => self.try_binop(I64::try_wrapping_div)?,
+            InstructionKind::I64DivU => self.try_binop(U64::try_wrapping_div)?,
+            InstructionKind::I64RemS => self.try_binop(I64::try_wrapping_rem)?,
+            InstructionKind::I64RemU => self.try_binop(U64::try_wrapping_rem)?,
+            InstructionKind::I64And => self.binop(|a: i64, b: i64| a.bitand(b))?,
+            InstructionKind::I64Or => self.binop(|a: i64, b: i64| a.bitor(b))?,
+            InstructionKind::I64Xor => self.binop(|a: i64, b: i64| a.bitxor(b))?,
+            InstructionKind::I64Shl => self.binop(|a: u64, b: u64| a.wrapping_shl(b as u32))?,
+            InstructionKind::I64ShrS => self.binop(|a: i64, b: i64| a.wrapping_shr(b as u32))?,
+            InstructionKind::I64ShrU => self.binop(|a: u64, b: u64| a.wrapping_shr(b as u32))?,
+            InstructionKind::I64Rotl => self.binop(|a: i64, b: i64| a.rotate_left(b as u32))?,
+            InstructionKind::I64Rotr => self.binop(|a: i64, b: i64| a.rotate_right(b as u32))?,
 
-            InstructionKind::F64Abs => self.unop(|v: F64| v.to_float().abs()),
-            InstructionKind::F64Neg => self.unop(|v: F64| -v.to_float()),
-            InstructionKind::F64Ceil => self.unop(|v: F64| v.to_float().ceil()),
-            InstructionKind::F64Floor => self.unop(|v: F64| v.to_float().floor()),
-            InstructionKind::F64Trunc => self.unop(|v: F64| v.to_float().trunc()),
-            InstructionKind::F64Nearest => self.unop(|v: F64| v.nearest()),
-            InstructionKind::F64Sqrt => self.unop(|v: F64| v.to_float().sqrt()),
-            InstructionKind::F64Add => self.binop(|a: F64, b: F64| a.to_float() + b.to_float()),
-            InstructionKind::F64Sub => self.binop(|a: F64, b: F64| a.to_float() - b.to_float()),
-            InstructionKind::F64Mul => self.binop(|a: F64, b: F64| a.to_float() * b.to_float()),
-            InstructionKind::F64Div => self.binop(|a: F64, b: F64| a.to_float() / b.to_float()),
-            InstructionKind::F64Min => self.binop(F64::min),
-            InstructionKind::F64Max => self.binop(F64::max),
-            InstructionKind::F64Copysign => self.binop(|a: F64, b: F64| a.copysign(b)),
+            InstructionKind::F32Abs => self.unop(|v: F32| v.to_float().abs())?,
+            InstructionKind::F32Neg => self.unop(|v: F32| -v.to_float())?,
+            InstructionKind::F32Ceil => self.unop(|v: F32| v.to_float().ceil())?,
+            InstructionKind::F32Floor => self.unop(|v: F32| v.to_float().floor())?,
+            InstructionKind::F32Trunc => self.unop(|v: F32| v.to_float().trunc())?,
+            InstructionKind::F32Nearest => self.unop(|v: F32| v.nearest())?,
+            InstructionKind::F32Sqrt => self.unop(|v: F32| v.to_float().sqrt())?,
+            InstructionKind::F32Add => self.binop(|a: F32, b: F32| a.to_float() + b.to_float())?,
+            InstructionKind::F32Sub => self.binop(|a: F32, b: F32| a.to_float() - b.to_float())?,
+            InstructionKind::F32Mul => self.binop(|a: F32, b: F32| a.to_float() * b.to_float())?,
+            InstructionKind::F32Div => self.binop(|a: F32, b: F32| a.to_float() / b.to_float())?,
+            InstructionKind::F32Min => self.binop(F32::min)?,
+            InstructionKind::F32Max => self.binop(F32::max)?,
+            InstructionKind::F32Copysign => self.binop(|a: F32, b: F32| a.copysign(b))?,
 
-            InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32)),
-            InstructionKind::I32TruncF32S => self.try_unop::<F32, _, _>(TruncTo::<i32>::trunc_to),
-            InstructionKind::I32TruncF32U => self.try_unop::<F32, _, _>(TruncTo::<u32>::trunc_to),
-            InstructionKind::I32TruncF64S => self.try_unop::<F64, _, _>(TruncTo::<i32>::trunc_to),
-            InstructionKind::I32TruncF64U => self.try_unop::<F64, _, _>(TruncTo::<u32>::trunc_to),
-            InstructionKind::I64ExtendI32S => self.unop(|v: i32| Value::from(v as u64)),
-            InstructionKind::I64ExtendI32U => self.unop(|v: u32| Value::from(v as u64)),
-            InstructionKind::I64TruncF32S => self.try_unop::<F32, _, _>(TruncTo::<i64>::trunc_to),
-            InstructionKind::I64TruncF32U => self.try_unop::<F32, _, _>(TruncTo::<u64>::trunc_to),
-            InstructionKind::I64TruncF64S => self.try_unop::<F64, _, _>(TruncTo::<i64>::trunc_to),
-            InstructionKind::I64TruncF64U => self.try_unop::<F64, _, _>(TruncTo::<u64>::trunc_to),
-            InstructionKind::F32ConvertI32S => self.unop(|x: u32| x as i32 as f32),
-            InstructionKind::F32ConvertI32U => self.unop(|x: u32| x as f32),
-            InstructionKind::F32ConvertI64S => self.unop(|x: u64| x as i64 as f32),
-            InstructionKind::F32ConvertI64U => self.unop(|x: u64| x as f32),
-            InstructionKind::F32DemoteF64 => self.unop(|x: F64| x.to_float() as f32),
-            InstructionKind::F64ConvertI32S => self.unop(|x: u32| f64::from(x as i32)),
-            InstructionKind::F64ConvertI32U => self.unop::<u32, _, _>(f64::from),
-            InstructionKind::F64ConvertI64S => self.unop(|x: u64| x as i64 as f64),
-            InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64),
-            InstructionKind::F64PromoteF32 => self.unop(|x: F32| f64::from(x.to_float())),
+            InstructionKind::F64Abs => self.unop(|v: F64| v.to_float().abs())?,
+            InstructionKind::F64Neg => self.unop(|v: F64| -v.to_float())?,
+            InstructionKind::F64Ceil => self.unop(|v: F64| v.to_float().ceil())?,
+            InstructionKind::F64Floor => self.unop(|v: F64| v.to_float().floor())?,
+            InstructionKind::F64Trunc => self.unop(|v: F64| v.to_float().trunc())?,
+            InstructionKind::F64Nearest => self.unop(|v: F64| v.nearest())?,
+            InstructionKind::F64Sqrt => self.unop(|v: F64| v.to_float().sqrt())?,
+            InstructionKind::F64Add => self.binop(|a: F64, b: F64| a.to_float() + b.to_float())?,
+            InstructionKind::F64Sub => self.binop(|a: F64, b: F64| a.to_float() - b.to_float())?,
+            InstructionKind::F64Mul => self.binop(|a: F64, b: F64| a.to_float() * b.to_float())?,
+            InstructionKind::F64Div => self.binop(|a: F64, b: F64| a.to_float() / b.to_float())?,
+            InstructionKind::F64Min => self.binop(F64::min)?,
+            InstructionKind::F64Max => self.binop(F64::max)?,
+            InstructionKind::F64Copysign => self.binop(|a: F64, b: F64| a.copysign(b))?,
 
-            InstructionKind::I32Extend8S => self.unop(|x: i32| I32::extend_with_width(x, 8)),
-            InstructionKind::I32Extend16S => self.unop(|x: i32| I32::extend_with_width(x, 16)),
-            InstructionKind::I64Extend8S => self.unop(|x: i64| I64::extend_with_width(x, 8)),
-            InstructionKind::I64Extend16S => self.unop(|x: i64| I64::extend_with_width(x, 16)),
-            InstructionKind::I64Extend32S => self.unop(|x: i64| I64::extend_with_width(x, 32)),
+            InstructionKind::I32WrapI64 => self.unop(|v: i64| Value::I32(v as i32))?,
+            InstructionKind::I32TruncF32S => self.try_unop::<F32, _, _>(TruncTo::<i32>::trunc_to)?,
+            InstructionKind::I32TruncF32U => self.try_unop::<F32, _, _>(TruncTo::<u32>::trunc_to)?,
+            InstructionKind::I32TruncF64S => self.try_unop::<F64, _, _>(TruncTo::<i32>::trunc_to)?,
+            InstructionKind::I32TruncF64U => self.try_unop::<F64, _, _>(TruncTo::<u32>::trunc_to)?,
+            InstructionKind::I64ExtendI32S => self.unop(|v: i32| Value::from(v as u64))?,
+            InstructionKind::I64ExtendI32U => self.unop(|v: u32| Value::from(v as u64))?,
+            InstructionKind::I64TruncF32S => self.try_unop::<F32, _, _>(TruncTo::<i64>::trunc_to)?,
+            InstructionKind::I64TruncF32U => self.try_unop::<F32, _, _>(TruncTo::<u64>::trunc_to)?,
+            InstructionKind::I64TruncF64S => self.try_unop::<F64, _, _>(TruncTo::<i64>::trunc_to)?,
+            InstructionKind::I64TruncF64U => self.try_unop::<F64, _, _>(TruncTo::<u64>::trunc_to)?,
+            InstructionKind::F32ConvertI32S => self.unop(|x: u32| x as i32 as f32)?,
+            InstructionKind::F32ConvertI32U => self.unop(|x: u32| x as f32)?,
+            InstructionKind::F32ConvertI64S => self.unop(|x: u64| x as i64 as f32)?,
+            InstructionKind::F32ConvertI64U => self.unop(|x: u64| x as f32)?,
+            InstructionKind::F32DemoteF64 => self.unop(|x: F64| x.to_float() as f32)?,
+            InstructionKind::F64ConvertI32S => self.unop(|x: u32| f64::from(x as i32))?,
+            InstructionKind::F64ConvertI32U => self.unop::<u32, _, _>(f64::from)?,
+            InstructionKind::F64ConvertI64S => self.unop(|x: u64| x as i64 as f64)?,
+            InstructionKind::F64ConvertI64U => self.unop(|x: u64| x as f64)?,
+            InstructionKind::F64PromoteF32 => self.unop(|x: F32| f64::from(x.to_float()))?,
 
-            InstructionKind::I32ReinterpretF32 => self.unop(|v: F32| v.to_bits() as i32),
-            InstructionKind::I64ReinterpretF64 => self.unop(|v: F64| v.to_bits() as i64),
-            InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits),
-            InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits),
-            InstructionKind::I32TruncSatF32S => self.unop::<F32, _, _>(TruncSat::<i32>::trunc_sat),
-            InstructionKind::I32TruncSatF32U => self.unop::<F32, _, _>(TruncSat::<u32>::trunc_sat),
-            InstructionKind::I32TruncSatF64S => self.unop::<F64, _, _>(TruncSat::<i32>::trunc_sat),
-            InstructionKind::I32TruncSatF64U => self.unop::<F64, _, _>(TruncSat::<u32>::trunc_sat),
-            InstructionKind::I64TruncSatF32S => self.unop::<F32, _, _>(TruncSat::<i64>::trunc_sat),
-            InstructionKind::I64TruncSatF32U => self.unop::<F32, _, _>(TruncSat::<u64>::trunc_sat),
-            InstructionKind::I64TruncSatF64S => self.unop::<F64, _, _>(TruncSat::<i64>::trunc_sat),
-            InstructionKind::I64TruncSatF64U => self.unop::<F64, _, _>(TruncSat::<u64>::trunc_sat),
+            InstructionKind::I32Extend8S => self.unop(|x: i32| I32::extend_with_width(x, 8))?,
+            InstructionKind::I32Extend16S => self.unop(|x: i32| I32::extend_with_width(x, 16))?,
+            InstructionKind::I64Extend8S => self.unop(|x: i64| I64::extend_with_width(x, 8))?,
+            InstructionKind::I64Extend16S => self.unop(|x: i64| I64::extend_with_width(x, 16))?,
+            InstructionKind::I64Extend32S => self.unop(|x: i64| I64::extend_with_width(x, 32))?,
+
+            InstructionKind::I32ReinterpretF32 => self.unop(|v: F32| v.to_bits() as i32)?,
+            InstructionKind::I64ReinterpretF64 => self.unop(|v: F64| v.to_bits() as i64)?,
+            InstructionKind::F32ReinterpretI32 => self.unop(f32::from_bits)?,
+            InstructionKind::F64ReinterpretI64 => self.unop(f64::from_bits)?,
+            InstructionKind::I32TruncSatF32S => self.unop::<F32, _, _>(TruncSat::<i32>::trunc_sat)?,
+            InstructionKind::I32TruncSatF32U => self.unop::<F32, _, _>(TruncSat::<u32>::trunc_sat)?,
+            InstructionKind::I32TruncSatF64S => self.unop::<F64, _, _>(TruncSat::<i32>::trunc_sat)?,
+            InstructionKind::I32TruncSatF64U => self.unop::<F64, _, _>(TruncSat::<u32>::trunc_sat)?,
+            InstructionKind::I64TruncSatF32S => self.unop::<F32, _, _>(TruncSat::<i64>::trunc_sat)?,
+            InstructionKind::I64TruncSatF32U => self.unop::<F32, _, _>(TruncSat::<u64>::trunc_sat)?,
+            InstructionKind::I64TruncSatF64S => self.unop::<F64, _, _>(TruncSat::<i64>::trunc_sat)?,
+            InstructionKind::I64TruncSatF64U => self.unop::<F64, _, _>(TruncSat::<u64>::trunc_sat)?,
             other => unimplemented!("{:?}", other),
         };
         if self.stack.is_over_top_level() {
             Ok(Signal::End)
         } else {
-            result
+            Ok(result)
         }
     }
 
