@@ -245,11 +245,10 @@ fn read_name_section(mut reader: wasmparser::NameSectionReader) -> Result<HashMa
             Err(_) => return Ok(func_names),
         };
         match name {
-            wasmparser::Name::Module(_) => continue,
-            wasmparser::Name::Function(n) => {
-                let mut map = n.get_map()?;
-                for _ in 0..map.get_count() {
-                    let naming = map.read()?;
+            wasmparser::Name::Module { .. } => continue,
+            wasmparser::Name::Function(map) => {
+                for naming in map {
+                    let naming = naming?;
                     func_names.insert(naming.index, String::from(naming.name));
                 }
             }
