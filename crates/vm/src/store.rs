@@ -12,13 +12,13 @@ use crate::module::{
 };
 use crate::table::{self, TableInstance};
 use crate::value::{NumVal, RefType, RefVal, Value};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, NameSectionReader, TableType, Type, ValType,
+    Import, MemoryType, NameSectionReader, TableType, ValType,
 };
 
 #[derive(Default)]
@@ -282,7 +282,6 @@ impl Store {
                     for entry in section {
                         match entry? {
                             wasmparser::Type::Func(fn_ty) => types.push(fn_ty),
-                            _ => panic!("module type is not supported yet"),
                         }
                     }
                 }

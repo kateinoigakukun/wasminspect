@@ -38,9 +38,6 @@ impl WasmInstPayloadFrom<BrTable<'_>> for BrTableData {
     }
 }
 
-type I8x16ShuffleLanes = Vec<u8>;
-pub type SIMDLaneIndex = u8;
-
 for_each_operator!(define_instr_kind);
 
 pub fn transform_inst(

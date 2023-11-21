@@ -52,7 +52,7 @@ impl WastContext {
     fn module(&mut self, mut wat: QuoteWat<'_>) -> Result<()> {
         let module_id = match &wat {
             wast::QuoteWat::Wat(Wat::Module(m)) => m.id,
-            wast::QuoteWat::QuoteModule(_, bytes) => None,
+            wast::QuoteWat::QuoteModule(_, _) => None,
             _ => panic!(),
         };
         let module_name = module_id.map(|id| id.name());
@@ -175,7 +175,7 @@ impl WastContext {
                 }
                 AssertUnlinkable {
                     span,
-                    mut module,
+                    module,
                     message,
                 } => {
                     let err = match self.module(QuoteWat::Wat(module)) {
@@ -233,7 +233,7 @@ impl WastContext {
                         module.push(' ');
                     }
                     let buf = wast::parser::ParseBuffer::new(&module).map_err(adjust_wast)?;
-                    let mut wat = wast::parser::parse::<wast::Wat>(&buf).map_err(|mut e| {
+                    let wat = wast::parser::parse::<wast::Wat>(&buf).map_err(|mut e| {
                         e.set_text(&module);
                         e
                     })?;

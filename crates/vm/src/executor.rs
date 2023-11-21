@@ -13,7 +13,7 @@ use crate::value::{
     U64,
 };
 use crate::{data, elem, memory, stack, table, value};
-use wasmparser::{BlockType, FuncType, Type, ValType};
+use wasmparser::{BlockType, FuncType, ValType};
 
 use std::convert::TryInto;
 use std::{ops::*, usize};

@@ -8,7 +8,7 @@ use crate::value::Value;
 use anyhow::Result;
 use std::iter;
 use wasmparser::ValType;
-use wasmparser::{FuncType, FunctionBody, Type};
+use wasmparser::{FuncType, FunctionBody};
 
 #[derive(Clone, Copy, Debug)]
 pub struct InstIndex(pub u32);
