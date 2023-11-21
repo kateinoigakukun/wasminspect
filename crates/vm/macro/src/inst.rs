@@ -71,7 +71,7 @@ fn build_instr_kind_case(op: proc_macro2::Ident, payload: Option<proc_macro2::To
         if op == "BrTable" {
             return quote! {
                 #op {
-                    table: BrTableData
+                    targets: BrTableData
                 },
             };
         }

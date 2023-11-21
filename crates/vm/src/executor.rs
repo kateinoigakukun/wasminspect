@@ -206,8 +206,8 @@ impl Executor {
         let result = match &inst.kind {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),
-            InstructionKind::Block { ty } => {
-                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+            InstructionKind::Block { blockty } => {
+                let (params_size, results_size) = self.get_type_arity(blockty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Block {
                     arity: results_size,
@@ -215,18 +215,18 @@ impl Executor {
                 self.stack.push_values(params.into_iter().rev());
                 Ok(Signal::Next)
             }
-            InstructionKind::Loop { ty } => {
+            InstructionKind::Loop { blockty } => {
                 let start_loop = InstIndex(self.pc.inst_index().0 - 1);
-                let (params_size, _) = self.get_type_arity(ty, store)?;
+                let (params_size, _) = self.get_type_arity(blockty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack
                     .push_label(Label::new_loop(start_loop, params_size));
                 self.stack.push_values(params.into_iter().rev());
                 Ok(Signal::Next)
             }
-            InstructionKind::If { ty } => {
+            InstructionKind::If { blockty } => {
                 let val: i32 = self.pop_as()?;
-                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+                let (params_size, results_size) = self.get_type_arity(blockty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::If {
                     arity: results_size,
@@ -238,9 +238,9 @@ impl Executor {
                         let index = self.pc.inst_index().0 as usize;
                         match self.current_func_insts(store)?[index].kind {
                             InstructionKind::End => depth -= 1,
-                            InstructionKind::Block { ty: _ } => depth += 1,
-                            InstructionKind::If { ty: _ } => depth += 1,
-                            InstructionKind::Loop { ty: _ } => depth += 1,
+                            InstructionKind::Block { .. } => depth += 1,
+                            InstructionKind::If { .. } => depth += 1,
+                            InstructionKind::Loop { .. } => depth += 1,
                             InstructionKind::Else => {
                                 if depth == 1 {
                                     self.pc.inc_inst_index();
@@ -298,13 +298,13 @@ impl Executor {
                     Ok(Signal::Next)
                 }
             }
-            InstructionKind::BrTable { table: payload } => {
+            InstructionKind::BrTable { targets } => {
                 let val: i32 = self.pop_as()?;
                 let val = val as usize;
-                let depth = if val < payload.table.len() {
-                    payload.table[val]
+                let depth = if val < targets.table.len() {
+                    targets.table[val]
                 } else {
-                    payload.default
+                    targets.default
                 };
                 self.branch(depth, store)
             }
@@ -469,9 +469,9 @@ impl Executor {
                 Ok(Signal::Next)
             }
 
-            InstructionKind::TableInit { segment, table } => {
+            InstructionKind::TableInit { elem_index, table } => {
                 let table_addr = TableAddr::new_unsafe(module_index, *table as usize);
-                let elem_addr = ElemAddr::new_unsafe(module_index, *segment as usize);
+                let elem_addr = ElemAddr::new_unsafe(module_index, *elem_index as usize);
                 let table = store.table(table_addr);
                 let elem = store.elem(elem_addr);
                 let n = self.pop_as::<i32>()? as usize;
@@ -487,8 +487,8 @@ impl Executor {
                 }
                 Ok(Signal::Next)
             }
-            InstructionKind::ElemDrop { segment } => {
-                let elem_addr = ElemAddr::new_unsafe(module_index, *segment as usize);
+            InstructionKind::ElemDrop { elem_index } => {
+                let elem_addr = ElemAddr::new_unsafe(module_index, *elem_index as usize);
                 let elem = store.elem(elem_addr);
                 elem.borrow_mut().drop_elem();
                 Ok(Signal::Next)
@@ -580,10 +580,10 @@ impl Executor {
                 }
                 Ok(Signal::Next)
             }
-            InstructionKind::MemoryCopy { src, dst } => {
-                let dst_addr = MemoryAddr::new_unsafe(module_index, *dst as usize);
+            InstructionKind::MemoryCopy { src_mem, dst_mem } => {
+                let dst_addr = MemoryAddr::new_unsafe(module_index, *dst_mem as usize);
                 let dst_mem = store.memory(dst_addr);
-                let src_addr = MemoryAddr::new_unsafe(module_index, *src as usize);
+                let src_addr = MemoryAddr::new_unsafe(module_index, *src_mem as usize);
                 let src_mem = store.memory(src_addr);
                 let n = self.pop_as::<i32>()? as usize;
                 let src_base = self.pop_as::<i32>()? as usize;
@@ -617,9 +617,9 @@ impl Executor {
 
                 Ok(Signal::Next)
             }
-            InstructionKind::MemoryInit { segment, mem } => {
+            InstructionKind::MemoryInit { data_index, mem } => {
                 let mem_addr = MemoryAddr::new_unsafe(module_index, *mem as usize);
-                let seg_addr = DataAddr::new_unsafe(module_index, *segment as usize);
+                let seg_addr = DataAddr::new_unsafe(module_index, *data_index as usize);
                 let mem = store.memory(mem_addr);
                 let data = store.data(seg_addr);
                 let n = self.pop_as::<i32>()? as usize;
@@ -633,8 +633,8 @@ impl Executor {
                     .store(dst_base, &data.borrow().raw()[src_base..(src_base + n)])?;
                 Ok(Signal::Next)
             }
-            InstructionKind::DataDrop { segment } => {
-                let data_addr = DataAddr::new_unsafe(module_index, *segment as usize);
+            InstructionKind::DataDrop { data_index } => {
+                let data_addr = DataAddr::new_unsafe(module_index, *data_index as usize);
                 let data = store.data(data_addr);
                 data.borrow_mut().drop_bytes();
                 Ok(Signal::Next)
@@ -893,9 +893,9 @@ impl Executor {
                     let index = self.pc.inst_index().0 as usize;
                     match self.current_func_insts(store)?[index].kind {
                         InstructionKind::End => depth -= 1,
-                        InstructionKind::Block { ty: _ } => depth += 1,
-                        InstructionKind::If { ty: _ } => depth += 1,
-                        InstructionKind::Loop { ty: _ } => depth += 1,
+                        InstructionKind::Block { .. } => depth += 1,
+                        InstructionKind::If { .. } => depth += 1,
+                        InstructionKind::Loop { .. } => depth += 1,
                         _ => (),
                     }
                     self.pc.inc_inst_index();
