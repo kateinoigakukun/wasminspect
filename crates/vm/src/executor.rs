@@ -265,7 +265,7 @@ impl Executor {
                     let func = store.func_global(self.pc.exec_addr());
                     let results = self
                         .stack
-                        .pop_values(func.ty().returns.len())
+                        .pop_values(func.ty().results().len())
                         .map_err(Trap::Stack)?;
                     self.stack.pop_label().map_err(Trap::Stack)?;
                     self.stack.pop_frame().map_err(Trap::Stack)?;
@@ -966,7 +966,7 @@ impl Executor {
 
         let mut args = Vec::new();
         let mut found_mismatch = false;
-        for _ in func.ty().params.iter() {
+        for _ in func.ty().params().iter() {
             match self.stack.pop_value() {
                 Ok(val) => args.push(val),
                 Err(_) => found_mismatch = true,
@@ -977,12 +977,12 @@ impl Executor {
             return Err(Trap::DirectCallTypeMismatch {
                 callee_name: func.name().to_string(),
                 actual: args.iter().map(|v| v.value_type()).collect(),
-                expected: func.ty().params.to_vec(),
+                expected: func.ty().params().to_vec(),
             });
         }
         args.reverse();
 
-        let arity = func.ty().returns.len();
+        let arity = func.ty().results().len();
         match func {
             FunctionInstance::Defined(func) => {
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
@@ -1007,7 +1007,7 @@ impl Executor {
     fn do_return(&mut self, store: &Store) -> ExecResult<Signal> {
         let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
         let func = store.func_global(self.pc.exec_addr());
-        let arity = func.ty().returns.len();
+        let arity = func.ty().results().len();
         let results = self.stack.pop_values(arity).map_err(Trap::Stack)?;
         self.stack
             .pop_while(|v| !matches!(v, StackValue::Activation(_)));
@@ -1029,7 +1029,7 @@ impl Executor {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let module = store.module(frame.module_index()).defined().unwrap();
                 let ty = module.get_type(*type_id as usize);
-                (ty.params.len(), ty.returns.len())
+                (ty.params().len(), ty.results().len())
             }
         })
     }

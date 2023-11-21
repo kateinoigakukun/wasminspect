@@ -173,7 +173,7 @@ impl MainDebugger {
                 }
             }
             (FunctionInstance::Defined(func), exec_addr) => {
-                let ret_types = &func.ty().returns;
+                let ret_types = &func.ty().results();
                 let frame = CallFrame::new_from_func(exec_addr, func, args, None);
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
                 let executor = Rc::new(RefCell::new(Executor::new(frame, ret_types.len(), pc)));
@@ -244,7 +244,7 @@ impl debugger::Debugger for MainDebugger {
 
         Some(debugger::FunctionFrame {
             module_index: frame.module_index,
-            argument_count: func.ty().params.len(),
+            argument_count: func.ty().params().len(),
         })
     }
     fn frame(&self) -> Vec<String> {
@@ -343,7 +343,7 @@ impl debugger::Debugger for MainDebugger {
                     let func = store.func_global(pc.exec_addr());
                     let results = executor
                         .borrow_mut()
-                        .pop_result(func.ty().returns.to_vec())?;
+                        .pop_result(func.ty().results().to_vec())?;
                     return Ok(RunResult::Finish(results));
                 }
                 Err(err) => return Err(anyhow!("Function exec failure {}", err)),

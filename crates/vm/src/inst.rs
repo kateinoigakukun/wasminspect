@@ -118,73 +118,73 @@ pub enum InstructionKind {
         global_index: u32,
     },
     I32Load {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Load {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     F32Load {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     F64Load {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32Load8S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32Load8U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32Load16S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32Load16U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Load8S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Load8U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Load16S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Load16U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Load32S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Load32U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32Store {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Store {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     F32Store {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     F64Store {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32Store8 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32Store16 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Store8 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Store16 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64Store32 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     MemorySize {
         mem: u32,
@@ -399,281 +399,281 @@ pub enum InstructionKind {
     // 0xFE operators
     // https://github.com/WebAssembly/threads/blob/master/proposals/threads/Overview.md
     MemoryAtomicNotify {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     MemoryAtomicWait32 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     MemoryAtomicWait64 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     AtomicFence {
         flags: u8,
     },
     I32AtomicLoad {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicLoad {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicLoad8U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicLoad16U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicLoad8U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicLoad16U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicLoad32U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicStore {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicStore {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicStore8 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicStore16 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicStore8 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicStore16 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicStore32 {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmwAdd {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmwAdd {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw8AddU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw16AddU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw8AddU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw16AddU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw32AddU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmwSub {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmwSub {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw8SubU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw16SubU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw8SubU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw16SubU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw32SubU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmwAnd {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmwAnd {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw8AndU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw16AndU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw8AndU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw16AndU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw32AndU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmwOr {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmwOr {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw8OrU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw16OrU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw8OrU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw16OrU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw32OrU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmwXor {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmwXor {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw8XorU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw16XorU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw8XorU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw16XorU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw32XorU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmwXchg {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmwXchg {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw8XchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw16XchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw8XchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw16XchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw32XchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmwCmpxchg {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmwCmpxchg {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw8CmpxchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I32AtomicRmw16CmpxchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw8CmpxchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw16CmpxchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     I64AtomicRmw32CmpxchgU {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
 
     // 0xFD operators
     // SIMD https://webassembly.github.io/simd/core/binary/instructions.html
     V128Load {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load8x8S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load8x8U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load16x4S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load16x4U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load32x2S {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load32x2U {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load8Splat {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load16Splat {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load32Splat {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load64Splat {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load32Zero {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load64Zero {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Store {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
     },
     V128Load8Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Load16Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Load32Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Load64Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Store8Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Store16Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Store32Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Store64Lane {
-        memarg: MemoryImmediate,
+        memarg: MemArg,
         lane: SIMDLaneIndex,
     },
     V128Const {

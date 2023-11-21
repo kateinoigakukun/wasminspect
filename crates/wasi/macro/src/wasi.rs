@@ -76,10 +76,10 @@ fn emit_func_extern(
         }
     };
     quote! {
-        let ty = ::wasmparser::FuncType {
-            params: vec![#(#param_types),*].into_boxed_slice(),
-            returns: vec![#(#return_types),*].into_boxed_slice(),
-        };
+        let ty = ::wasmparser::FuncType::new(
+            vec![#(#param_types),*],
+            vec![#(#return_types),*],
+        );
         let func = HostValue::Func(HostFuncBody::new(ty, move |args, ret, ctx, store| {
             log::debug!("{}({:?})", #name, args);
             let wasi_ctx = store.get_embed_context::<WasiContext>().unwrap();

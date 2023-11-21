@@ -79,7 +79,7 @@ impl DefinedFunctionInstance {
 
         // Compute default local values here instead of frame initialization
         // to avoid re-computation
-        let mut local_tys = ty.params.to_vec();
+        let mut local_tys = ty.params().to_vec();
         local_tys.append(&mut locals.to_vec());
         let mut default_locals = Vec::new();
         for ty in local_tys {
