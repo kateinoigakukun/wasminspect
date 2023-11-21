@@ -1839,6 +1839,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-encoder"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d135e8940b69dbee0f5b0a0be9c1cd6fa8b71d774904c13a3fcfc5dc265e43d"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasminspect"
 version = "0.2.0"
 dependencies = [
@@ -1965,11 +1974,14 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "38.0.1"
+version = "68.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae0d7b256bef26c898fa7344a2d627e8499f5a749432ce0a05eae1a64ff0c271"
+checksum = "7bf3081ac6bcb3a5b72a401693b3566feb529dc2b7e7b62ea544c8a30d0f4d05"
 dependencies = [
  "leb128",
+ "memchr",
+ "unicode-width",
+ "wasm-encoder",
 ]
 
 [[package]]
@@ -1979,7 +1991,7 @@ dependencies = [
  "anyhow",
  "wasminspect-vm",
  "wasmparser",
- "wast 38.0.1",
+ "wast 68.0.0",
 ]
 
 [[package]]
