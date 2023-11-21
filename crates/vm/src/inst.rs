@@ -679,7 +679,7 @@ pub enum InstructionKind {
         value: V128,
     },
     I8x16Shuffle {
-        lanes: I8x16ShuffleLanes,
+        lanes: [SIMDLaneIndex; 16],
     },
     I8x16ExtractLaneS {
         lane: SIMDLaneIndex,
@@ -921,6 +921,23 @@ pub enum InstructionKind {
     F64x2ConvertLowI32x4U,
     F32x4DemoteF64x2Zero,
     F64x2PromoteLowF32x4,
+    I8x16SwizzleRelaxed,
+    I32x4TruncSatF32x4SRelaxed,
+    I32x4TruncSatF32x4URelaxed,
+    I32x4TruncSatF64x2SZeroRelaxed,
+    I32x4TruncSatF64x2UZeroRelaxed,
+    F32x4FmaRelaxed,
+    F32x4FmsRelaxed,
+    F64x2FmaRelaxed,
+    F64x2FmsRelaxed,
+    I8x16LaneSelect,
+    I16x8LaneSelect,
+    I32x4LaneSelect,
+    I64x2LaneSelect,
+    F32x4MinRelaxed,
+    F32x4MaxRelaxed,
+    F64x2MinRelaxed,
+    F64x2MaxRelaxed,
 }
 
 pub fn transform_inst(
