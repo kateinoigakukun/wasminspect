@@ -6,57 +6,39 @@ use wasmparser::{FuncType, GlobalType, ValType};
 
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();
-    let ty = FuncType::new(
-        vec![],
-        vec![],
-    );
+    let ty = FuncType::new(vec![], vec![]);
     let func = HostValue::Func(HostFuncBody::new(ty, |_, _, _, _| Ok(())));
     module.insert("print".to_string(), func);
 
-    let ty = FuncType::new(
-        vec![ValType::I32],
-        vec![],
-    );
+    let ty = FuncType::new(vec![ValType::I32], vec![]);
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: i32", params[0].as_i32().unwrap());
         Ok(())
     }));
     module.insert("print_i32".to_string(), func);
 
-    let ty = FuncType::new(
-        vec![ValType::I64],
-        vec![],
-    );
+    let ty = FuncType::new(vec![ValType::I64], vec![]);
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: i64", params[0].as_i64().unwrap());
         Ok(())
     }));
     module.insert("print_i64".to_string(), func);
 
-    let ty = FuncType::new(
-        vec![ValType::F32],
-        vec![],
-    );
+    let ty = FuncType::new(vec![ValType::F32], vec![]);
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: f32", params[0].as_f32().unwrap());
         Ok(())
     }));
     module.insert("print_f32".to_string(), func);
 
-    let ty = FuncType::new(
-        vec![ValType::F64],
-        vec![],
-    );
+    let ty = FuncType::new(vec![ValType::F64], vec![]);
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: f64", params[0].as_f64().unwrap());
         Ok(())
     }));
     module.insert("print_f64".to_string(), func);
 
-    let ty = FuncType::new(
-        vec![ValType::I32, ValType::F32],
-        vec![],
-    );
+    let ty = FuncType::new(vec![ValType::I32, ValType::F32], vec![]);
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: i32", params[0].as_i32().unwrap());
         println!("{}: f32", params[1].as_f32().unwrap());
@@ -64,10 +46,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     }));
     module.insert("print_i32_f32".to_string(), func);
 
-    let ty = FuncType::new(
-        vec![ValType::F64, ValType::F64],
-        vec![],
-    );
+    let ty = FuncType::new(vec![ValType::F64, ValType::F64], vec![]);
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
         println!("{}: f64", params[0].as_f64().unwrap());
         println!("{}: f64", params[1].as_f64().unwrap());

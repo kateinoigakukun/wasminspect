@@ -92,10 +92,10 @@ impl WastContext {
 
         self.run_directives(ast.directives, filename, wast)
     }
-    
+
     fn run_directives(
         &mut self,
-         directives: Vec<wast::WastDirective<'_>>,
+        directives: Vec<wast::WastDirective<'_>>,
         filename: &str,
         wast: &str,
     ) -> Result<()> {
@@ -139,7 +139,9 @@ impl WastContext {
                                         continue;
                                     }
                                 }
-                                wast::WastRet::Component(_) => todo!("component is not supported yet")
+                                wast::WastRet::Component(_) => {
+                                    todo!("component is not supported yet")
+                                }
                             }
                             bail!("expected {:?}, got {:?} {}", e, v, context(span))
                         }

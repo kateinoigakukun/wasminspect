@@ -13,7 +13,7 @@ use crate::value::{
     U64,
 };
 use crate::{data, elem, memory, stack, table, value};
-use wasmparser::{FuncType, Type, BlockType, ValType};
+use wasmparser::{BlockType, FuncType, Type, ValType};
 
 use std::convert::TryInto;
 use std::{ops::*, usize};
@@ -314,7 +314,11 @@ impl Executor {
                 let addr = FuncAddr::new_unsafe(frame.module_index(), *function_index as usize);
                 self.invoke(addr, store, interceptor)
             }
-            InstructionKind::CallIndirect { type_index, table_index, .. } => {
+            InstructionKind::CallIndirect {
+                type_index,
+                table_index,
+                ..
+            } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = TableAddr::new_unsafe(frame.module_index(), *table_index as usize);
                 let module = store.module(frame.module_index()).defined().unwrap();

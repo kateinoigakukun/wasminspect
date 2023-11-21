@@ -6,8 +6,8 @@ use crate::inst::*;
 use crate::module::*;
 use crate::value::Value;
 use anyhow::Result;
-use wasmparser::ValType;
 use std::iter;
+use wasmparser::ValType;
 use wasmparser::{FuncType, FunctionBody, Type};
 
 #[derive(Clone, Copy, Debug)]

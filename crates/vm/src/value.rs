@@ -128,7 +128,10 @@ impl Value {
                         RefVal::NullRef(RefType::ExternRef),
                         wasmparser::ValType::ExternRef
                     )
-                    | (RefVal::NullRef(RefType::FuncRef), wasmparser::ValType::FuncRef)
+                    | (
+                        RefVal::NullRef(RefType::FuncRef),
+                        wasmparser::ValType::FuncRef
+                    )
             ),
         }
     }

@@ -49,10 +49,15 @@ pub fn define_instr_kind(ast: proc_macro2::TokenStream) -> Result<proc_macro2::T
             payload = Some(g.stream());
         }
 
-        assert_eq!(iter.next().expect("unexpected end of input").to_string(), "=");
-        assert_eq!(iter.next().expect("unexpected end of input").to_string(), ">");
+        assert_eq!(
+            iter.next().expect("unexpected end of input").to_string(),
+            "="
+        );
+        assert_eq!(
+            iter.next().expect("unexpected end of input").to_string(),
+            ">"
+        );
         iter.next().expect("unexpected end of input");
-
 
         tokens.extend(build_instr_kind_case(op, payload));
     }
@@ -65,7 +70,10 @@ pub fn define_instr_kind(ast: proc_macro2::TokenStream) -> Result<proc_macro2::T
     })
 }
 
-fn build_instr_kind_case(op: proc_macro2::Ident, payload: Option<proc_macro2::TokenStream>) -> proc_macro2::TokenStream {
+fn build_instr_kind_case(
+    op: proc_macro2::Ident,
+    payload: Option<proc_macro2::TokenStream>,
+) -> proc_macro2::TokenStream {
     if let Some(payload) = payload {
         // BrTable is a special case because it has lifetime in its payload
         if op == "BrTable" {

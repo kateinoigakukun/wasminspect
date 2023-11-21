@@ -149,35 +149,17 @@ pub enum StoreError {
     InvalidDataSegments(memory::Error),
     InvalidHostImport(module::HostModuleError),
     InvalidImport(module::DefinedModuleError),
-    UnknownType {
-        type_index: usize,
-    },
-    UndefinedFunction {
-        module: String,
-        name: String,
-    },
-    UndefinedMemory {
-        module: String,
-        name: String,
-    },
-    UndefinedTable {
-        module: String,
-        name: String,
-    },
-    UndefinedGlobal {
-        module: String,
-        name: String,
-    },
+    UnknownType { type_index: usize },
+    UndefinedFunction { module: String, name: String },
+    UndefinedMemory { module: String, name: String },
+    UndefinedTable { module: String, name: String },
+    UndefinedGlobal { module: String, name: String },
     IncompatibleImportFuncType(String, FuncType, FuncType),
     IncompatibleImportGlobalType(ValType, ValType),
     IncompatibleImportGlobalMutability,
     IncompatibleImportTableType,
-    IncompatibleImportMemoryType {
-        message: String,
-    },
-    InvalidElementSegmentsType {
-        ty: ValType,
-    },
+    IncompatibleImportMemoryType { message: String },
+    InvalidElementSegmentsType { ty: ValType },
 }
 impl std::error::Error for StoreError {}
 
@@ -364,7 +346,8 @@ impl Store {
                 }
                 Payload::CustomSection(section) => {
                     if section.name() == "name" {
-                        let section = NameSectionReader::new(section.data(), section.data_offset())?;
+                        let section =
+                            NameSectionReader::new(section.data(), section.data_offset())?;
                         func_names = read_name_section(section)?;
                     }
                 }
@@ -456,9 +439,7 @@ impl Store {
             .get(type_index)
             .ok_or(StoreError::UnknownType { type_index })?
             .clone();
-        let name = import
-            .name
-            .to_string();
+        let name = import.name.to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || StoreError::UndefinedFunction {
             module: import.module.to_string(),
@@ -501,9 +482,7 @@ impl Store {
             module: import.module.to_string(),
             name: import.name.to_string(),
         };
-        let name = import
-            .name
-            .to_string();
+        let name = import.name.to_string();
         let module = self.module_by_name(import.module.to_string());
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -562,9 +541,7 @@ impl Store {
         import: Import,
         table_ty: TableType,
     ) -> Result<()> {
-        let name = import
-            .name
-            .to_string();
+        let name = import.name.to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || StoreError::UndefinedTable {
             module: import.module.to_string(),
@@ -613,9 +590,7 @@ impl Store {
         import: Import,
         global_ty: GlobalType,
     ) -> Result<()> {
-        let name = import
-            .name
-            .to_string();
+        let name = import.name.to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || StoreError::UndefinedGlobal {
             module: import.module.to_string(),
@@ -809,7 +784,7 @@ impl Store {
             let instance = match seg.kind {
                 DataKind::Active {
                     memory_index,
-                    offset_expr
+                    offset_expr,
                 } => {
                     let mem_addr = match mems.get(memory_index as usize) {
                         Some(addr) => addr,
