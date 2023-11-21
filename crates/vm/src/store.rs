@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, NameSectionReader, TableType, Type, TypeDef,
+    Import, MemoryType, NameSectionReader, TableType, Type, ValType,
 };
 
 #[derive(Default)]
@@ -169,14 +169,14 @@ pub enum StoreError {
         name: String,
     },
     IncompatibleImportFuncType(String, FuncType, FuncType),
-    IncompatibleImportGlobalType(Type, Type),
+    IncompatibleImportGlobalType(ValType, ValType),
     IncompatibleImportGlobalMutability,
     IncompatibleImportTableType,
     IncompatibleImportMemoryType {
         message: String,
     },
     InvalidElementSegmentsType {
-        ty: Type,
+        ty: ValType,
     },
 }
 impl std::error::Error for StoreError {}
@@ -300,7 +300,7 @@ impl Store {
                     types.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         match entry? {
-                            TypeDef::Func(fn_ty) => types.push(fn_ty),
+                            wasmparser::Type::Func(fn_ty) => types.push(fn_ty),
                             _ => panic!("module type is not supported yet"),
                         }
                     }
@@ -587,7 +587,7 @@ impl Store {
         let found = self.tables.get_global(resolved_addr);
         // Validation
         {
-            if Into::<Type>::into(found.borrow().ty) != table_ty.element_type {
+            if Into::<ValType>::into(found.borrow().ty) != table_ty.element_type {
                 return Err(StoreError::IncompatibleImportTableType.into());
             }
             if found.borrow().initial < table_ty.initial as usize {
@@ -712,8 +712,8 @@ impl Store {
         }
         for table in tables.iter() {
             let ty = match table.element_type {
-                Type::FuncRef => RefType::FuncRef,
-                Type::ExternRef => RefType::ExternRef,
+                ValType::FuncRef => RefType::FuncRef,
+                ValType::ExternRef => RefType::ExternRef,
                 other => unimplemented!("unexpected table element type {:?}", other),
             };
             let instance = TableInstance::new(
@@ -729,8 +729,8 @@ impl Store {
         let tables = self.tables.items(module_index).unwrap();
         for seg in element_segments {
             let ty = match seg.ty {
-                Type::FuncRef => RefType::FuncRef,
-                Type::ExternRef => RefType::ExternRef,
+                ValType::FuncRef => RefType::FuncRef,
+                ValType::ExternRef => RefType::ExternRef,
                 _ => return Err(StoreError::InvalidElementSegmentsType { ty: seg.ty }.into()),
             };
             let data = seg

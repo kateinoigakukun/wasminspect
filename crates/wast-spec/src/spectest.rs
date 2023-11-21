@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasminspect_vm::*;
-use wasmparser::{FuncType, GlobalType, Type};
+use wasmparser::{FuncType, GlobalType, Type, ValType};
 
 pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     let mut module = HashMap::new();
@@ -14,7 +14,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print".to_string(), func);
 
     let ty = FuncType {
-        params: vec![Type::I32].into_boxed_slice(),
+        params: vec![ValType::I32].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
@@ -24,7 +24,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_i32".to_string(), func);
 
     let ty = FuncType {
-        params: vec![Type::I64].into_boxed_slice(),
+        params: vec![ValType::I64].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
@@ -34,7 +34,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_i64".to_string(), func);
 
     let ty = FuncType {
-        params: vec![Type::F32].into_boxed_slice(),
+        params: vec![ValType::F32].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
@@ -44,7 +44,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_f32".to_string(), func);
 
     let ty = FuncType {
-        params: vec![Type::F64].into_boxed_slice(),
+        params: vec![ValType::F64].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
@@ -54,7 +54,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_f64".to_string(), func);
 
     let ty = FuncType {
-        params: vec![Type::I32, Type::F32].into_boxed_slice(),
+        params: vec![ValType::I32, ValType::F32].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
@@ -65,7 +65,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
     module.insert("print_i32_f32".to_string(), func);
 
     let ty = FuncType {
-        params: vec![Type::F64, Type::F64].into_boxed_slice(),
+        params: vec![ValType::F64, ValType::F64].into_boxed_slice(),
         returns: vec![].into_boxed_slice(),
     };
     let func = HostValue::Func(HostFuncBody::new(ty, |params, _, _, _| {
@@ -81,7 +81,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         HostValue::Global(create_glbal(
             WasmValue::I32(666),
             GlobalType {
-                content_type: Type::I32,
+                content_type: ValType::I32,
                 mutable: false,
             },
         )),
@@ -91,7 +91,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         HostValue::Global(create_glbal(
             WasmValue::I64(666),
             GlobalType {
-                content_type: Type::I64,
+                content_type: ValType::I64,
                 mutable: false,
             },
         )),
@@ -101,7 +101,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         HostValue::Global(create_glbal(
             WasmValue::F32(0x44268000),
             GlobalType {
-                content_type: Type::F32,
+                content_type: ValType::F32,
                 mutable: false,
             },
         )),
@@ -111,7 +111,7 @@ pub fn instantiate_spectest() -> HashMap<String, HostValue> {
         HostValue::Global(create_glbal(
             WasmValue::F64(0x4084d00000000000),
             GlobalType {
-                content_type: Type::F64,
+                content_type: ValType::F64,
                 mutable: false,
             },
         )),

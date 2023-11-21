@@ -12,10 +12,10 @@ fn emit_func_extern(
     module_id: &Ident,
 ) -> TokenStream {
     let to_wasmparser_ty = |abi_ty: &WasmType| match abi_ty {
-        WasmType::I32 => quote! { ::wasmparser::Type::I32 },
-        WasmType::I64 => quote! { ::wasmparser::Type::I64 },
-        WasmType::F32 => quote! { ::wasmparser::Type::F32 },
-        WasmType::F64 => quote! { ::wasmparser::Type::F64 },
+        WasmType::I32 => quote! { ::wasmparser::ValType::I32 },
+        WasmType::I64 => quote! { ::wasmparser::ValType::I64 },
+        WasmType::F32 => quote! { ::wasmparser::ValType::F32 },
+        WasmType::F64 => quote! { ::wasmparser::ValType::F64 },
     };
 
     let mut param_types = Vec::new();

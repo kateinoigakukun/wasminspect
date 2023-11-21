@@ -13,7 +13,7 @@ use crate::value::{
     U64,
 };
 use crate::{data, elem, memory, stack, table, value};
-use wasmparser::{FuncType, Type, BlockType};
+use wasmparser::{FuncType, Type, BlockType, ValType};
 
 use std::convert::TryInto;
 use std::{ops::*, usize};
@@ -34,15 +34,15 @@ pub enum Trap {
     },
     DirectCallTypeMismatch {
         callee_name: String,
-        expected: Vec<Type>,
-        actual: Vec<Type>,
+        expected: Vec<ValType>,
+        actual: Vec<ValType>,
     },
     UnexpectedStackValueType {
-        expected: Type,
-        actual: Type,
+        expected: ValType,
+        actual: ValType,
     },
     UnexpectedNonRefValueType {
-        actual: Type,
+        actual: ValType,
     },
     UndefinedFunc(usize),
     ElementTypeMismatch {
@@ -125,9 +125,9 @@ pub type ExecResult<T> = std::result::Result<T, Trap>;
 
 #[derive(Debug)]
 pub enum ReturnValError {
-    TypeMismatchReturnValue(Value, Type),
+    TypeMismatchReturnValue(Value, ValType),
     Stack(stack::Error),
-    NoValue(Type),
+    NoValue(ValType),
 }
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
@@ -155,7 +155,7 @@ impl Executor {
         Self { pc, stack }
     }
 
-    pub fn pop_result(&mut self, return_ty: Vec<Type>) -> ReturnValResult {
+    pub fn pop_result(&mut self, return_ty: Vec<ValType>) -> ReturnValResult {
         let mut results = vec![];
         for ty in return_ty.into_iter().rev() {
             let val = self.stack.pop_value().map_err(ReturnValError::Stack)?;

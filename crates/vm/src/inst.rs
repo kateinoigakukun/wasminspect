@@ -100,7 +100,7 @@ pub enum InstructionKind {
     Drop,
     Select,
     TypedSelect {
-        ty: Type,
+        ty: ValType,
     },
     LocalGet {
         local_index: u32,
@@ -207,7 +207,7 @@ pub enum InstructionKind {
         value: Ieee64,
     },
     RefNull {
-        ty: Type,
+        ty: ValType,
     },
     RefIsNull,
     RefFunc {

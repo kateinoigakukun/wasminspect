@@ -6,6 +6,7 @@ use crate::inst::*;
 use crate::module::*;
 use crate::value::Value;
 use anyhow::Result;
+use wasmparser::ValType;
 use std::iter;
 use wasmparser::{FuncType, FunctionBody, Type};
 
@@ -83,12 +84,12 @@ impl DefinedFunctionInstance {
         let mut default_locals = Vec::new();
         for ty in local_tys {
             let v = match ty {
-                Type::I32 => Value::I32(0),
-                Type::I64 => Value::I64(0),
-                Type::F32 => Value::F32(0),
-                Type::F64 => Value::F64(0),
-                Type::ExternRef => Value::Ref(RefVal::NullRef(RefType::ExternRef)),
-                Type::FuncRef => Value::Ref(RefVal::NullRef(RefType::FuncRef)),
+                ValType::I32 => Value::I32(0),
+                ValType::I64 => Value::I64(0),
+                ValType::F32 => Value::F32(0),
+                ValType::F64 => Value::F64(0),
+                ValType::ExternRef => Value::Ref(RefVal::NullRef(RefType::ExternRef)),
+                ValType::FuncRef => Value::Ref(RefVal::NullRef(RefType::FuncRef)),
                 _ => unimplemented!("local initialization of type {:?}", ty),
             };
             default_locals.push(v);

@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 wasminspect-debugger = { path = "../debugger" }
 wasminspect-vm = { path = "../vm" }
-wasmparser = "0.85.0"
+wasmparser = "0.86.0"
 anyhow = "1.0.26"
 hyper = { version = "0.14.0", features = ["full"] }
 serde = { version = "1.0.0", features = ["derive"] }
