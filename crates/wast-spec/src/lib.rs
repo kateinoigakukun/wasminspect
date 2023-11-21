@@ -77,9 +77,29 @@ impl WastContext {
     }
 
     pub fn run_buffer(&mut self, filename: &str, wast: &[u8]) -> Result<()> {
-        use wast::WastDirective::*;
-
         let wast = str::from_utf8(wast)?;
+
+        let adjust_wast = |mut err: wast::Error| {
+            err.set_path(filename.as_ref());
+            err.set_text(wast);
+            err
+        };
+
+        let mut lexer = wast::lexer::Lexer::new(wast);
+        lexer.allow_confusing_unicode(filename.ends_with("names.wast"));
+        let buf = wast::parser::ParseBuffer::new_with_lexer(lexer).map_err(adjust_wast)?;
+        let ast = wast::parser::parse::<wast::Wast>(&buf).map_err(adjust_wast)?;
+
+        self.run_directives(ast.directives, filename, wast)
+    }
+    
+    fn run_directives(
+        &mut self,
+         directives: Vec<wast::WastDirective<'_>>,
+        filename: &str,
+        wast: &str,
+    ) -> Result<()> {
+        use wast::WastDirective::*;
 
         let adjust_wast = |mut err: wast::Error| {
             err.set_path(filename.as_ref());
@@ -91,10 +111,7 @@ impl WastContext {
             format!("for directive on {}:{}:{}", filename, line + 1, col)
         };
 
-        let buf = wast::parser::ParseBuffer::new(wast).map_err(adjust_wast)?;
-        let wast = wast::parser::parse::<wast::Wast>(&buf).map_err(adjust_wast)?;
-
-        for directive in wast.directives {
+        for directive in directives {
             match directive {
                 Register {
                     span: _,
