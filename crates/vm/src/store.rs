@@ -363,14 +363,9 @@ impl Store {
                 Payload::StartSection { func, .. } => {
                     start_func = Some(FuncAddr::new_unsafe(module_index, func as usize));
                 }
-                Payload::CustomSection {
-                    name,
-                    data,
-                    data_offset,
-                    ..
-                } => {
-                    if name == "name" {
-                        let section = NameSectionReader::new(data, data_offset)?;
+                Payload::CustomSection(section) => {
+                    if section.name() == "name" {
+                        let section = NameSectionReader::new(section.data(), section.data_offset())?;
                         func_names = read_name_section(section)?;
                     }
                 }
