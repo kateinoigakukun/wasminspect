@@ -1142,9 +1142,9 @@ impl Executor {
     }
 }
 
-use wasmparser::InitExpr;
+use wasmparser::ConstExpr;
 pub fn eval_const_expr(
-    init_expr: &InitExpr,
+    init_expr: &ConstExpr,
     store: &Store,
     module_index: ModuleIndex,
 ) -> anyhow::Result<Value> {

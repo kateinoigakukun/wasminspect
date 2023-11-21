@@ -758,13 +758,13 @@ impl Store {
             match seg.kind {
                 ElementKind::Active {
                     table_index,
-                    init_expr,
+                    offset_expr,
                 } => {
                     let table_addr = match tables.get(table_index as usize) {
                         Some(addr) => addr,
                         None => break,
                     };
-                    let offset = match eval_const_expr(&init_expr, self, module_index)? {
+                    let offset = match eval_const_expr(&offset_expr, self, module_index)? {
                         Value::Num(NumVal::I32(v)) => v,
                         other => panic!("unexpected result value of const init expr {:?}", other),
                     };
@@ -810,13 +810,13 @@ impl Store {
             let instance = match seg.kind {
                 DataKind::Active {
                     memory_index,
-                    init_expr,
+                    offset_expr
                 } => {
                     let mem_addr = match mems.get(memory_index as usize) {
                         Some(addr) => addr,
                         None => continue,
                     };
-                    let offset = match eval_const_expr(&init_expr, self, module_index)? {
+                    let offset = match eval_const_expr(&offset_expr, self, module_index)? {
                         Value::Num(NumVal::I32(v)) => v,
                         other => panic!("unexpected result value of const init expr {:?}", other),
                     };
