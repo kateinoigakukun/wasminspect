@@ -11,6 +11,6 @@ wasi-cap-std-sync = "0.25.0"
 log = "0.4"
 wasminspect-vm = { path = "../vm" }
 wasminspect-wasi-macro = { path = "./macro" }
-wasmparser = "0.94.0"
+wasmparser = "0.95.0"
 cap-std = "0.13.0"
 anyhow = "1.0.0"
