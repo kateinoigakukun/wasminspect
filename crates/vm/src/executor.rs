@@ -13,7 +13,7 @@ use crate::value::{
     U64,
 };
 use crate::{data, elem, memory, stack, table, value};
-use wasmparser::{FuncType, Type, TypeOrFuncType};
+use wasmparser::{FuncType, Type, BlockType};
 
 use std::convert::TryInto;
 use std::{ops::*, usize};
@@ -314,7 +314,7 @@ impl Executor {
                 let addr = FuncAddr::new_unsafe(frame.module_index(), *function_index as usize);
                 self.invoke(addr, store, interceptor)
             }
-            InstructionKind::CallIndirect { index, table_index } => {
+            InstructionKind::CallIndirect { index, table_index, .. } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = TableAddr::new_unsafe(frame.module_index(), *table_index as usize);
                 let module = store.module(frame.module_index()).defined().unwrap();
@@ -1021,11 +1021,11 @@ impl Executor {
     }
 
     /// Returns a pair of arities for parameter and result
-    fn get_type_arity(&self, ty: &TypeOrFuncType, store: &Store) -> ExecResult<(usize, usize)> {
+    fn get_type_arity(&self, ty: &BlockType, store: &Store) -> ExecResult<(usize, usize)> {
         Ok(match ty {
-            TypeOrFuncType::Type(Type::EmptyBlockType) => (0, 0),
-            TypeOrFuncType::Type(_) => (0, 1),
-            TypeOrFuncType::FuncType(type_id) => {
+            BlockType::Empty => (0, 0),
+            BlockType::Type(_) => (0, 1),
+            BlockType::FuncType(type_id) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let module = store.module(frame.module_index()).defined().unwrap();
                 let ty = module.get_type(*type_id as usize);

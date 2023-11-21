@@ -327,9 +327,9 @@ impl WastContext {
     }
 
     fn validate(&self, bytes: &[u8]) -> wasmparser::Result<()> {
-        let mut validator = wasmparser::Validator::new();
-        validator.wasm_features(self.config.features);
-        validator.validate_all(bytes)
+        let mut validator = wasmparser::Validator::new_with_features(self.config.features);
+        validator.validate_all(bytes)?;
+        Ok(())
     }
 }
 

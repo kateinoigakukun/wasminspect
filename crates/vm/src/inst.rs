@@ -46,17 +46,17 @@ pub enum InstructionKind {
     Unreachable,
     Nop,
     Block {
-        ty: TypeOrFuncType,
+        ty: BlockType,
     },
     Loop {
-        ty: TypeOrFuncType,
+        ty: BlockType,
     },
     If {
-        ty: TypeOrFuncType,
+        ty: BlockType,
     },
     Else,
     Try {
-        ty: TypeOrFuncType,
+        ty: BlockType,
     },
     Catch {
         index: u32,
@@ -84,6 +84,7 @@ pub enum InstructionKind {
     CallIndirect {
         index: u32,
         table_index: u32,
+        table_byte: u8,
     },
     ReturnCall {
         function_index: u32,
