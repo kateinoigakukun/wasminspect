@@ -59,7 +59,7 @@ pub fn invoke_func_ignoring_break(
         }
         (FunctionInstance::Defined(func), exec_addr) => {
             let (frame, ret_types) = {
-                let ret_types = &func.ty().returns;
+                let ret_types = func.ty().results();
                 let frame = CallFrame::new_from_func(exec_addr, func, arguments, None);
                 (frame, ret_types)
             };

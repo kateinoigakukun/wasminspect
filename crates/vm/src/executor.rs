@@ -13,7 +13,7 @@ use crate::value::{
     U64,
 };
 use crate::{data, elem, memory, stack, table, value};
-use wasmparser::{FuncType, Type, TypeOrFuncType};
+use wasmparser::{FuncType, Type, BlockType, ValType};
 
 use std::convert::TryInto;
 use std::{ops::*, usize};
@@ -34,15 +34,15 @@ pub enum Trap {
     },
     DirectCallTypeMismatch {
         callee_name: String,
-        expected: Vec<Type>,
-        actual: Vec<Type>,
+        expected: Vec<ValType>,
+        actual: Vec<ValType>,
     },
     UnexpectedStackValueType {
-        expected: Type,
-        actual: Type,
+        expected: ValType,
+        actual: ValType,
     },
     UnexpectedNonRefValueType {
-        actual: Type,
+        actual: ValType,
     },
     UndefinedFunc(usize),
     ElementTypeMismatch {
@@ -125,9 +125,9 @@ pub type ExecResult<T> = std::result::Result<T, Trap>;
 
 #[derive(Debug)]
 pub enum ReturnValError {
-    TypeMismatchReturnValue(Value, Type),
+    TypeMismatchReturnValue(Value, ValType),
     Stack(stack::Error),
-    NoValue(Type),
+    NoValue(ValType),
 }
 
 pub type ReturnValResult = Result<Vec<Value>, ReturnValError>;
@@ -155,7 +155,7 @@ impl Executor {
         Self { pc, stack }
     }
 
-    pub fn pop_result(&mut self, return_ty: Vec<Type>) -> ReturnValResult {
+    pub fn pop_result(&mut self, return_ty: Vec<ValType>) -> ReturnValResult {
         let mut results = vec![];
         for ty in return_ty.into_iter().rev() {
             let val = self.stack.pop_value().map_err(ReturnValError::Stack)?;
@@ -206,8 +206,8 @@ impl Executor {
         let result = match &inst.kind {
             InstructionKind::Unreachable => Err(Trap::Unreachable),
             InstructionKind::Nop => Ok(Signal::Next),
-            InstructionKind::Block { ty } => {
-                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+            InstructionKind::Block { blockty } => {
+                let (params_size, results_size) = self.get_type_arity(blockty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::Block {
                     arity: results_size,
@@ -215,18 +215,18 @@ impl Executor {
                 self.stack.push_values(params.into_iter().rev());
                 Ok(Signal::Next)
             }
-            InstructionKind::Loop { ty } => {
+            InstructionKind::Loop { blockty } => {
                 let start_loop = InstIndex(self.pc.inst_index().0 - 1);
-                let (params_size, _) = self.get_type_arity(ty, store)?;
+                let (params_size, _) = self.get_type_arity(blockty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack
                     .push_label(Label::new_loop(start_loop, params_size));
                 self.stack.push_values(params.into_iter().rev());
                 Ok(Signal::Next)
             }
-            InstructionKind::If { ty } => {
+            InstructionKind::If { blockty } => {
                 let val: i32 = self.pop_as()?;
-                let (params_size, results_size) = self.get_type_arity(ty, store)?;
+                let (params_size, results_size) = self.get_type_arity(blockty, store)?;
                 let params = self.stack.pop_values(params_size).map_err(Trap::Stack)?;
                 self.stack.push_label(Label::If {
                     arity: results_size,
@@ -238,9 +238,9 @@ impl Executor {
                         let index = self.pc.inst_index().0 as usize;
                         match self.current_func_insts(store)?[index].kind {
                             InstructionKind::End => depth -= 1,
-                            InstructionKind::Block { ty: _ } => depth += 1,
-                            InstructionKind::If { ty: _ } => depth += 1,
-                            InstructionKind::Loop { ty: _ } => depth += 1,
+                            InstructionKind::Block { .. } => depth += 1,
+                            InstructionKind::If { .. } => depth += 1,
+                            InstructionKind::Loop { .. } => depth += 1,
                             InstructionKind::Else => {
                                 if depth == 1 {
                                     self.pc.inc_inst_index();
@@ -265,7 +265,7 @@ impl Executor {
                     let func = store.func_global(self.pc.exec_addr());
                     let results = self
                         .stack
-                        .pop_values(func.ty().returns.len())
+                        .pop_values(func.ty().results().len())
                         .map_err(Trap::Stack)?;
                     self.stack.pop_label().map_err(Trap::Stack)?;
                     self.stack.pop_frame().map_err(Trap::Stack)?;
@@ -298,13 +298,13 @@ impl Executor {
                     Ok(Signal::Next)
                 }
             }
-            InstructionKind::BrTable { table: payload } => {
+            InstructionKind::BrTable { targets } => {
                 let val: i32 = self.pop_as()?;
                 let val = val as usize;
-                let depth = if val < payload.table.len() {
-                    payload.table[val]
+                let depth = if val < targets.table.len() {
+                    targets.table[val]
                 } else {
-                    payload.default
+                    targets.default
                 };
                 self.branch(depth, store)
             }
@@ -314,11 +314,11 @@ impl Executor {
                 let addr = FuncAddr::new_unsafe(frame.module_index(), *function_index as usize);
                 self.invoke(addr, store, interceptor)
             }
-            InstructionKind::CallIndirect { index, table_index } => {
+            InstructionKind::CallIndirect { type_index, table_index, .. } => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let addr = TableAddr::new_unsafe(frame.module_index(), *table_index as usize);
                 let module = store.module(frame.module_index()).defined().unwrap();
-                let ty = module.get_type(*index as usize);
+                let ty = module.get_type(*type_index as usize);
                 let buf_index: i32 = self.pop_as()?;
                 let table = store.table(addr);
                 let buf_index = buf_index as usize;
@@ -469,9 +469,9 @@ impl Executor {
                 Ok(Signal::Next)
             }
 
-            InstructionKind::TableInit { segment, table } => {
+            InstructionKind::TableInit { elem_index, table } => {
                 let table_addr = TableAddr::new_unsafe(module_index, *table as usize);
-                let elem_addr = ElemAddr::new_unsafe(module_index, *segment as usize);
+                let elem_addr = ElemAddr::new_unsafe(module_index, *elem_index as usize);
                 let table = store.table(table_addr);
                 let elem = store.elem(elem_addr);
                 let n = self.pop_as::<i32>()? as usize;
@@ -487,8 +487,8 @@ impl Executor {
                 }
                 Ok(Signal::Next)
             }
-            InstructionKind::ElemDrop { segment } => {
-                let elem_addr = ElemAddr::new_unsafe(module_index, *segment as usize);
+            InstructionKind::ElemDrop { elem_index } => {
+                let elem_addr = ElemAddr::new_unsafe(module_index, *elem_index as usize);
                 let elem = store.elem(elem_addr);
                 elem.borrow_mut().drop_elem();
                 Ok(Signal::Next)
@@ -580,10 +580,10 @@ impl Executor {
                 }
                 Ok(Signal::Next)
             }
-            InstructionKind::MemoryCopy { src, dst } => {
-                let dst_addr = MemoryAddr::new_unsafe(module_index, *dst as usize);
+            InstructionKind::MemoryCopy { src_mem, dst_mem } => {
+                let dst_addr = MemoryAddr::new_unsafe(module_index, *dst_mem as usize);
                 let dst_mem = store.memory(dst_addr);
-                let src_addr = MemoryAddr::new_unsafe(module_index, *src as usize);
+                let src_addr = MemoryAddr::new_unsafe(module_index, *src_mem as usize);
                 let src_mem = store.memory(src_addr);
                 let n = self.pop_as::<i32>()? as usize;
                 let src_base = self.pop_as::<i32>()? as usize;
@@ -617,9 +617,9 @@ impl Executor {
 
                 Ok(Signal::Next)
             }
-            InstructionKind::MemoryInit { segment, mem } => {
+            InstructionKind::MemoryInit { data_index, mem } => {
                 let mem_addr = MemoryAddr::new_unsafe(module_index, *mem as usize);
-                let seg_addr = DataAddr::new_unsafe(module_index, *segment as usize);
+                let seg_addr = DataAddr::new_unsafe(module_index, *data_index as usize);
                 let mem = store.memory(mem_addr);
                 let data = store.data(seg_addr);
                 let n = self.pop_as::<i32>()? as usize;
@@ -633,8 +633,8 @@ impl Executor {
                     .store(dst_base, &data.borrow().raw()[src_base..(src_base + n)])?;
                 Ok(Signal::Next)
             }
-            InstructionKind::DataDrop { segment } => {
-                let data_addr = DataAddr::new_unsafe(module_index, *segment as usize);
+            InstructionKind::DataDrop { data_index } => {
+                let data_addr = DataAddr::new_unsafe(module_index, *data_index as usize);
                 let data = store.data(data_addr);
                 data.borrow_mut().drop_bytes();
                 Ok(Signal::Next)
@@ -893,9 +893,9 @@ impl Executor {
                     let index = self.pc.inst_index().0 as usize;
                     match self.current_func_insts(store)?[index].kind {
                         InstructionKind::End => depth -= 1,
-                        InstructionKind::Block { ty: _ } => depth += 1,
-                        InstructionKind::If { ty: _ } => depth += 1,
-                        InstructionKind::Loop { ty: _ } => depth += 1,
+                        InstructionKind::Block { .. } => depth += 1,
+                        InstructionKind::If { .. } => depth += 1,
+                        InstructionKind::Loop { .. } => depth += 1,
                         _ => (),
                     }
                     self.pc.inc_inst_index();
@@ -966,7 +966,7 @@ impl Executor {
 
         let mut args = Vec::new();
         let mut found_mismatch = false;
-        for _ in func.ty().params.iter() {
+        for _ in func.ty().params().iter() {
             match self.stack.pop_value() {
                 Ok(val) => args.push(val),
                 Err(_) => found_mismatch = true,
@@ -977,12 +977,12 @@ impl Executor {
             return Err(Trap::DirectCallTypeMismatch {
                 callee_name: func.name().to_string(),
                 actual: args.iter().map(|v| v.value_type()).collect(),
-                expected: func.ty().params.to_vec(),
+                expected: func.ty().params().to_vec(),
             });
         }
         args.reverse();
 
-        let arity = func.ty().returns.len();
+        let arity = func.ty().results().len();
         match func {
             FunctionInstance::Defined(func) => {
                 let pc = ProgramCounter::new(func.module_index(), exec_addr, InstIndex::zero());
@@ -1007,7 +1007,7 @@ impl Executor {
     fn do_return(&mut self, store: &Store) -> ExecResult<Signal> {
         let ret_pc = self.stack.current_frame().map_err(Trap::Stack)?.ret_pc;
         let func = store.func_global(self.pc.exec_addr());
-        let arity = func.ty().returns.len();
+        let arity = func.ty().results().len();
         let results = self.stack.pop_values(arity).map_err(Trap::Stack)?;
         self.stack
             .pop_while(|v| !matches!(v, StackValue::Activation(_)));
@@ -1021,15 +1021,15 @@ impl Executor {
     }
 
     /// Returns a pair of arities for parameter and result
-    fn get_type_arity(&self, ty: &TypeOrFuncType, store: &Store) -> ExecResult<(usize, usize)> {
+    fn get_type_arity(&self, ty: &BlockType, store: &Store) -> ExecResult<(usize, usize)> {
         Ok(match ty {
-            TypeOrFuncType::Type(Type::EmptyBlockType) => (0, 0),
-            TypeOrFuncType::Type(_) => (0, 1),
-            TypeOrFuncType::FuncType(type_id) => {
+            BlockType::Empty => (0, 0),
+            BlockType::Type(_) => (0, 1),
+            BlockType::FuncType(type_id) => {
                 let frame = self.stack.current_frame().map_err(Trap::Stack)?;
                 let module = store.module(frame.module_index()).defined().unwrap();
                 let ty = module.get_type(*type_id as usize);
-                (ty.params.len(), ty.returns.len())
+                (ty.params().len(), ty.results().len())
             }
         })
     }
@@ -1142,9 +1142,9 @@ impl Executor {
     }
 }
 
-use wasmparser::InitExpr;
+use wasmparser::ConstExpr;
 pub fn eval_const_expr(
-    init_expr: &InitExpr,
+    init_expr: &ConstExpr,
     store: &Store,
     module_index: ModuleIndex,
 ) -> anyhow::Result<Value> {

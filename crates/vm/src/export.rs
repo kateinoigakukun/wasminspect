@@ -18,9 +18,9 @@ impl ExportInstance {
     pub fn new_from_entry(entry: wasmparser::Export, module_index: ModuleIndex) -> Self {
         use wasmparser::ExternalKind;
         Self {
-            name: entry.field.to_string(),
+            name: entry.name.to_string(),
             value: match entry.kind {
-                ExternalKind::Function => {
+                ExternalKind::Func => {
                     let addr = FuncAddr::new_unsafe(module_index, entry.index as usize);
                     ExternalValue::Func(addr)
                 }
@@ -35,9 +35,6 @@ impl ExportInstance {
                 ExternalKind::Table => {
                     let addr = TableAddr::new_unsafe(module_index, entry.index as usize);
                     ExternalValue::Table(addr)
-                }
-                ExternalKind::Type | ExternalKind::Module | ExternalKind::Instance => {
-                    panic!("module type is not supported yet")
                 }
                 ExternalKind::Tag => {
                     panic!("event is not supported yet")

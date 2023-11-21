@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasmparser::{
     Data, DataKind, Element, ElementItem, ElementKind, FuncType, FunctionBody, Global, GlobalType,
-    Import, MemoryType, NameSectionReader, TableType, Type, TypeDef,
+    Import, MemoryType, NameSectionReader, TableType, Type, ValType,
 };
 
 #[derive(Default)]
@@ -154,29 +154,29 @@ pub enum StoreError {
     },
     UndefinedFunction {
         module: String,
-        field: Option<String>,
+        name: String,
     },
     UndefinedMemory {
         module: String,
-        field: Option<String>,
+        name: String,
     },
     UndefinedTable {
         module: String,
-        field: Option<String>,
+        name: String,
     },
     UndefinedGlobal {
         module: String,
-        field: Option<String>,
+        name: String,
     },
     IncompatibleImportFuncType(String, FuncType, FuncType),
-    IncompatibleImportGlobalType(Type, Type),
+    IncompatibleImportGlobalType(ValType, ValType),
     IncompatibleImportGlobalMutability,
     IncompatibleImportTableType,
     IncompatibleImportMemoryType {
         message: String,
     },
     InvalidElementSegmentsType {
-        ty: Type,
+        ty: ValType,
     },
 }
 impl std::error::Error for StoreError {}
@@ -193,25 +193,25 @@ impl std::fmt::Display for StoreError {
             Self::UnknownType { type_index } => {
                 write!(f, "Unknown type index used: {:?}", type_index)
             }
-            Self::UndefinedFunction { module, field } => write!(
+            Self::UndefinedFunction { module, name } => write!(
                 f,
                 "unknown import: Undefined function \"{:?}\" in \"{}\"",
-                field, module
+                name, module
             ),
-            Self::UndefinedMemory { module, field } => write!(
+            Self::UndefinedMemory { module, name } => write!(
                 f,
                 "unknown import: Undefined memory \"{:?}\" in \"{}\"",
-                field, module
+                name, module
             ),
-            Self::UndefinedTable { module, field } => write!(
+            Self::UndefinedTable { module, name } => write!(
                 f,
                 "unknown import: Undefined table \"{:?}\" in \"{}\"",
-                field, module
+                name, module
             ),
-            Self::UndefinedGlobal { module, field } => write!(
+            Self::UndefinedGlobal { module, name } => write!(
                 f,
-                "unknown import: Undefined global \"{:?}\" in \"{}\"",
-                field, module
+                "unknown import: Undefined global \"{}\" in \"{}\"",
+                name, module
             ),
             Self::IncompatibleImportFuncType(name, expected, actual) => write!(
                 f,
@@ -245,11 +245,10 @@ fn read_name_section(mut reader: wasmparser::NameSectionReader) -> Result<HashMa
             Err(_) => return Ok(func_names),
         };
         match name {
-            wasmparser::Name::Module(_) => continue,
-            wasmparser::Name::Function(n) => {
-                let mut map = n.get_map()?;
-                for _ in 0..map.get_count() {
-                    let naming = map.read()?;
+            wasmparser::Name::Module { .. } => continue,
+            wasmparser::Name::Function(map) => {
+                for naming in map {
+                    let naming = naming?;
                     func_names.insert(naming.index, String::from(naming.name));
                 }
             }
@@ -300,7 +299,7 @@ impl Store {
                     types.reserve_exact(section.get_count() as usize);
                     for entry in section {
                         match entry? {
-                            TypeDef::Func(fn_ty) => types.push(fn_ty),
+                            wasmparser::Type::Func(fn_ty) => types.push(fn_ty),
                             _ => panic!("module type is not supported yet"),
                         }
                     }
@@ -363,21 +362,16 @@ impl Store {
                 Payload::StartSection { func, .. } => {
                     start_func = Some(FuncAddr::new_unsafe(module_index, func as usize));
                 }
-                Payload::CustomSection {
-                    name,
-                    data,
-                    data_offset,
-                    ..
-                } => {
-                    if name == "name" {
-                        let section = NameSectionReader::new(data, data_offset)?;
+                Payload::CustomSection(section) => {
+                    if section.name() == "name" {
+                        let section = NameSectionReader::new(section.data(), section.data_offset())?;
                         func_names = read_name_section(section)?;
                     }
                 }
-                Payload::ModuleSectionEntry { .. } => {
+                Payload::ModuleSection { .. } => {
                     panic!("nested module is not supported yet");
                 }
-                Payload::End => {
+                Payload::End(_) => {
                     break;
                 }
                 _ => (),
@@ -431,9 +425,9 @@ impl Store {
         types: &[FuncType],
     ) -> Result<()> {
         for import in imports {
-            use wasmparser::ImportSectionEntryType::*;
+            use wasmparser::TypeRef::*;
             match import.ty {
-                Function(type_index) => {
+                Func(type_index) => {
                     self.load_import_function(module_index, import, type_index as usize, types)?;
                 }
                 Memory(memory_ty) => {
@@ -444,9 +438,6 @@ impl Store {
                 }
                 Global(global_ty) => {
                     self.load_import_global(module_index, import, global_ty)?;
-                }
-                Module(_) | Instance(_) => {
-                    panic!("module type is not supported yet");
                 }
                 Tag(_) => panic!("event type is not supported yet"),
             }
@@ -466,13 +457,12 @@ impl Store {
             .ok_or(StoreError::UnknownType { type_index })?
             .clone();
         let name = import
-            .field
-            .with_context(|| "expect non-nil field name in function import")?
+            .name
             .to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || StoreError::UndefinedFunction {
             module: import.module.to_string(),
-            field: import.field.map(String::from),
+            name: import.name.to_string(),
         };
         let exec_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -509,11 +499,10 @@ impl Store {
     ) -> Result<()> {
         let err = || StoreError::UndefinedMemory {
             module: import.module.to_string(),
-            field: import.field.map(String::from),
+            name: import.name.to_string(),
         };
         let name = import
-            .field
-            .with_context(|| "expect non-nil field name in memory import")?
+            .name
             .to_string();
         let module = self.module_by_name(import.module.to_string());
         let resolved_addr = match module {
@@ -574,13 +563,12 @@ impl Store {
         table_ty: TableType,
     ) -> Result<()> {
         let name = import
-            .field
-            .with_context(|| "expect non-nil field name in table import")?
+            .name
             .to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || StoreError::UndefinedTable {
             module: import.module.to_string(),
-            field: import.field.map(String::from),
+            name: import.name.to_string(),
         };
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -598,7 +586,7 @@ impl Store {
         let found = self.tables.get_global(resolved_addr);
         // Validation
         {
-            if Into::<Type>::into(found.borrow().ty) != table_ty.element_type {
+            if Into::<ValType>::into(found.borrow().ty) != table_ty.element_type {
                 return Err(StoreError::IncompatibleImportTableType.into());
             }
             if found.borrow().initial < table_ty.initial as usize {
@@ -626,13 +614,12 @@ impl Store {
         global_ty: GlobalType,
     ) -> Result<()> {
         let name = import
-            .field
-            .with_context(|| "expect non-nil field name in global import")?
+            .name
             .to_string();
         let module = self.module_by_name(import.module.to_string());
         let err = || StoreError::UndefinedGlobal {
             module: import.module.to_string(),
-            field: import.field.map(String::from),
+            name: import.name.to_string(),
         };
         let resolved_addr = match module {
             ModuleInstance::Defined(defined) => {
@@ -724,8 +711,8 @@ impl Store {
         }
         for table in tables.iter() {
             let ty = match table.element_type {
-                Type::FuncRef => RefType::FuncRef,
-                Type::ExternRef => RefType::ExternRef,
+                ValType::FuncRef => RefType::FuncRef,
+                ValType::ExternRef => RefType::ExternRef,
                 other => unimplemented!("unexpected table element type {:?}", other),
             };
             let instance = TableInstance::new(
@@ -741,8 +728,8 @@ impl Store {
         let tables = self.tables.items(module_index).unwrap();
         for seg in element_segments {
             let ty = match seg.ty {
-                Type::FuncRef => RefType::FuncRef,
-                Type::ExternRef => RefType::ExternRef,
+                ValType::FuncRef => RefType::FuncRef,
+                ValType::ExternRef => RefType::ExternRef,
                 _ => return Err(StoreError::InvalidElementSegmentsType { ty: seg.ty }.into()),
             };
             let data = seg
@@ -770,13 +757,13 @@ impl Store {
             match seg.kind {
                 ElementKind::Active {
                     table_index,
-                    init_expr,
+                    offset_expr,
                 } => {
                     let table_addr = match tables.get(table_index as usize) {
                         Some(addr) => addr,
                         None => break,
                     };
-                    let offset = match eval_const_expr(&init_expr, self, module_index)? {
+                    let offset = match eval_const_expr(&offset_expr, self, module_index)? {
                         Value::Num(NumVal::I32(v)) => v,
                         other => panic!("unexpected result value of const init expr {:?}", other),
                     };
@@ -822,13 +809,13 @@ impl Store {
             let instance = match seg.kind {
                 DataKind::Active {
                     memory_index,
-                    init_expr,
+                    offset_expr
                 } => {
                     let mem_addr = match mems.get(memory_index as usize) {
                         Some(addr) => addr,
                         None => continue,
                     };
-                    let offset = match eval_const_expr(&init_expr, self, module_index)? {
+                    let offset = match eval_const_expr(&offset_expr, self, module_index)? {
                         Value::Num(NumVal::I32(v)) => v,
                         other => panic!("unexpected result value of const init expr {:?}", other),
                     };

@@ -73,11 +73,11 @@ pub enum RefType {
     ExternRef,
 }
 
-impl From<RefType> for wasmparser::Type {
+impl From<RefType> for wasmparser::ValType {
     fn from(from: RefType) -> Self {
         match from {
-            RefType::FuncRef => wasmparser::Type::FuncRef,
-            RefType::ExternRef => wasmparser::Type::ExternRef,
+            RefType::FuncRef => wasmparser::ValType::FuncRef,
+            RefType::ExternRef => wasmparser::ValType::ExternRef,
         }
     }
 }
@@ -108,40 +108,40 @@ impl Value {
         Value::Num(NumVal::F64(F64(v)))
     }
 
-    pub fn null_ref(ty: wasmparser::Type) -> Option<Value> {
+    pub fn null_ref(ty: wasmparser::ValType) -> Option<Value> {
         let r = match ty {
-            wasmparser::Type::FuncRef => RefVal::NullRef(RefType::FuncRef),
-            wasmparser::Type::ExternRef => RefVal::NullRef(RefType::ExternRef),
+            wasmparser::ValType::FuncRef => RefVal::NullRef(RefType::FuncRef),
+            wasmparser::ValType::ExternRef => RefVal::NullRef(RefType::ExternRef),
             _ => return None,
         };
         Some(Value::Ref(r))
     }
 
-    pub fn isa(&self, ty: wasmparser::Type) -> bool {
+    pub fn isa(&self, ty: wasmparser::ValType) -> bool {
         match self {
             Value::Num(_) => self.value_type() == ty,
             Value::Ref(r) => matches!(
                 (r, ty),
-                (RefVal::ExternRef(_), wasmparser::Type::ExternRef)
-                    | (RefVal::FuncRef(_), wasmparser::Type::FuncRef)
+                (RefVal::ExternRef(_), wasmparser::ValType::ExternRef)
+                    | (RefVal::FuncRef(_), wasmparser::ValType::FuncRef)
                     | (
                         RefVal::NullRef(RefType::ExternRef),
-                        wasmparser::Type::ExternRef
+                        wasmparser::ValType::ExternRef
                     )
-                    | (RefVal::NullRef(RefType::FuncRef), wasmparser::Type::FuncRef)
+                    | (RefVal::NullRef(RefType::FuncRef), wasmparser::ValType::FuncRef)
             ),
         }
     }
 
-    pub fn value_type(&self) -> wasmparser::Type {
+    pub fn value_type(&self) -> wasmparser::ValType {
         match self {
-            Value::Num(NumVal::I32(_)) => wasmparser::Type::I32,
-            Value::Num(NumVal::I64(_)) => wasmparser::Type::I64,
-            Value::Num(NumVal::F32(_)) => wasmparser::Type::F32,
-            Value::Num(NumVal::F64(_)) => wasmparser::Type::F64,
-            Value::Ref(RefVal::NullRef(_)) => wasmparser::Type::FuncRef,
-            Value::Ref(RefVal::FuncRef(_)) => wasmparser::Type::FuncRef,
-            Value::Ref(RefVal::ExternRef(_)) => wasmparser::Type::ExternRef,
+            Value::Num(NumVal::I32(_)) => wasmparser::ValType::I32,
+            Value::Num(NumVal::I64(_)) => wasmparser::ValType::I64,
+            Value::Num(NumVal::F32(_)) => wasmparser::ValType::F32,
+            Value::Num(NumVal::F64(_)) => wasmparser::ValType::F64,
+            Value::Ref(RefVal::NullRef(_)) => wasmparser::ValType::FuncRef,
+            Value::Ref(RefVal::FuncRef(_)) => wasmparser::ValType::FuncRef,
+            Value::Ref(RefVal::ExternRef(_)) => wasmparser::ValType::ExternRef,
         }
     }
 
@@ -227,7 +227,7 @@ pub trait NativeValue: Sized {
     /// An attempted conversion from an any value to a specific type value
     fn from_value(val: Value) -> Option<Self>;
     /// A type in WebAssembly of a value of this type
-    fn value_type() -> wasmparser::Type;
+    fn value_type() -> wasmparser::ValType;
 }
 
 macro_rules! impl_native_value {
@@ -240,8 +240,8 @@ macro_rules! impl_native_value {
                 }
             }
 
-            fn value_type() -> wasmparser::Type {
-                wasmparser::Type::$case
+            fn value_type() -> wasmparser::ValType {
+                wasmparser::ValType::$case
             }
         }
     };

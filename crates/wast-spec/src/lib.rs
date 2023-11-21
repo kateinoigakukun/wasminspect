@@ -3,7 +3,10 @@ use anyhow::{anyhow, bail, Context as _, Result};
 use std::collections::HashMap;
 use std::path::Path;
 use std::str;
-use wast::HeapType;
+use wast::{
+    core::{HeapType, NanPattern, WastArgCore, WastRetCore},
+    QuoteWat, WastArg, Wat,
+};
 mod spectest;
 pub use spectest::instantiate_spectest;
 use wasminspect_vm::{
@@ -46,9 +49,14 @@ impl WastContext {
         }
         Ok(None)
     }
-    fn module(&mut self, module_id: Option<wast::Id>, bytes: Vec<u8>) -> Result<()> {
+    fn module(&mut self, mut wat: QuoteWat<'_>) -> Result<()> {
+        let module_id = match &wat {
+            wast::QuoteWat::Wat(Wat::Module(m)) => m.id,
+            wast::QuoteWat::QuoteModule(_, bytes) => None,
+            _ => panic!(),
+        };
         let module_name = module_id.map(|id| id.name());
-        let mut bytes = bytes;
+        let mut bytes = wat.encode()?;
         self.validate(&bytes)?;
         let start_section = Self::extract_start_section(&bytes)?;
         let module_index = self
@@ -69,8 +77,6 @@ impl WastContext {
     }
 
     pub fn run_buffer(&mut self, filename: &str, wast: &[u8]) -> Result<()> {
-        use wast::WastDirective::*;
-
         let wast = str::from_utf8(wast)?;
 
         let adjust_wast = |mut err: wast::Error| {
@@ -78,21 +84,35 @@ impl WastContext {
             err.set_text(wast);
             err
         };
-        let context = |sp: wast::Span| {
+
+        let mut lexer = wast::lexer::Lexer::new(wast);
+        lexer.allow_confusing_unicode(filename.ends_with("names.wast"));
+        let buf = wast::parser::ParseBuffer::new_with_lexer(lexer).map_err(adjust_wast)?;
+        let ast = wast::parser::parse::<wast::Wast>(&buf).map_err(adjust_wast)?;
+
+        self.run_directives(ast.directives, filename, wast)
+    }
+    
+    fn run_directives(
+        &mut self,
+         directives: Vec<wast::WastDirective<'_>>,
+        filename: &str,
+        wast: &str,
+    ) -> Result<()> {
+        use wast::WastDirective::*;
+
+        let adjust_wast = |mut err: wast::Error| {
+            err.set_path(filename.as_ref());
+            err.set_text(wast);
+            err
+        };
+        let context = |sp: wast::token::Span| {
             let (line, col) = sp.linecol_in(wast);
             format!("for directive on {}:{}:{}", filename, line + 1, col)
         };
 
-        let buf = wast::parser::ParseBuffer::new(wast).map_err(adjust_wast)?;
-        let wast = wast::parser::parse::<wast::Wast>(&buf).map_err(adjust_wast)?;
-
-        for directive in wast.directives {
+        for directive in directives {
             match directive {
-                Module(mut module) => {
-                    let bytes = module.encode().map_err(adjust_wast)?;
-                    self.module(module.id, bytes)
-                        .map_err(|err| anyhow!("{}, {}", err, context(module.span)))?;
-                }
                 Register {
                     span: _,
                     name,
@@ -113,8 +133,13 @@ impl WastContext {
                 } => match self.perform_execute(exec).with_context(|| context(span)) {
                     Ok(Ok(values)) => {
                         for (v, e) in values.iter().zip(results) {
-                            if val_matches(v, &e)? {
-                                continue;
+                            match &e {
+                                wast::WastRet::Core(e) => {
+                                    if val_matches(v, e)? {
+                                        continue;
+                                    }
+                                }
+                                wast::WastRet::Component(_) => todo!("component is not supported yet")
                             }
                             bail!("expected {:?}, got {:?} {}", e, v, context(span))
                         }
@@ -142,14 +167,7 @@ impl WastContext {
                     module,
                     message: _,
                 } => {
-                    let mut module = match module {
-                        wast::QuoteModule::Module(m) => m,
-                        // this is a `*.wat` parser test which we're not
-                        // interested in
-                        wast::QuoteModule::Quote(_) => continue,
-                    };
-                    let bytes = module.encode().map_err(adjust_wast)?;
-                    if let Ok(()) = self.module(None, bytes) {
+                    if let Ok(()) = self.module(module) {
                         panic!("{}\nexpected module to fail to instantiate", context(span))
                     };
                 }
@@ -158,8 +176,7 @@ impl WastContext {
                     mut module,
                     message,
                 } => {
-                    let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, bytes) {
+                    let err = match self.module(QuoteWat::Wat(module)) {
                         Ok(()) => panic!("{}\nexpected module to fail to link", context(span)),
                         Err(e) => e,
                     };
@@ -192,13 +209,7 @@ impl WastContext {
                     module,
                     message,
                 } => {
-                    let mut module = match module {
-                        wast::QuoteModule::Module(m) => m,
-                        // wasminspect doesn't interested in quoted partial module
-                        wast::QuoteModule::Quote(_) => continue,
-                    };
-                    let bytes = module.encode().map_err(adjust_wast)?;
-                    let err = match self.module(None, bytes) {
+                    let err = match self.module(module) {
                         Ok(()) => panic!("{}\nexpected module to fail to build", context(span)),
                         Err(e) => e,
                     };
@@ -213,9 +224,9 @@ impl WastContext {
                         )
                     }
                 }
-                QuoteModule { span, source } => {
+                Wat(wast::QuoteWat::QuoteModule(span, source)) => {
                     let mut module = String::new();
-                    for src in source {
+                    for (_, src) in source {
                         module.push_str(str::from_utf8(src)?);
                         module.push(' ');
                     }
@@ -224,9 +235,11 @@ impl WastContext {
                         e.set_text(&module);
                         e
                     })?;
-                    let binary = wat.module.encode().map_err(adjust_wast)?;
-                    self.module(wat.module.id, binary)
+                    self.module(QuoteWat::Wat(wat))
                         .with_context(|| context(span))?;
+                }
+                Wat(wat) => {
+                    self.module(wat)?;
                 }
                 AssertException { span, exec } => {
                     match self.perform_execute(exec).with_context(|| context(span)) {
@@ -239,12 +252,13 @@ impl WastContext {
                         Err(err) => panic!("{}", err),
                     }
                 }
+                _ => todo!("unsupported directive: "),
             }
         }
         Ok(())
     }
 
-    fn get_instance(&self, module_id: Option<wast::Id>) -> Result<ModuleIndex> {
+    fn get_instance(&self, module_id: Option<wast::token::Id>) -> Result<ModuleIndex> {
         let name = module_id.map(|s| s.name());
         match name {
             Some(name) => self
@@ -260,7 +274,11 @@ impl WastContext {
     }
 
     /// Get the value of an exported global from an instance.
-    fn get(&mut self, module_id: Option<wast::Id>, field: &str) -> Result<Result<Vec<WasmValue>>> {
+    fn get(
+        &mut self,
+        module_id: Option<wast::token::Id>,
+        field: &str,
+    ) -> Result<Result<Vec<WasmValue>>> {
         let module_index = self.get_instance(module_id)?;
         match self
             .instance
@@ -274,12 +292,18 @@ impl WastContext {
 
     fn invoke(
         &mut self,
-        module_id: Option<wast::Id>,
+        module_id: Option<wast::token::Id>,
         func_name: &str,
-        args: &[wast::Expression],
+        args: &[wast::WastArg],
     ) -> Result<Vec<WasmValue>> {
         let module_index = self.get_instance(module_id)?;
-        let args = args.iter().map(const_expr).collect();
+        let args = args
+            .iter()
+            .map(|v| match v {
+                WastArg::Core(core) => Ok(const_expr(core)),
+                WastArg::Component(_) => bail!("component is not supported yet"),
+            })
+            .collect::<Result<Vec<_>>>()?;
         let result = self
             .instance
             .run(
@@ -295,7 +319,7 @@ impl WastContext {
     fn perform_execute(&mut self, exec: wast::WastExecute<'_>) -> Result<Result<Vec<WasmValue>>> {
         match exec {
             wast::WastExecute::Invoke(i) => Ok(self.invoke(i.module, i.name, &i.args)),
-            wast::WastExecute::Module(mut module) => {
+            wast::WastExecute::Wat(mut module) => {
                 let mut binary = module.encode()?;
                 self.validate(&binary)?;
                 let start_section = Self::extract_start_section(&binary)?;
@@ -320,31 +344,31 @@ impl WastContext {
     }
 
     fn validate(&self, bytes: &[u8]) -> wasmparser::Result<()> {
-        let mut validator = wasmparser::Validator::new();
-        validator.wasm_features(self.config.features);
-        validator.validate_all(bytes)
+        let mut validator = wasmparser::Validator::new_with_features(self.config.features);
+        validator.validate_all(bytes)?;
+        Ok(())
     }
 }
 
-fn val_matches(actual: &WasmValue, expected: &wast::AssertExpression) -> Result<bool> {
+fn val_matches(actual: &WasmValue, expected: &WastRetCore) -> Result<bool> {
     Ok(match (actual, expected) {
-        (WasmValue::Num(NumVal::I32(a)), wast::AssertExpression::I32(x)) => a == x,
-        (WasmValue::Num(NumVal::I64(a)), wast::AssertExpression::I64(x)) => a == x,
-        (WasmValue::Num(NumVal::F32(a)), wast::AssertExpression::F32(x)) => match x {
-            wast::NanPattern::CanonicalNan => is_canonical_f32_nan(a),
-            wast::NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
-            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
+        (WasmValue::Num(NumVal::I32(a)), WastRetCore::I32(x)) => a == x,
+        (WasmValue::Num(NumVal::I64(a)), WastRetCore::I64(x)) => a == x,
+        (WasmValue::Num(NumVal::F32(a)), WastRetCore::F32(x)) => match x {
+            NanPattern::CanonicalNan => is_canonical_f32_nan(a),
+            NanPattern::ArithmeticNan => is_arithmetic_f32_nan(a),
+            NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
         },
-        (WasmValue::Num(NumVal::F64(a)), wast::AssertExpression::F64(x)) => match x {
-            wast::NanPattern::CanonicalNan => is_canonical_f64_nan(a),
-            wast::NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
-            wast::NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
+        (WasmValue::Num(NumVal::F64(a)), WastRetCore::F64(x)) => match x {
+            NanPattern::CanonicalNan => is_canonical_f64_nan(a),
+            NanPattern::ArithmeticNan => is_arithmetic_f64_nan(a),
+            NanPattern::Value(expected_value) => a.to_bits() == expected_value.bits,
         },
-        (WasmValue::Ref(RefVal::ExternRef(a)), wast::AssertExpression::RefExtern(x)) => a == x,
-        (WasmValue::Ref(RefVal::NullRef(a)), wast::AssertExpression::RefNull(Some(x))) => {
+        (WasmValue::Ref(RefVal::ExternRef(a)), WastRetCore::RefExtern(Some(x))) => a == x,
+        (WasmValue::Ref(RefVal::NullRef(a)), WastRetCore::RefNull(Some(x))) => {
             Some(*a) == to_ref_type(x)
         }
-        (_, wast::AssertExpression::V128(_)) => bail!("V128 is not supported yet"),
+        (_, WastRetCore::V128(_)) => bail!("V128 is not supported yet"),
         _ => bail!("unexpected comparing for {:?} and {:?}", actual, expected),
     })
 }
@@ -357,15 +381,15 @@ fn to_ref_type(heap_ty: &HeapType) -> Option<RefType> {
     }
 }
 
-fn const_expr(expr: &wast::Expression) -> WasmValue {
-    match &expr.instrs[0] {
-        wast::Instruction::I32Const(x) => WasmValue::I32(*x),
-        wast::Instruction::I64Const(x) => WasmValue::I64(*x),
-        wast::Instruction::F32Const(x) => WasmValue::F32(x.bits),
-        wast::Instruction::F64Const(x) => WasmValue::F64(x.bits),
-        wast::Instruction::V128Const(_) => panic!(),
-        wast::Instruction::RefExtern(x) => WasmValue::Ref(RefVal::ExternRef(*x)),
-        wast::Instruction::RefNull(ty) => WasmValue::Ref(RefVal::NullRef(to_ref_type(ty).unwrap())),
+fn const_expr(expr: &WastArgCore) -> WasmValue {
+    match &expr {
+        WastArgCore::I32(x) => WasmValue::I32(*x),
+        WastArgCore::I64(x) => WasmValue::I64(*x),
+        WastArgCore::F32(x) => WasmValue::F32(x.bits),
+        WastArgCore::F64(x) => WasmValue::F64(x.bits),
+        WastArgCore::V128(_) => panic!(),
+        WastArgCore::RefExtern(x) => WasmValue::Ref(RefVal::ExternRef(*x)),
+        WastArgCore::RefNull(ty) => WasmValue::Ref(RefVal::NullRef(to_ref_type(ty).unwrap())),
         other => panic!("unsupported const expr inst {:?}", other),
     }
 }

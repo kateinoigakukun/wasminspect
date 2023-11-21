@@ -22,6 +22,69 @@ pub fn try_from_wasmparser_operator(ast: DeriveInput) -> Result<proc_macro2::Tok
     })
 }
 
+pub fn define_instr_kind(ast: proc_macro2::TokenStream) -> Result<proc_macro2::TokenStream> {
+    // Accept ($( @$proposal:ident $op:ident $({ $($arg:ident: $argty:ty),* })? => $visit:ident)*)
+
+    let mut tokens = proc_macro2::TokenStream::new();
+    let mut iter = ast.into_iter();
+
+    loop {
+        let at = match iter.next() {
+            Some(t) => t,
+            None => break,
+        };
+        assert_eq!(at.to_string(), "@");
+
+        let _proposal = iter.next().expect("unexpected end of input");
+
+        let op = iter.next().expect("unexpected end of input");
+        let op = match op {
+            proc_macro2::TokenTree::Ident(i) => i,
+            _ => panic!("unexpected token: {}", op),
+        };
+
+        let mut payload = None;
+        if let Some(proc_macro2::TokenTree::Group(g)) = iter.clone().next() {
+            iter.next();
+            payload = Some(g.stream());
+        }
+
+        assert_eq!(iter.next().expect("unexpected end of input").to_string(), "=");
+        assert_eq!(iter.next().expect("unexpected end of input").to_string(), ">");
+        iter.next().expect("unexpected end of input");
+
+
+        tokens.extend(build_instr_kind_case(op, payload));
+    }
+
+    Ok(quote! {
+        #[derive(Debug, Clone, TryFromWasmParserOperator)]
+        pub enum InstructionKind {
+            #tokens
+        }
+    })
+}
+
+fn build_instr_kind_case(op: proc_macro2::Ident, payload: Option<proc_macro2::TokenStream>) -> proc_macro2::TokenStream {
+    if let Some(payload) = payload {
+        // BrTable is a special case because it has lifetime in its payload
+        if op == "BrTable" {
+            return quote! {
+                #op {
+                    targets: BrTableData
+                },
+            };
+        }
+        quote! {
+            #op { #payload },
+        }
+    } else {
+        quote! {
+            #op,
+        }
+    }
+}
+
 fn build_translate_arm(
     enum_name: &proc_macro2::Ident,
     variant: &Variant,

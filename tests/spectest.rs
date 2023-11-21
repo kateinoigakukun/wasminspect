@@ -12,7 +12,7 @@ fn run_wast(wast: &str) -> anyhow::Result<()> {
     cfg.features.simd = feature_found(wast, "simd");
     cfg.features.memory64 = feature_found(wast, "memory64");
     cfg.features.multi_memory = feature_found(wast, "multi-memory");
-    cfg.features.module_linking = feature_found(wast, "module-linking");
+    cfg.features.component_model = feature_found(wast, "component-model");
     cfg.features.threads = feature_found(wast, "threads");
 
     let mut context = WastContext::new(cfg);

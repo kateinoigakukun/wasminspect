@@ -23,8 +23,8 @@ pub fn parse_dwarf(module: &[u8]) -> Result<Dwarf> {
     let mut sections = HashMap::new();
     for payload in parser.parse_all(module) {
         match payload? {
-            wasmparser::Payload::CustomSection { name, data, .. } => {
-                sections.insert(name, data);
+            wasmparser::Payload::CustomSection(section) => {
+                sections.insert(section.name(), section.data());
             }
             _ => continue,
         }
