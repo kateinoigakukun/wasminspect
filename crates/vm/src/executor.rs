@@ -167,7 +167,7 @@ impl Executor {
         Ok(results.into_iter().rev().collect())
     }
 
-    pub fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
+    fn current_func_insts<'a>(&self, store: &'a Store) -> ExecResult<&'a [Instruction]> {
         let func = store.func_global(self.pc.exec_addr());
         Ok(func.defined().unwrap().instructions())
     }

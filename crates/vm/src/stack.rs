@@ -257,6 +257,17 @@ impl Stack {
             .collect()
     }
 
+    pub fn frame_at(&self, index: usize) -> Result<&CallFrame> {
+        let mut frames = self.stack
+            .iter()
+            .rev()
+            .filter_map(|v| match v {
+                StackValue::Activation(frame) => Some(frame),
+                _ => None,
+            });
+        frames.nth(index).ok_or(Error::NotEnoughFrames)
+    }
+
     pub fn peek_values(&self) -> Vec<&Value> {
         self.stack
             .iter()

@@ -53,7 +53,7 @@ impl<D: Debugger> Command<D> for ThreadCommand {
             Opts::Info => {
                 let frames = debugger.frame();
                 let frame_name = frames.last().unwrap();
-                let (insts, next_index) = debugger.instructions()?;
+                let (insts, next_index) = debugger.selected_instructions()?;
                 let current_index = if next_index == 0 { 0 } else { next_index - 1 };
                 let current_inst = insts[current_index].clone();
                 let code_offset = current_inst.offset;

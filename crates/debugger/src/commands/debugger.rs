@@ -51,7 +51,8 @@ pub trait Debugger {
     fn store(&self) -> Result<&Store>;
     fn set_breakpoint(&mut self, breakpoint: Breakpoint);
     fn stack_values(&self) -> Vec<WasmValue>;
-    fn instructions(&self) -> Result<(&[Instruction], usize)>;
+    fn selected_instructions(&self) -> Result<(&[Instruction], usize)>;
     fn step(&self, style: StepStyle) -> Result<Signal>;
-    fn process(&self) -> Result<RunResult>;
+    fn process(&mut self) -> Result<RunResult>;
+    fn select_frame(&mut self, frame_index: Option<usize>) -> Result<()>;
 }

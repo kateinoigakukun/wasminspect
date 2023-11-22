@@ -116,7 +116,7 @@ impl DefinedFunctionInstance {
         self.module_index
     }
 
-    pub(crate) fn instructions(&self) -> &[Instruction] {
+    pub fn instructions(&self) -> &[Instruction] {
         &self.instructions
     }
 

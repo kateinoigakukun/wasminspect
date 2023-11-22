@@ -51,7 +51,7 @@ pub fn display_asm<D: Debugger>(
     count: Option<usize>,
     pc_rel: bool,
 ) -> Result<()> {
-    let (insts, inst_index) = debugger.instructions()?;
+    let (insts, inst_index) = debugger.selected_instructions()?;
     let begin = if pc_rel { inst_index } else { 0 };
     let end = if let Some(count) = count {
         begin + count

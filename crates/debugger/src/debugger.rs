@@ -33,6 +33,7 @@ pub struct MainDebugger {
     config: wasminspect_vm::Config,
     breakpoints: Breakpoints,
     is_interrupted: Arc<AtomicBool>,
+    selected_frame: Option<usize>,
 }
 
 #[derive(Default)]
@@ -89,6 +90,7 @@ impl MainDebugger {
             is_interrupted,
             preopen_dirs,
             envs,
+            selected_frame: None,
         })
     }
 
@@ -182,6 +184,25 @@ impl MainDebugger {
             }
         }
     }
+
+    fn selected_frame(&self) -> Result<ProgramCounter> {
+        let executor = self.executor()?;
+        let executor = executor.borrow();
+        if let Some(frame_index) = self.selected_frame {
+            if frame_index != 0 {
+                let frame = executor.stack.frame_at(frame_index - 1).map_err(|_| {
+                    anyhow!("Frame index {} is out of range", frame_index - 1)
+                })?;
+                match frame.ret_pc {
+                    Some(pc) => return Ok(pc),
+                    None => {
+                        return Err(anyhow!("No return address, maybe main or host function?"));
+                    }
+                };
+            }
+        }
+        Ok(executor.pc)
+    }
 }
 
 impl debugger::Debugger for MainDebugger {
@@ -191,11 +212,18 @@ impl debugger::Debugger for MainDebugger {
     fn set_opts(&mut self, opts: DebuggerOpts) {
         self.opts = opts
     }
-    fn instructions(&self) -> Result<(&[Instruction], usize)> {
-        let executor = self.executor()?;
-        let executor = executor.borrow();
-        let insts = executor.current_func_insts(self.store()?)?;
-        Ok((insts, executor.pc.inst_index().0 as usize))
+
+    fn select_frame(&mut self, frame_index: Option<usize>) -> Result<()> {
+        self.selected_frame = frame_index;
+        Ok(())
+    }
+
+    fn selected_instructions(&self) -> Result<(&[Instruction], usize)> {
+        let pc = self.selected_frame()?;
+        let func = self.store()?.func_global(pc.exec_addr());
+        let func = func.defined().ok_or(anyhow!("Function not found"))?;
+        let insts = func.instructions();
+        Ok((insts, pc.inst_index().0 as usize))
     }
 
     fn set_breakpoint(&mut self, breakpoint: debugger::Breakpoint) {
@@ -224,26 +252,22 @@ impl debugger::Debugger for MainDebugger {
     fn locals(&self) -> Vec<WasmValue> {
         if let Ok(ref executor) = self.executor() {
             let executor = executor.borrow();
-            executor.stack.current_frame().unwrap().locals.clone()
-        } else {
-            Vec::new()
+            let frame_index = self.selected_frame.unwrap_or(0);
+            if let Ok(frame) = executor.stack.frame_at(frame_index) {
+                return frame.locals.clone()
+            }
         }
+        vec![]
     }
     fn current_frame(&self) -> Option<debugger::FunctionFrame> {
-        let executor = if let Ok(executor) = self.executor() {
-            executor
-        } else {
-            return None;
-        };
-        let executor = executor.borrow();
-        let frame = executor.stack.current_frame().unwrap();
+        let frame = self.selected_frame().ok()?;
         let func = match self.store() {
-            Ok(store) => store.func_global(frame.exec_addr),
+            Ok(store) => store.func_global(frame.exec_addr()),
             Err(_) => return None,
         };
 
         Some(debugger::FunctionFrame {
-            module_index: frame.module_index,
+            module_index: frame.module_index(),
             argument_count: func.ty().params().len(),
         })
     }
@@ -328,7 +352,8 @@ impl debugger::Debugger for MainDebugger {
         }
     }
 
-    fn process(&self) -> Result<RunResult> {
+    fn process(&mut self) -> Result<RunResult> {
+        self.selected_frame = None;
         let store = self.store()?;
         let executor = self.executor()?;
         loop {

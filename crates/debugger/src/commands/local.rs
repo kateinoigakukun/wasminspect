@@ -45,7 +45,11 @@ impl<D: Debugger> Command<D> for LocalCommand {
                 }
             }
             Opts::Read { index: Some(index) } => {
-                let output = format!("{:?}", debugger.locals()[index]);
+                let locals = debugger.locals();
+                if index >= locals.len() {
+                    return Err(anyhow::anyhow!("{:?} is out of range, locals length is {:?}", index, locals.len()));
+                }
+                let output = format!("{:?}", locals[index]);
                 context.printer.println(&output);
             }
         }

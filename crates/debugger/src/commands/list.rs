@@ -33,7 +33,7 @@ impl<D: Debugger> Command<D> for ListCommand {
 }
 
 pub fn next_line_info<D: Debugger>(debugger: &D, sourcemap: &dyn SourceMap) -> Result<LineInfo> {
-    let (insts, next_index) = debugger.instructions()?;
+    let (insts, next_index) = debugger.selected_instructions()?;
     match sourcemap.find_line_info(insts[next_index].offset) {
         Some(info) => Ok(info),
         None => Err(anyhow!("Source info not found")),

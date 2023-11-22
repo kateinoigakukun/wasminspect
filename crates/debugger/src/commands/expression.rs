@@ -34,7 +34,7 @@ impl<D: Debugger> Command<D> for ExpressionCommand {
         args: Vec<&str>,
     ) -> Result<Option<CommandResult>> {
         let opts = Opts::from_iter_safe(args)?;
-        let (insts, next_index) = debugger.instructions()?;
+        let (insts, next_index) = debugger.selected_instructions()?;
         let current_index = if next_index == 0 { 0 } else { next_index - 1 };
         let current_inst = insts[current_index].clone();
         let locals = debugger.locals();
