@@ -22,6 +22,10 @@ enum Opts {
     /// Start WASI entry point
     #[structopt(name = "launch")]
     Launch {
+        /// Entry point to start
+        start: Option<String>,
+
+        /// Arguments to pass to the WASI entry point
         #[structopt(name = "ARGS", last = true)]
         args: Vec<String>,
     },
@@ -52,8 +56,8 @@ impl<D: Debugger> Command<D> for ProcessCommand {
                     context.printer.println("Hit breakpoint");
                 }
             },
-            Opts::Launch { args } => {
-                return self.start_debugger(debugger, context, args);
+            Opts::Launch { start, args } => {
+                return self.start_debugger(debugger, context, start, args);
             }
         }
         Ok(None)
@@ -64,6 +68,7 @@ impl ProcessCommand {
         &self,
         debugger: &mut D,
         context: &CommandContext,
+        start: Option<String>,
         wasi_args: Vec<String>,
     ) -> Result<Option<CommandResult>> {
         use std::io::Write;
@@ -79,7 +84,7 @@ impl ProcessCommand {
         }
         debugger.instantiate(std::collections::HashMap::new(), Some(&wasi_args))?;
 
-        match debugger.run(None, vec![]) {
+        match debugger.run(start.as_deref(), vec![]) {
             Ok(RunResult::Finish(values)) => {
                 let output = format!("{:?}", values);
                 context.printer.println(&output);
