@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use wasi_cap_std_sync::WasiCtxBuilder;
 use wasi_common::WasiCtx;
 use wasminspect_vm::*;
+use wasmparser::{FuncType, ValType};
 mod borrow;
 
 pub struct WasiContext {
@@ -42,6 +43,18 @@ pub fn instantiate_wasi(
     wasminspect_wasi_macro::define_wasi_fn_for_wasminspect!(
         module,
         "phases/snapshot/witx/wasi_snapshot_preview1.witx"
+    );
+
+    module.insert(
+        "sock_accept".to_string(),
+        HostValue::Func(HostFuncBody::new(
+            FuncType::new(vec![ValType::I32, ValType::I32, ValType::I32], vec![ValType::I32]),
+            move |_, _, _, _| {
+                Err(Trap::HostFunctionError(Box::new(WasiError(
+                    "sock_accept is not supported".to_string(),
+                ))))
+            }
+        )),
     );
 
     let context = WasiContext {
